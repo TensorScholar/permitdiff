@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If PermitDiff supports your research or engineering work, please cite it."
+title: "PermitDiff: Semantic Regression Testing for AI-Agent Tool Permissions"
+type: software
+authors:
+  - family-names: Atashi
+    given-names: Mohammad
+repository-code: "https://github.com/TensorScholar/permitdiff"
+license: Apache-2.0
+version: 0.1.0rc1
+date-released: 2026-07-27
+keywords:
+  - AI agents
+  - permission regression
+  - MCP
+  - policy testing
+  - software supply chain

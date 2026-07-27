@@ -1,0 +1,20 @@
+api_version: permitdiff.dev/v1alpha1
+kind: Gate
+max_privilege_expansions: 0
+max_new_allows: 0
+max_approval_bypasses: 0
+max_uncovered_candidate_rules: 0
+forbid_default_effect_relaxation: true
+fail_on_removed_rules: false
+fail_on_unused_waivers: true
+waivers: []
+
+# An intentional exception must be exact, justified, and temporary:
+# waivers:
+#   - id: approve-low-refund-rollout
+#     scenario_id: refund-50
+#     from_effect: require_approval
+#     to_effect: allow
+#     reason: Approved by Payments Risk for the staged low-value refund rollout.
+#     expires_on: 2026-09-30
+#     issue: https://github.com/example/repository/issues/123

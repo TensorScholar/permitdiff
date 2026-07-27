@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="405" viewBox="0 0 1200 405" role="img" aria-labelledby="title desc">
+  <title id="title">PermitDiff terminal output</title>
+  <desc id="desc">A permission gate fails because a refund changed from approval-required to allowed.</desc>
+  <rect width="1200" height="405" rx="24" fill="#0B0D16"/>
+  <rect x="1" y="1" width="1198" height="403" rx="23" fill="none" stroke="#2B304A"/>
+  <circle cx="32" cy="29" r="7" fill="#FF6B6B"/><circle cx="56" cy="29" r="7" fill="#FFD166"/><circle cx="80" cy="29" r="7" fill="#4ADE80"/>
+  <text x="600" y="36" text-anchor="middle" fill="#727A9E" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">permitdiff compare</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">
+    <text x="36" y="88" fill="#AAB2D5">$ permitdiff compare baseline.yaml candidate.yaml corpus.jsonl --gate gate.yaml</text>
+    <text x="36" y="132" fill="#F4F5FF" font-weight="700">PermitDiff: baseline -&gt; candidate</text>
+    <rect x="412" y="109" width="72" height="31" rx="8" fill="#52252F"/><text x="448" y="132" text-anchor="middle" fill="#FF8E9E" font-weight="700">FAIL</text>
+    <text x="36" y="178" fill="#7F88B2">5 scenarios</text><text x="230" y="178" fill="#FF8E9E">1 privilege expansion</text><text x="530" y="178" fill="#FFCF70">1 approval bypass</text>
+    <line x1="36" y1="202" x2="1164" y2="202" stroke="#2A2E45"/>
+    <text x="36" y="242" fill="#7F88B2">SCENARIO</text><text x="280" y="242" fill="#7F88B2">BEFORE</text><text x="550" y="242" fill="#7F88B2">AFTER</text><text x="780" y="242" fill="#7F88B2">RISK</text>
+    <text x="36" y="284" fill="#EEF0FF">refund-50</text><text x="280" y="284" fill="#FFD166">require_approval</text><text x="550" y="284" fill="#FF7D90">allow</text><text x="780" y="284" fill="#FF7D90">high</text>
+    <line x1="36" y1="310" x2="1164" y2="310" stroke="#2A2E45"/>
+    <text x="36" y="352" fill="#FF8E9E" font-weight="700">BLOCKED</text><text x="145" y="352" fill="#C7CBE5">Human approval was removed from an effective workflow.</text>
+    <text x="36" y="382" fill="#727A9E" font-size="16">exit 2 · deterministic · SARIF + JSON + Markdown</text>
+  </g>
+</svg>

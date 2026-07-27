@@ -1,0 +1,41 @@
+name: PermitDiff
+
+on:
+  pull_request:
+    paths:
+      - "policies/**"
+      - "corpus.jsonl"
+      - "permitdiff-gate.yaml"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  permission-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: python -m pip install permitdiff
+      - name: Review effective permissions
+        run: |
+          set +e
+          permitdiff compare policies/baseline.yaml policies/candidate.yaml corpus.jsonl \
+            --gate permitdiff-gate.yaml --format markdown --output permitdiff-report.md
+          status=$?
+          permitdiff compare policies/baseline.yaml policies/candidate.yaml corpus.jsonl \
+            --gate permitdiff-gate.yaml --format sarif --output permitdiff.sarif >/dev/null 2>&1
+          cat permitdiff-report.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        if: always()
+        with:
+          sarif_file: permitdiff.sarif
+          category: permitdiff

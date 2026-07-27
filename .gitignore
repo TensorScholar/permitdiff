@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
+.venv/
+venv/
+
+# Build and test
+build/
+dist/
+*.egg-info/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local output
+*.sarif
+permitdiff-report.*
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

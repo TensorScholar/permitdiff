@@ -1,0 +1,343 @@
+{
+  "$defs": {
+    "ChangeDirection": {
+      "description": "Whether candidate policy semantics expand or restrict permissions.",
+      "enum": [
+        "unchanged",
+        "expanded",
+        "restricted"
+      ],
+      "title": "ChangeDirection",
+      "type": "string"
+    },
+    "ComparisonSummary": {
+      "additionalProperties": false,
+      "description": "Aggregate counts used by humans and release gates.",
+      "properties": {
+        "approval_bypasses": {
+          "title": "Approval Bypasses",
+          "type": "integer"
+        },
+        "changed_effects": {
+          "title": "Changed Effects",
+          "type": "integer"
+        },
+        "new_allows": {
+          "title": "New Allows",
+          "type": "integer"
+        },
+        "privilege_expansions": {
+          "title": "Privilege Expansions",
+          "type": "integer"
+        },
+        "restrictions": {
+          "title": "Restrictions",
+          "type": "integer"
+        },
+        "scenarios": {
+          "title": "Scenarios",
+          "type": "integer"
+        },
+        "unchanged_effects": {
+          "title": "Unchanged Effects",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "scenarios",
+        "unchanged_effects",
+        "changed_effects",
+        "privilege_expansions",
+        "restrictions",
+        "new_allows",
+        "approval_bypasses"
+      ],
+      "title": "ComparisonSummary",
+      "type": "object"
+    },
+    "DecisionEffect": {
+      "description": "Ordered authorization outcomes from least to most permissive.",
+      "enum": [
+        "deny",
+        "require_approval",
+        "allow"
+      ],
+      "title": "DecisionEffect",
+      "type": "string"
+    },
+    "RiskLevel": {
+      "description": "Scenario risk used for release reporting and gate severity.",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "RiskLevel",
+      "type": "string"
+    },
+    "RuleCoverage": {
+      "additionalProperties": false,
+      "description": "Observed rule hit counts for a policy over the corpus.",
+      "properties": {
+        "default_hits": {
+          "title": "Default Hits",
+          "type": "integer"
+        },
+        "rule_hits": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Rule Hits",
+          "type": "object"
+        },
+        "uncovered_rules": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Uncovered Rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rule_hits",
+        "default_hits",
+        "uncovered_rules"
+      ],
+      "title": "RuleCoverage",
+      "type": "object"
+    },
+    "ScenarioTransition": {
+      "additionalProperties": false,
+      "description": "Baseline-to-candidate decision transition for one scenario.",
+      "properties": {
+        "action_fingerprint": {
+          "title": "Action Fingerprint",
+          "type": "string"
+        },
+        "baseline_effect": {
+          "$ref": "#/$defs/DecisionEffect"
+        },
+        "baseline_rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Baseline Rule Id"
+        },
+        "candidate_effect": {
+          "$ref": "#/$defs/DecisionEffect"
+        },
+        "candidate_rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Candidate Rule Id"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Description"
+        },
+        "direction": {
+          "$ref": "#/$defs/ChangeDirection"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Owner"
+        },
+        "risk": {
+          "$ref": "#/$defs/RiskLevel"
+        },
+        "scenario_id": {
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "description",
+        "owner",
+        "tags",
+        "risk",
+        "action_fingerprint",
+        "baseline_effect",
+        "candidate_effect",
+        "baseline_rule_id",
+        "candidate_rule_id",
+        "direction",
+        "severity"
+      ],
+      "title": "ScenarioTransition",
+      "type": "object"
+    },
+    "Severity": {
+      "description": "Review severity assigned to a permission transition.",
+      "enum": [
+        "note",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "StructuralDiff": {
+      "additionalProperties": false,
+      "description": "Review-oriented structural changes between policy documents.",
+      "properties": {
+        "added_rules": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Added Rules",
+          "type": "array"
+        },
+        "baseline_default_effect": {
+          "$ref": "#/$defs/DecisionEffect"
+        },
+        "candidate_default_effect": {
+          "$ref": "#/$defs/DecisionEffect"
+        },
+        "default_effect_changed": {
+          "title": "Default Effect Changed",
+          "type": "boolean"
+        },
+        "modified_rules": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Modified Rules",
+          "type": "array"
+        },
+        "removed_rules": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Removed Rules",
+          "type": "array"
+        },
+        "reordered_rules": {
+          "title": "Reordered Rules",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "added_rules",
+        "removed_rules",
+        "modified_rules",
+        "reordered_rules",
+        "default_effect_changed",
+        "baseline_default_effect",
+        "candidate_default_effect"
+      ],
+      "title": "StructuralDiff",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Complete deterministic comparison artifact.",
+  "properties": {
+    "baseline_coverage": {
+      "$ref": "#/$defs/RuleCoverage"
+    },
+    "baseline_digest": {
+      "title": "Baseline Digest",
+      "type": "string"
+    },
+    "baseline_name": {
+      "title": "Baseline Name",
+      "type": "string"
+    },
+    "baseline_version": {
+      "title": "Baseline Version",
+      "type": "string"
+    },
+    "candidate_coverage": {
+      "$ref": "#/$defs/RuleCoverage"
+    },
+    "candidate_digest": {
+      "title": "Candidate Digest",
+      "type": "string"
+    },
+    "candidate_name": {
+      "title": "Candidate Name",
+      "type": "string"
+    },
+    "candidate_version": {
+      "title": "Candidate Version",
+      "type": "string"
+    },
+    "corpus_digest": {
+      "title": "Corpus Digest",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "permitdiff.report/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "structural_diff": {
+      "$ref": "#/$defs/StructuralDiff"
+    },
+    "summary": {
+      "$ref": "#/$defs/ComparisonSummary"
+    },
+    "transitions": {
+      "items": {
+        "$ref": "#/$defs/ScenarioTransition"
+      },
+      "title": "Transitions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "baseline_name",
+    "baseline_version",
+    "baseline_digest",
+    "candidate_name",
+    "candidate_version",
+    "candidate_digest",
+    "corpus_digest",
+    "summary",
+    "structural_diff",
+    "baseline_coverage",
+    "candidate_coverage",
+    "transitions"
+  ],
+  "title": "ComparisonReport",
+  "type": "object"
+}

@@ -1,0 +1,286 @@
+{
+  "$defs": {
+    "DecisionEffect": {
+      "description": "Ordered authorization outcomes from least to most permissive.",
+      "enum": [
+        "deny",
+        "require_approval",
+        "allow"
+      ],
+      "title": "DecisionEffect",
+      "type": "string"
+    },
+    "PolicyMetadata": {
+      "additionalProperties": false,
+      "description": "Human-readable policy metadata.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "PolicyMetadata",
+      "type": "object"
+    },
+    "PolicyRule": {
+      "additionalProperties": false,
+      "description": "Ordered first-match policy rule.",
+      "properties": {
+        "description": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/$defs/DecisionEffect"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "match": {
+          "$ref": "#/$defs/RuleMatch"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "effect"
+      ],
+      "title": "PolicyRule",
+      "type": "object"
+    },
+    "Predicate": {
+      "additionalProperties": false,
+      "description": "Predicate against a dotted JSON path in action arguments.",
+      "properties": {
+        "operator": {
+          "enum": [
+            "equals",
+            "not_equals",
+            "in",
+            "not_in",
+            "contains",
+            "matches",
+            "exists",
+            "less_than",
+            "less_than_or_equal",
+            "greater_than",
+            "greater_than_or_equal"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "value": {
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "path",
+        "operator"
+      ],
+      "title": "Predicate",
+      "type": "object"
+    },
+    "RiskLevel": {
+      "description": "Scenario risk used for release reporting and gate severity.",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "RiskLevel",
+      "type": "string"
+    },
+    "RuleMatch": {
+      "additionalProperties": false,
+      "description": "All configured dimensions must match; values within a dimension are ORed.",
+      "properties": {
+        "agents": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Agents",
+          "type": "array"
+        },
+        "arguments": {
+          "items": {
+            "$ref": "#/$defs/Predicate"
+          },
+          "title": "Arguments",
+          "type": "array"
+        },
+        "destructive": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destructive"
+        },
+        "environments": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Environments",
+          "type": "array"
+        },
+        "idempotent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idempotent"
+        },
+        "open_world": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Open World"
+        },
+        "principals": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Principals",
+          "type": "array"
+        },
+        "read_only": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Read Only"
+        },
+        "risks": {
+          "items": {
+            "$ref": "#/$defs/RiskLevel"
+          },
+          "title": "Risks",
+          "type": "array"
+        },
+        "security_metadata_trusted": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Security Metadata Trusted"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "tools": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        }
+      },
+      "title": "RuleMatch",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Complete deterministic permission policy.",
+  "properties": {
+    "api_version": {
+      "const": "permitdiff.dev/v1alpha1",
+      "default": "permitdiff.dev/v1alpha1",
+      "title": "Api Version",
+      "type": "string"
+    },
+    "default_effect": {
+      "$ref": "#/$defs/DecisionEffect",
+      "default": "deny"
+    },
+    "kind": {
+      "const": "Policy",
+      "default": "Policy",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/PolicyMetadata"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/PolicyRule"
+      },
+      "title": "Rules",
+      "type": "array"
+    }
+  },
+  "required": [
+    "metadata",
+    "rules"
+  ],
+  "title": "PolicyDocument",
+  "type": "object"
+}

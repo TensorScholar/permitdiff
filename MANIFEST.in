@@ -1,0 +1,9 @@
+include LICENSE NOTICE README.md CHANGELOG.md ROADMAP.md SECURITY.md CONTRIBUTING.md GOVERNANCE.md SUPPORT.md CODE_OF_CONDUCT.md PUBLISHING.md CITATION.cff
+include Makefile Dockerfile action.yml .gitignore .dockerignore .pre-commit-config.yaml
+recursive-include examples *.yaml *.jsonl
+recursive-include docs *.md *.json *.svg
+recursive-include scripts *.py *.sh
+recursive-include benchmarks *.py *.json
+recursive-include .github *.yml CODEOWNERS *.md
+recursive-include tests *.py
+recursive-include src/permitdiff/data/starter *

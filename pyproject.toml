@@ -1,0 +1,114 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "permitdiff"
+dynamic = ["version"]
+description = "Semantic regression testing and CI gates for AI-agent tool permissions."
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{name = "Mohammad Atashi"}]
+keywords = ["ai-agents", "mcp", "security", "policy", "permissions", "regression-testing", "ci"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Security",
+  "Typing :: Typed",
+]
+dependencies = [
+  "pydantic>=2.10,<3",
+  "PyYAML>=6.0.2,<7",
+  "typer>=0.15,<1",
+  "rich>=13.9,<15",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "mypy>=1.14,<2",
+  "pip-audit>=2.8,<3",
+  "pre-commit>=4,<5",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.15,<1",
+  "twine>=6,<7",
+]
+release = [
+  "cyclonedx-bom>=6,<7",
+]
+
+[project.scripts]
+permitdiff = "permitdiff.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/TensorScholar/permitdiff"
+Documentation = "https://github.com/TensorScholar/permitdiff#readme"
+Source = "https://github.com/TensorScholar/permitdiff"
+Issues = "https://github.com/TensorScholar/permitdiff/issues"
+Changelog = "https://github.com/TensorScholar/permitdiff/blob/main/CHANGELOG.md"
+Security = "https://github.com/TensorScholar/permitdiff/security/policy"
+
+[tool.setuptools.dynamic]
+version = {attr = "permitdiff._version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+permitdiff = [
+  "py.typed",
+  "data/starter/corpus.jsonl",
+  "data/starter/permitdiff-gate.yaml",
+  "data/starter/policies/*.yaml",
+  "data/starter/.github/workflows/*.yml",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests", "scripts", "benchmarks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+"scripts/**/*.py" = ["S603"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["permitdiff"]
+
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config --cov=permitdiff --cov-report=term-missing --cov-report=xml --cov-fail-under=90"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["permitdiff"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]

@@ -1,0 +1,20 @@
+{
+  "candidate_digest": "258924420a2f8259a990256d9d75d53872177ee5b799d03dc2a6e358d89284af",
+  "corpus_digest": "393c27a37f9fefe0e2a062acdd26fb0f1daa3b1ce4ed303acfab82460053238c",
+  "durations_seconds": [
+    2.555288652999934,
+    2.7096035889999257,
+    2.642120476999935,
+    2.5210066209999695,
+    2.621003752999968
+  ],
+  "generated_at": "2026-07-27T11:24:37.570251+00:00",
+  "median_scenarios_per_second": 7630.6643884459345,
+  "median_seconds": 2.621003752999968,
+  "permitdiff_version": "0.1.0rc1",
+  "platform": "Linux-6.12.13-x86_64-with-glibc2.41",
+  "python": "3.13.5",
+  "runs": 5,
+  "scenarios": 20000,
+  "schema_version": "permitdiff.benchmark/v1"
+}

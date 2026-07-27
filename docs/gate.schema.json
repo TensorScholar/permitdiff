@@ -1,0 +1,146 @@
+{
+  "$defs": {
+    "DecisionEffect": {
+      "description": "Ordered authorization outcomes from least to most permissive.",
+      "enum": [
+        "deny",
+        "require_approval",
+        "allow"
+      ],
+      "title": "DecisionEffect",
+      "type": "string"
+    },
+    "TransitionWaiver": {
+      "additionalProperties": false,
+      "description": "Review evidence for one exact, temporary permission transition.",
+      "properties": {
+        "expires_on": {
+          "format": "date",
+          "title": "Expires On",
+          "type": "string"
+        },
+        "from_effect": {
+          "$ref": "#/$defs/DecisionEffect"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "issue": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issue"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 10,
+          "title": "Reason",
+          "type": "string"
+        },
+        "scenario_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "to_effect": {
+          "$ref": "#/$defs/DecisionEffect"
+        }
+      },
+      "required": [
+        "id",
+        "scenario_id",
+        "from_effect",
+        "to_effect",
+        "reason",
+        "expires_on"
+      ],
+      "title": "TransitionWaiver",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Thresholds that convert a comparison report into a release decision.",
+  "properties": {
+    "api_version": {
+      "const": "permitdiff.dev/v1alpha1",
+      "default": "permitdiff.dev/v1alpha1",
+      "title": "Api Version",
+      "type": "string"
+    },
+    "fail_on_removed_rules": {
+      "default": false,
+      "title": "Fail On Removed Rules",
+      "type": "boolean"
+    },
+    "fail_on_unused_waivers": {
+      "default": false,
+      "title": "Fail On Unused Waivers",
+      "type": "boolean"
+    },
+    "forbid_default_effect_relaxation": {
+      "default": true,
+      "title": "Forbid Default Effect Relaxation",
+      "type": "boolean"
+    },
+    "kind": {
+      "const": "Gate",
+      "default": "Gate",
+      "title": "Kind",
+      "type": "string"
+    },
+    "max_approval_bypasses": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Max Approval Bypasses",
+      "type": "integer"
+    },
+    "max_new_allows": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Max New Allows",
+      "type": "integer"
+    },
+    "max_privilege_expansions": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Max Privilege Expansions",
+      "type": "integer"
+    },
+    "max_uncovered_candidate_rules": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 0,
+      "title": "Max Uncovered Candidate Rules"
+    },
+    "waivers": {
+      "items": {
+        "$ref": "#/$defs/TransitionWaiver"
+      },
+      "title": "Waivers",
+      "type": "array"
+    }
+  },
+  "title": "GateConfig",
+  "type": "object"
+}

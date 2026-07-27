@@ -1,0 +1,7 @@
+* @TensorScholar
+/src/permitdiff/policy.py @TensorScholar
+/src/permitdiff/engine.py @TensorScholar
+/src/permitdiff/gate.py @TensorScholar
+/examples/ @TensorScholar
+/docs/adr/ @TensorScholar
+/.github/workflows/ @TensorScholar

@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "GateViolation": {
+      "additionalProperties": false,
+      "description": "One failed release condition.",
+      "properties": {
+        "actual": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Actual"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Limit"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "actual",
+        "limit"
+      ],
+      "title": "GateViolation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Machine-readable release verdict.",
+  "properties": {
+    "expired_waivers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Expired Waivers",
+      "type": "array"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "default": "permitdiff.gate-result/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "unused_waivers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unused Waivers",
+      "type": "array"
+    },
+    "violations": {
+      "items": {
+        "$ref": "#/$defs/GateViolation"
+      },
+      "title": "Violations",
+      "type": "array"
+    },
+    "waived_scenarios": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Waived Scenarios",
+      "type": "array"
+    }
+  },
+  "required": [
+    "passed",
+    "violations",
+    "waived_scenarios",
+    "expired_waivers",
+    "unused_waivers"
+  ],
+  "title": "GateResult",
+  "type": "object"
+}

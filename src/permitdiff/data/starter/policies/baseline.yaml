@@ -1,0 +1,31 @@
+api_version: permitdiff.dev/v1alpha1
+kind: Policy
+metadata:
+  name: support-agent
+  version: 1.0.0
+  description: Reviewed production baseline.
+default_effect: deny
+rules:
+  - id: deny-large-transfers
+    description: Transfers above the safety ceiling are denied.
+    effect: deny
+    match:
+      tools: [payments.transfer]
+      arguments:
+        - path: amount
+          operator: greater_than
+          value: 10000
+
+  - id: review-destructive-actions
+    description: Destructive actions require a human approval step.
+    effect: require_approval
+    match:
+      destructive: true
+
+  - id: allow-trusted-bounded-reads
+    description: Trusted read-only calls against bounded systems may execute.
+    effect: allow
+    match:
+      security_metadata_trusted: true
+      read_only: true
+      open_world: false

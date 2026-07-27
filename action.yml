@@ -1,0 +1,67 @@
+name: PermitDiff permission gate
+description: Compare effective AI-agent tool permissions and block unsafe privilege expansion.
+author: Mohammad Atashi
+inputs:
+  baseline:
+    description: Baseline policy path.
+    required: true
+  candidate:
+    description: Candidate policy path.
+    required: true
+  corpus:
+    description: JSONL scenario corpus path.
+    required: true
+  gate:
+    description: Gate configuration path. Omit to use strict mode.
+    required: false
+outputs:
+  report:
+    description: Markdown report path.
+    value: ${{ steps.run.outputs.report }}
+  sarif:
+    description: SARIF 2.1.0 report path.
+    value: ${{ steps.run.outputs.sarif }}
+  outcome:
+    description: pass or blocked.
+    value: ${{ steps.run.outputs.outcome }}
+runs:
+  using: composite
+  steps:
+    - name: Install PermitDiff
+      shell: bash
+      run: python -m pip install --disable-pip-version-check "$GITHUB_ACTION_PATH"
+    - name: Compare effective permissions
+      id: run
+      shell: bash
+      env:
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_CANDIDATE: ${{ inputs.candidate }}
+        INPUT_CORPUS: ${{ inputs.corpus }}
+        INPUT_GATE: ${{ inputs.gate }}
+      run: |
+        set +e
+        args=("$INPUT_BASELINE" "$INPUT_CANDIDATE" "$INPUT_CORPUS")
+        if [[ -n "$INPUT_GATE" ]]; then
+          args+=(--gate "$INPUT_GATE")
+        else
+          args+=(--strict)
+        fi
+
+        permitdiff compare "${args[@]}" --format markdown --output permitdiff-report.md
+        status=$?
+        permitdiff compare "${args[@]}" --format sarif --output permitdiff.sarif >/dev/null 2>&1
+
+        echo "report=permitdiff-report.md" >> "$GITHUB_OUTPUT"
+        echo "sarif=permitdiff.sarif" >> "$GITHUB_OUTPUT"
+        if [[ "$status" -eq 0 ]]; then
+          echo "outcome=pass" >> "$GITHUB_OUTPUT"
+        elif [[ "$status" -eq 2 ]]; then
+          echo "outcome=blocked" >> "$GITHUB_OUTPUT"
+        else
+          echo "outcome=error" >> "$GITHUB_OUTPUT"
+        fi
+        cat permitdiff-report.md >> "$GITHUB_STEP_SUMMARY"
+        exit "$status"
+branding:
+  icon: shield
+  color: purple
