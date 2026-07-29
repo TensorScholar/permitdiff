@@ -48,9 +48,7 @@ def test_sarif_emits_expansion_and_uncovered_rule_results(
     scenarios: list[Scenario],
     tmp_path: Path,
 ) -> None:
-    payload = json.loads(
-        _bundle(baseline, candidate, scenarios).sarif(tmp_path / "candidate.yaml")
-    )
+    payload = json.loads(_bundle(baseline, candidate, scenarios).sarif(tmp_path / "candidate.yaml"))
     results = payload["runs"][0]["results"]
     assert any(item["ruleId"] == "permitdiff/privilege-expansion" for item in results)
     assert all(item["locations"] for item in results)

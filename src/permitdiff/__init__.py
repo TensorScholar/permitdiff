@@ -9,7 +9,6 @@ from permitdiff.models import ActionRequest, DecisionEffect, RiskLevel, Scenario
 from permitdiff.policy import PolicyDocument
 
 __all__ = [
-    "__version__",
     "ActionRequest",
     "ComparisonReport",
     "DecisionEffect",
@@ -19,9 +18,9 @@ __all__ = [
     "PolicyEngine",
     "RiskLevel",
     "Scenario",
+    "__version__",
     "compare_policies",
     "evaluate_gate",
     "load_corpus",
     "strict_gate",
 ]
-

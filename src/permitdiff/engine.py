@@ -61,9 +61,7 @@ class PolicyEngine:
             return False
 
         risk = (
-            request.context.risk
-            if trusted and request.context.risk
-            else self._infer_risk(request)
+            request.context.risk if trusted and request.context.risk else self._infer_risk(request)
         )
         return (
             _matches_any(request.tool, match.tools)

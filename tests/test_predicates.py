@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from permitdiff.policy import Predicate
 from permitdiff.predicates import evaluate_predicate, resolve_path
 

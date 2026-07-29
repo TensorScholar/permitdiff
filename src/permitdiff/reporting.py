@@ -7,12 +7,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
-from pydantic import BaseModel, ConfigDict
 
 from permitdiff._version import __version__
-from permitdiff.analysis import ChangeDirection, ComparisonReport, ScenarioTransition
+from permitdiff.analysis import ComparisonReport, ScenarioTransition
 from permitdiff.gate import GateResult
 
 
@@ -95,9 +95,7 @@ class ReportBundle:
         lines.append(f"- Removed rules: {_inline(report.structural_diff.removed_rules)}")
         lines.append(f"- Modified rules: {_inline(report.structural_diff.modified_rules)}")
         lines.append(f"- Shared rules reordered: `{report.structural_diff.reordered_rules}`")
-        lines.append(
-            f"- Default effect changed: `{report.structural_diff.default_effect_changed}`"
-        )
+        lines.append(f"- Default effect changed: `{report.structural_diff.default_effect_changed}`")
         lines.extend(["", "## Candidate coverage", ""])
         for rule_id, hits in report.candidate_coverage.rule_hits.items():
             lines.append(f"- `{rule_id}`: {hits} hit(s)")
@@ -114,9 +112,7 @@ class ReportBundle:
             else:
                 lines.append("- No violations.")
             if self.gate.waived_scenarios:
-                lines.append(
-                    "- Waived scenarios: " + _inline(self.gate.waived_scenarios)
-                )
+                lines.append("- Waived scenarios: " + _inline(self.gate.waived_scenarios))
             if self.gate.expired_waivers:
                 lines.append("- Expired waivers: " + _inline(self.gate.expired_waivers))
             if self.gate.unused_waivers:
@@ -163,8 +159,7 @@ class ReportBundle:
                                     "id": "permitdiff/uncovered-rule",
                                     "shortDescription": {
                                         "text": (
-                                            "Candidate policy rule lacks observed "
-                                            "corpus coverage"
+                                            "Candidate policy rule lacks observed corpus coverage"
                                         )
                                     },
                                 },
@@ -188,8 +183,7 @@ class ReportBundle:
         report = self.report
         verdict = _verdict(self.gate)
         console.print(
-            f"PermitDiff: {report.baseline_version} → "
-            f"{report.candidate_version} [{verdict}]"
+            f"PermitDiff: {report.baseline_version} → {report.candidate_version} [{verdict}]"
         )
         summary = Table(show_header=False, box=None)
         summary.add_row("Scenarios", str(report.summary.scenarios))
@@ -232,12 +226,12 @@ class ReportBundle:
             violations.add_column("Actual")
             violations.add_column("Limit")
             violations.add_column("Message")
-            for item in self.gate.violations:
+            for violation in self.gate.violations:
                 violations.add_row(
-                    item.code,
-                    str(item.actual),
-                    str(item.limit),
-                    item.message,
+                    violation.code,
+                    str(violation.actual),
+                    str(violation.limit),
+                    violation.message,
                 )
             console.print(violations)
         return stream.getvalue()

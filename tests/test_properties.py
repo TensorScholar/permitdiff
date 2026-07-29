@@ -21,7 +21,8 @@ def _policy(effect: str) -> PolicyDocument:
 
 
 def test_same_policy_never_creates_an_expansion() -> None:
-    rng = random.Random(20260727)
+    # Seeded PRNG makes this test reproducible; it is not used for security.
+    rng = random.Random(20260727)  # noqa: S311
     effects = ["deny", "require_approval", "allow"]
     for index in range(100):
         policy = _policy(rng.choice(effects))

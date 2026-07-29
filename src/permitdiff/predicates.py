@@ -44,9 +44,9 @@ def evaluate_predicate(predicate: Predicate, arguments: Mapping[str, Any]) -> bo
     if actual is _MISSING:
         return False
     if op == "equals":
-        return actual == expected
+        return bool(actual == expected)
     if op == "not_equals":
-        return actual != expected
+        return bool(actual != expected)
     if op in {"in", "not_in"}:
         try:
             result = actual in expected

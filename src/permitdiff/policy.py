@@ -40,7 +40,7 @@ class Predicate(BaseModel):
     value: Any = None
 
     @model_validator(mode="after")
-    def validate_value(self) -> "Predicate":
+    def validate_value(self) -> Predicate:
         validate_json_value(self.value)
         if self.operator == "exists":
             if not isinstance(self.value, bool):
@@ -96,7 +96,7 @@ class PolicyRule(BaseModel):
     match: RuleMatch = Field(default_factory=RuleMatch)
 
     @model_validator(mode="after")
-    def require_explicit_annotation_trust_for_allow(self) -> "PolicyRule":
+    def require_explicit_annotation_trust_for_allow(self) -> PolicyRule:
         uses_annotation_metadata = bool(self.match.risks) or any(
             value is not None
             for value in (
@@ -140,14 +140,14 @@ class PolicyDocument(BaseModel):
     rules: list[PolicyRule]
 
     @model_validator(mode="after")
-    def unique_rule_ids(self) -> "PolicyDocument":
+    def unique_rule_ids(self) -> PolicyDocument:
         ids = [rule.id for rule in self.rules]
         if len(ids) != len(set(ids)):
             raise ValueError("rule ids must be unique")
         return self
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "PolicyDocument":
+    def from_yaml(cls, path: str | Path) -> PolicyDocument:
         policy_path = Path(path)
         try:
             if policy_path.stat().st_size > _MAX_POLICY_BYTES:

@@ -7,7 +7,7 @@ import json
 from collections import Counter
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from permitdiff.engine import PolicyEngine
 from permitdiff.models import DecisionEffect, RiskLevel, Scenario
@@ -191,9 +191,7 @@ def compare_policies(
             )
         )
 
-    changed_effects = sum(
-        item.baseline_effect is not item.candidate_effect for item in transitions
-    )
+    changed_effects = sum(item.baseline_effect is not item.candidate_effect for item in transitions)
     expansions = sum(item.privilege_expansion for item in transitions)
     restrictions = sum(item.direction is ChangeDirection.RESTRICTED for item in transitions)
     summary = ComparisonSummary(

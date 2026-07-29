@@ -31,5 +31,6 @@ def test_workflow_actions_are_pinned_to_commits() -> None:
 
 def test_readme_assets_are_valid_svg() -> None:
     for name in ("permitdiff-hero.svg", "permitdiff-terminal.svg"):
-        root = ET.parse(ROOT / "docs/assets" / name).getroot()
+        # Repository-controlled SVG fixture; no untrusted XML input is parsed.
+        root = ET.parse(ROOT / "docs/assets" / name).getroot()  # noqa: S314
         assert root.tag.endswith("svg")

@@ -47,20 +47,19 @@ class GateConfig(BaseModel):
     waivers: list[TransitionWaiver] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def unique_waivers(self) -> "GateConfig":
+    def unique_waivers(self) -> GateConfig:
         ids = [item.id for item in self.waivers]
         if len(ids) != len(set(ids)):
             raise ValueError("waiver ids must be unique")
         transitions = [
-            (item.scenario_id, item.from_effect, item.to_effect)
-            for item in self.waivers
+            (item.scenario_id, item.from_effect, item.to_effect) for item in self.waivers
         ]
         if len(transitions) != len(set(transitions)):
             raise ValueError("waivers must target unique scenario transitions")
         return self
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "GateConfig":
+    def from_yaml(cls, path: str | Path) -> GateConfig:
         gate_path = Path(path)
         try:
             if gate_path.stat().st_size > _MAX_GATE_BYTES:

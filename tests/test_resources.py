@@ -21,9 +21,9 @@ def test_write_starter_materializes_runnable_project(tmp_path: Path) -> None:
     written = write_starter(tmp_path)
     assert {path.relative_to(tmp_path).as_posix() for path in written} == set(starter_files())
     assert (tmp_path / "policies/baseline.yaml").is_file()
-    assert "permitdiff compare" in (
-        tmp_path / ".github/workflows/permitdiff.yml"
-    ).read_text(encoding="utf-8")
+    assert "permitdiff compare" in (tmp_path / ".github/workflows/permitdiff.yml").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_write_starter_refuses_overwrite_without_force(tmp_path: Path) -> None:
