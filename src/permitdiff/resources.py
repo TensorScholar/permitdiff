@@ -23,10 +23,16 @@ def starter_files() -> tuple[str, ...]:
     return _STARTER_FILES
 
 
+def _entry_exists(path: Path) -> bool:
+    """Return whether a filesystem entry exists, including dangling symlinks."""
+
+    return path.exists() or path.is_symlink()
+
+
 def _missing_directories(path: Path) -> list[Path]:
     missing: list[Path] = []
     current = path
-    while not current.exists():
+    while not _entry_exists(current):
         missing.append(current)
         current = current.parent
     return missing
@@ -45,12 +51,12 @@ def write_starter(destination: str | Path, *, force: bool = False) -> list[Path]
     root = files("permitdiff").joinpath("data/starter")
     outputs = [target / relative for relative in _STARTER_FILES]
 
-    if target.exists() and not target.is_dir():
+    if _entry_exists(target) and not target.is_dir():
         raise NotADirectoryError(f"starter destination is not a directory: {target}")
 
     if not force:
         for output in outputs:
-            if output.exists():
+            if _entry_exists(output):
                 raise FileExistsError(f"refusing to overwrite existing file: {output}")
 
     # Read every packaged resource before mutating the destination.
@@ -59,7 +65,9 @@ def write_starter(destination: str | Path, *, force: bool = False) -> list[Path]
     }
 
     missing_parent_dirs = _missing_directories(target.parent)
-    staging_parent = target.parent if target.parent.exists() else missing_parent_dirs[-1].parent
+    staging_parent = (
+        target.parent if _entry_exists(target.parent) else missing_parent_dirs[-1].parent
+    )
 
     with TemporaryDirectory(
         prefix=f".{target.name}.permitdiff-",
@@ -79,11 +87,11 @@ def write_starter(destination: str | Path, *, force: bool = False) -> list[Path]
 
         try:
             if missing_parent_dirs:
-                target.parent.mkdir(parents=True, exist_ok=True)
                 created_dirs.extend(missing_parent_dirs)
+                target.parent.mkdir(parents=True, exist_ok=True)
 
             # A new project can be published with one same-filesystem rename.
-            if not target.exists():
+            if not _entry_exists(target):
                 staging.replace(target)
                 return outputs
 
@@ -91,10 +99,10 @@ def write_starter(destination: str | Path, *, force: bool = False) -> list[Path]
             # before the first replacement, then roll back all applied files if
             # any commit operation fails.
             for relative, output in zip(_STARTER_FILES, outputs, strict=True):
-                if output.exists() and output.is_dir():
+                if _entry_exists(output) and output.is_dir():
                     raise IsADirectoryError(f"starter file path is an existing directory: {output}")
 
-                if output.exists():
+                if _entry_exists(output):
                     backup = staging / ".backup" / relative
                     backup.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(output, backup, follow_symlinks=False)
@@ -103,10 +111,10 @@ def write_starter(destination: str | Path, *, force: bool = False) -> list[Path]
             for relative, output in zip(_STARTER_FILES, outputs, strict=True):
                 missing_output_dirs = _missing_directories(output.parent)
                 if missing_output_dirs:
-                    output.parent.mkdir(parents=True, exist_ok=True)
                     created_dirs.extend(missing_output_dirs)
+                    output.parent.mkdir(parents=True, exist_ok=True)
 
-                existed = output.exists()
+                existed = _entry_exists(output)
                 (staging / relative).replace(output)
                 applied.append((output, existed))
 
