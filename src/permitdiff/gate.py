@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 from permitdiff.analysis import ComparisonReport
 from permitdiff.errors import GateLoadError
 from permitdiff.models import DecisionEffect
+from permitdiff.yaml_utils import safe_load_yaml
 
 _MAX_GATE_BYTES = 1_000_000
 
@@ -75,7 +76,7 @@ class GateConfig(BaseModel):
         try:
             if gate_path.stat().st_size > _MAX_GATE_BYTES:
                 raise ValueError(f"gate exceeds {_MAX_GATE_BYTES} bytes")
-            raw = yaml.safe_load(gate_path.read_text(encoding="utf-8"))
+            raw = safe_load_yaml(gate_path.read_text(encoding="utf-8"))
             if not isinstance(raw, dict):
                 raise TypeError("gate root must be a mapping")
             return cls.model_validate(raw)

@@ -193,6 +193,23 @@ waivers: []
     assert GateConfig.from_yaml(path).max_privilege_expansions == 1
 
 
+def test_duplicate_yaml_keys_are_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        """api_version: permitdiff.dev/v1alpha1
+kind: Gate
+max_privilege_expansions: 0
+max_privilege_expansions: 999
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        GateLoadError,
+        match="found duplicate key 'max_privilege_expansions'",
+    ):
+        GateConfig.from_yaml(path)
+
+
 def test_invalid_gate_is_wrapped(tmp_path: Path) -> None:
     path = tmp_path / "gate.yaml"
     path.write_text("[]\n", encoding="utf-8")

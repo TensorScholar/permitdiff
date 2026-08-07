@@ -43,6 +43,43 @@ unknown: true
         PolicyDocument.from_yaml(policy)
 
 
+def test_duplicate_yaml_keys_are_rejected(tmp_path: Path) -> None:
+    policy = tmp_path / "duplicate.yaml"
+    policy.write_text(
+        """api_version: permitdiff.dev/v1alpha1
+kind: Policy
+metadata:
+  name: original
+  name: overridden
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(PolicyLoadError, match="found duplicate key 'name'"):
+        PolicyDocument.from_yaml(policy)
+
+
+def test_yaml_merge_keys_remain_supported(tmp_path: Path) -> None:
+    policy = tmp_path / "merge.yaml"
+    policy.write_text(
+        """api_version: permitdiff.dev/v1alpha1
+kind: Policy
+metadata:
+  <<: &metadata
+    name: merged-policy
+    version: "1.0.0"
+  version: "1.0.1"
+default_effect: deny
+rules: []
+""",
+        encoding="utf-8",
+    )
+
+    loaded = PolicyDocument.from_yaml(policy)
+
+    assert loaded.metadata.name == "merged-policy"
+    assert loaded.metadata.version == "1.0.1"
+
+
 def test_non_mapping_root_is_rejected(tmp_path: Path) -> None:
     policy = tmp_path / "bad.yaml"
     policy.write_text("- not\n- a\n- policy\n", encoding="utf-8")
