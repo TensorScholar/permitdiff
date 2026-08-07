@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from permitdiff.errors import PolicyLoadError
 from permitdiff.models import DecisionEffect, RiskLevel, validate_json_value
+from permitdiff.yaml_utils import safe_load_yaml
 
 _MAX_POLICY_BYTES = 1_000_000
 
@@ -152,7 +153,7 @@ class PolicyDocument(BaseModel):
         try:
             if policy_path.stat().st_size > _MAX_POLICY_BYTES:
                 raise ValueError(f"policy exceeds {_MAX_POLICY_BYTES} bytes")
-            raw = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+            raw = safe_load_yaml(policy_path.read_text(encoding="utf-8"))
             if not isinstance(raw, dict):
                 raise TypeError("policy root must be a mapping")
             return cls.model_validate(raw)
