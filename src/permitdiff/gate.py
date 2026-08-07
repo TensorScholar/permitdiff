@@ -25,6 +25,11 @@ class TransitionWaiver(BaseModel):
     scenario_id: str = Field(min_length=1, max_length=256)
     from_effect: DecisionEffect
     to_effect: DecisionEffect
+    action_fingerprint: str = Field(
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     reason: str = Field(min_length=10, max_length=2000)
     expires_on: date
     issue: HttpUrl | None = None
@@ -52,7 +57,13 @@ class GateConfig(BaseModel):
         if len(ids) != len(set(ids)):
             raise ValueError("waiver ids must be unique")
         transitions = [
-            (item.scenario_id, item.from_effect, item.to_effect) for item in self.waivers
+            (
+                item.scenario_id,
+                item.from_effect,
+                item.to_effect,
+                item.action_fingerprint,
+            )
+            for item in self.waivers
         ]
         if len(transitions) != len(set(transitions)):
             raise ValueError("waivers must target unique scenario transitions")
@@ -119,6 +130,7 @@ def evaluate_gate(
                 if waiver.scenario_id == transition.scenario_id
                 and waiver.from_effect is transition.baseline_effect
                 and waiver.to_effect is transition.candidate_effect
+                and waiver.action_fingerprint == transition.action_fingerprint
             ),
             None,
         )
