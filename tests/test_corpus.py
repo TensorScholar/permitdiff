@@ -35,6 +35,31 @@ def test_duplicate_ids_are_rejected(tmp_path: Path) -> None:
         load_corpus(path)
 
 
+def test_duplicate_json_keys_are_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "corpus.jsonl"
+    path.write_text(
+        '{"id":"original","id":"overridden","action":{"principal":"p","agent":"a","tool":"t"}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(CorpusLoadError, match="line 1: duplicate JSON key 'id'"):
+        load_corpus(path)
+
+
+def test_nested_duplicate_json_keys_are_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "corpus.jsonl"
+    path.write_text(
+        '{"id":"one","action":{'
+        '"principal":"trusted","principal":"overridden",'
+        '"agent":"a","tool":"t"}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        CorpusLoadError,
+        match="line 1: duplicate JSON key 'principal'",
+    ):
+        load_corpus(path)
+
+
 def test_invalid_json_reports_line_number(tmp_path: Path) -> None:
     path = tmp_path / "corpus.jsonl"
     valid = {

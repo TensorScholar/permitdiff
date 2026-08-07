@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -12,6 +13,15 @@ from permitdiff.models import Scenario
 
 _MAX_CORPUS_BYTES = 50_000_000
 _MAX_SCENARIOS = 100_000
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key {key!r}")
+        result[key] = value
+    return result
 
 
 def load_corpus(path: str | Path) -> list[Scenario]:
@@ -30,7 +40,7 @@ def load_corpus(path: str | Path) -> list[Scenario]:
                 if len(scenarios) >= _MAX_SCENARIOS:
                     raise ValueError(f"corpus exceeds {_MAX_SCENARIOS} scenarios")
                 try:
-                    raw = json.loads(line)
+                    raw = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
                     scenario = Scenario.model_validate(raw)
                 except (json.JSONDecodeError, ValidationError, ValueError) as exc:
                     raise ValueError(f"line {line_number}: {exc}") from exc
