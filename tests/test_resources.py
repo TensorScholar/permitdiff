@@ -47,3 +47,74 @@ def test_repository_examples_match_packaged_starter() -> None:
     }
     for example, starter in pairs.items():
         assert example.read_bytes() == starter.read_bytes()
+
+
+def test_write_starter_late_conflict_is_preflighted(tmp_path: Path) -> None:
+    destination = tmp_path / "starter"
+    destination.mkdir()
+    conflict = destination / "permitdiff-gate.yaml"
+    conflict.write_text("keep-me\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        write_starter(destination)
+
+    assert conflict.read_text(encoding="utf-8") == "keep-me\n"
+    assert not (destination / "policies/baseline.yaml").exists()
+
+
+def test_write_starter_materialization_failure_leaves_no_partial_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination = tmp_path / "starter"
+    real_write_text = Path.write_text
+    writes = 0
+
+    def fail_second_write(
+        path: Path,
+        data: str,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        nonlocal writes
+        writes += 1
+        if writes == 2:
+            raise OSError("simulated staging failure")
+        return real_write_text(path, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_second_write)
+
+    with pytest.raises(OSError, match="simulated staging failure"):
+        write_starter(destination)
+
+    assert not destination.exists()
+
+
+def test_write_starter_force_rolls_back_partial_publish(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination = tmp_path / "starter"
+    write_starter(destination)
+
+    baseline = destination / "policies/baseline.yaml"
+    baseline.write_text("locally-customized\n", encoding="utf-8")
+    before = {relative: (destination / relative).read_bytes() for relative in starter_files()}
+
+    real_replace = Path.replace
+    replacements = 0
+
+    def fail_second_replace(path: Path, target: Path) -> Path:
+        nonlocal replacements
+        replacements += 1
+        if replacements == 2:
+            raise OSError("simulated publish failure")
+        return real_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", fail_second_replace)
+
+    with pytest.raises(OSError, match="simulated publish failure"):
+        write_starter(destination, force=True)
+
+    after = {relative: (destination / relative).read_bytes() for relative in starter_files()}
+    assert after == before
