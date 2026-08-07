@@ -13,12 +13,12 @@ class PolicyEngine:
     """Evaluate normalized tool calls against an immutable policy document."""
 
     def __init__(self, policy: PolicyDocument) -> None:
-        self._policy = policy
-        self._digest = policy.digest()
+        self._policy = policy.model_copy(deep=True)
+        self._digest = self._policy.digest()
 
     @property
     def policy(self) -> PolicyDocument:
-        return self._policy
+        return self._policy.model_copy(deep=True)
 
     @property
     def policy_digest(self) -> str:
