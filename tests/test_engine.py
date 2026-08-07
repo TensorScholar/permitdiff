@@ -66,3 +66,41 @@ def test_untrusted_destructive_hint_can_trigger_restriction(baseline: PolicyDocu
 def test_policy_digest_is_attached(baseline: PolicyDocument, scenarios: list) -> None:
     decision = PolicyEngine(baseline).evaluate(_find(scenarios, "customer-read").action)
     assert decision.policy_digest == baseline.digest()
+
+
+def test_engine_isolated_from_source_policy_mutation(
+    baseline: PolicyDocument,
+    scenarios: list,
+) -> None:
+    policy = baseline.model_copy(deep=True)
+    request = _find(scenarios, "customer-read").action
+    engine = PolicyEngine(policy)
+
+    digest = engine.policy_digest
+    before = engine.evaluate(request)
+
+    policy.rules.clear()
+
+    after = engine.evaluate(request)
+
+    assert before.effect is DecisionEffect.ALLOW
+    assert after.effect is before.effect
+    assert after.rule_id == before.rule_id
+    assert engine.policy_digest == digest
+
+
+def test_engine_policy_accessor_does_not_expose_internal_state(
+    baseline: PolicyDocument,
+    scenarios: list,
+) -> None:
+    request = _find(scenarios, "customer-read").action
+    engine = PolicyEngine(baseline)
+    exposed = engine.policy
+
+    exposed.rules.clear()
+
+    decision = engine.evaluate(request)
+
+    assert decision.effect is DecisionEffect.ALLOW
+    assert decision.rule_id == "allow-trusted-bounded-reads"
+    assert engine.policy.rules
