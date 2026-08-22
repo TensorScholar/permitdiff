@@ -45,6 +45,7 @@ jobs:
         if: steps.changes.outputs.relevant == 'true'
       - name: Generate SARIF
         if: steps.changes.outputs.relevant == 'true'
+        run: |
           set +e
           permitdiff compare examples/baseline.yaml examples/candidate.yaml \
             examples/corpus.jsonl --gate examples/gate.yaml \
