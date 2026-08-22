@@ -1,4 +1,4 @@
-.PHONY: install format lint type test schemas build audit check demo benchmark release-check clean
+.PHONY: install format lint type test schemas build audit check demo benchmark release-check clean docker-lock
 
 install:
 	python -m pip install -e '.[dev]'
@@ -41,3 +41,6 @@ release-check:
 clean:
 	rm -rf .coverage .mypy_cache .pytest_cache .ruff_cache build dist htmlcov
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+
+docker-lock:
+	python scripts/refresh_docker_lock.py
