@@ -28,3 +28,6 @@ permitdiff-report.*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local archive of historical release artifacts
+archive/
