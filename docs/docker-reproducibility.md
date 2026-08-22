@@ -114,7 +114,7 @@ Refresh procedure, in order:
 ## Validation
 
 ```sh
-docker build --no-cache -t permitdiff:arm64 .                                  # linux/arm64
+docker build --no-cache --platform linux/arm64 -t permitdiff:arm64 .                                  # linux/arm64
 docker build --no-cache --platform linux/amd64 -t permitdiff:amd64 .            # linux/amd64
 docker run --rm <image> --help
 docker run --rm <image> --version
