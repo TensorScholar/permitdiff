@@ -36,16 +36,16 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "build>=1.2,<2",
-  "mypy>=1.14,<2",
+  "mypy>=1.14,<3",
   "pip-audit>=2.8,<3",
   "pre-commit>=4,<5",
   "pytest>=8.3,<10",
   "pytest-cov>=6,<8",
   "ruff>=0.15,<1",
-  "twine>=6,<7",
+  "twine>=6,<8",
 ]
 release = [
-  "cyclonedx-bom>=6,<7",
+  "cyclonedx-bom>=6,<8",
 ]
 
 [project.scripts]
