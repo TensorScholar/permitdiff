@@ -17,12 +17,17 @@ def _report(baseline: PolicyDocument, candidate: PolicyDocument, scenarios: list
     return compare_policies(baseline, candidate, scenarios)
 
 
-def _waiver(expires_on: date) -> TransitionWaiver:
+def _waiver(
+    expires_on: date,
+    *,
+    action_fingerprint: str = "0" * 64,
+) -> TransitionWaiver:
     return TransitionWaiver(
         id="approved-refund",
         scenario_id="refund-50",
         from_effect=DecisionEffect.REQUIRE_APPROVAL,
         to_effect=DecisionEffect.ALLOW,
+        action_fingerprint=action_fingerprint,
         reason="Payments Risk approved this exact staged permission change.",
         expires_on=expires_on,
     )
@@ -48,10 +53,62 @@ def test_exact_active_waiver_allows_transition(
     scenarios: list[Scenario],
 ) -> None:
     today = date(2026, 7, 27)
-    config = GateConfig(waivers=[_waiver(today + timedelta(days=7))])
-    result = evaluate_gate(_report(baseline, candidate, scenarios), config, today=today)
+    report = _report(baseline, candidate, scenarios)
+    transition = next(item for item in report.transitions if item.scenario_id == "refund-50")
+    config = GateConfig(
+        waivers=[
+            _waiver(
+                today + timedelta(days=7),
+                action_fingerprint=transition.action_fingerprint,
+            )
+        ]
+    )
+    result = evaluate_gate(report, config, today=today)
     assert result.passed
     assert result.waived_scenarios == ["refund-50"]
+
+
+def test_waiver_does_not_apply_after_action_fingerprint_changes(
+    baseline: PolicyDocument,
+    candidate: PolicyDocument,
+    scenarios: list[Scenario],
+) -> None:
+    today = date(2026, 7, 27)
+    original_report = _report(baseline, candidate, scenarios)
+    original_transition = next(
+        item for item in original_report.transitions if item.scenario_id == "refund-50"
+    )
+    original = next(item for item in scenarios if item.id == "refund-50")
+    changed = original.model_copy(
+        update={
+            "action": original.action.model_copy(
+                update={
+                    "arguments": {
+                        **original.action.arguments,
+                        "__waiver_drift_probe__": "changed",
+                    }
+                }
+            )
+        }
+    )
+    changed_scenarios = [changed if item.id == original.id else item for item in scenarios]
+
+    config = GateConfig(
+        waivers=[
+            _waiver(
+                today + timedelta(days=7),
+                action_fingerprint=original_transition.action_fingerprint,
+            )
+        ]
+    )
+    result = evaluate_gate(
+        _report(baseline, candidate, changed_scenarios),
+        config,
+        today=today,
+    )
+
+    assert not result.passed
+    assert result.unused_waivers == ["approved-refund"]
 
 
 def test_expired_waiver_does_not_apply(
@@ -134,6 +191,23 @@ waivers: []
         encoding="utf-8",
     )
     assert GateConfig.from_yaml(path).max_privilege_expansions == 1
+
+
+def test_duplicate_yaml_keys_are_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        """api_version: permitdiff.dev/v1alpha1
+kind: Gate
+max_privilege_expansions: 0
+max_privilege_expansions: 999
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        GateLoadError,
+        match="found duplicate key 'max_privilege_expansions'",
+    ):
+        GateConfig.from_yaml(path)
 
 
 def test_invalid_gate_is_wrapped(tmp_path: Path) -> None:
