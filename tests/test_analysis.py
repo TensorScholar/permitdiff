@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from permitdiff.analysis import ChangeDirection, Severity, compare_policies
+from permitdiff.authority import AuthorityFindingKind
 from permitdiff.models import DecisionEffect, Scenario
 from permitdiff.policy import PolicyDocument
 
@@ -30,12 +31,17 @@ def test_compare_summary_is_consistent(
     candidate: PolicyDocument,
     scenarios: list[Scenario],
 ) -> None:
-    summary = compare_policies(baseline, candidate, scenarios).summary
+    report = compare_policies(baseline, candidate, scenarios)
+    summary = report.summary
     assert summary.scenarios == 5
     assert summary.changed_effects == 1
     assert summary.privilege_expansions == 1
     assert summary.new_allows == 1
     assert summary.approval_bypasses == 1
+    assert summary.static_authority_expansions == 1
+    assert summary.static_authority_unknowns == 0
+    assert report.authority_findings[0].kind is AuthorityFindingKind.POTENTIAL_EXPANSION
+    assert report.authority_findings[0].code == "rule_added"
 
 
 def test_candidate_rule_coverage_is_observed(
@@ -56,8 +62,19 @@ def test_structural_diff_reports_added_and_modified_rules(
 ) -> None:
     structural = compare_policies(baseline, candidate, scenarios).structural_diff
     assert structural.added_rules == ["allow-low-value-refunds"]
-    assert "review-destructive-actions" in structural.modified_rules
+    assert structural.modified_rules == []
     assert structural.removed_rules == []
+
+
+def test_description_only_change_is_not_a_semantic_modification(
+    baseline: PolicyDocument,
+    scenarios: list[Scenario],
+) -> None:
+    changed = baseline.rules[0].model_copy(update={"description": "New review explanation only."})
+    candidate = baseline.model_copy(update={"rules": [changed, *baseline.rules[1:]]})
+    report = compare_policies(baseline, candidate, scenarios)
+    assert report.structural_diff.modified_rules == []
+    assert report.authority_findings == []
 
 
 def test_same_policy_has_no_effect_changes(
@@ -67,6 +84,9 @@ def test_same_policy_has_no_effect_changes(
     report = compare_policies(baseline, baseline, scenarios)
     assert report.summary.changed_effects == 0
     assert report.summary.privilege_expansions == 0
+    assert report.summary.static_authority_expansions == 0
+    assert report.summary.static_authority_unknowns == 0
+    assert report.authority_findings == []
     assert not report.structural_diff.default_effect_changed
 
 
@@ -77,6 +97,7 @@ def test_rule_reorder_is_reported(
     candidate = baseline.model_copy(update={"rules": list(reversed(baseline.rules))})
     report = compare_policies(baseline, candidate, scenarios)
     assert report.structural_diff.reordered_rules
+    assert report.summary.static_authority_unknowns == 1
 
 
 def test_restriction_is_classified(

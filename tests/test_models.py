@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from permitdiff.models import ActionRequest, Scenario
+from permitdiff.models import ActionContext, ActionRequest, Scenario
 
 
 def test_fingerprint_ignores_request_identity_and_timestamp() -> None:
@@ -50,6 +50,37 @@ def test_non_string_argument_keys_are_rejected() -> None:
 def test_non_finite_arguments_are_rejected() -> None:
     with pytest.raises(ValidationError):
         ActionRequest(principal="p", agent="a", tool="t", arguments={"x": float("nan")})
+
+
+def test_non_canonicalizable_integer_arguments_are_rejected() -> None:
+    with pytest.raises(ValidationError, match="cannot be canonicalized"):
+        ActionRequest(
+            principal="p",
+            agent="a",
+            tool="t",
+            arguments={"x": 10**10_000},
+        )
+
+
+def test_non_canonicalizable_dynamic_context_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="cannot be canonicalized"):
+        ActionContext(tenant_metadata=10**10_000)
+
+
+def test_non_json_dynamic_context_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="non-JSON value"):
+        ActionContext(tenant_metadata=object())
+
+
+def test_valid_dynamic_context_changes_action_fingerprint() -> None:
+    first = ActionRequest(
+        principal="p",
+        agent="a",
+        tool="t",
+        context=ActionContext(tenant="alpha"),
+    )
+    second = first.model_copy(update={"context": ActionContext(tenant="beta")})
+    assert first.fingerprint() != second.fingerprint()
 
 
 def test_excessive_argument_depth_is_rejected() -> None:

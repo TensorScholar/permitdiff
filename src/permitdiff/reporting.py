@@ -13,6 +13,7 @@ from rich.table import Table
 
 from permitdiff._version import __version__
 from permitdiff.analysis import ComparisonReport, ScenarioTransition
+from permitdiff.authority import AuthorityFinding, AuthorityFindingKind
 from permitdiff.gate import GateResult
 
 
@@ -56,9 +57,11 @@ class ReportBundle:
             f"- Baseline: `{report.baseline_name}` `{report.baseline_version}`",
             f"- Candidate: `{report.candidate_name}` `{report.candidate_version}`",
             f"- Scenarios: {report.summary.scenarios}",
-            f"- Privilege expansions: {report.summary.privilege_expansions}",
+            f"- Observed privilege expansions: {report.summary.privilege_expansions}",
             f"- New allows: {report.summary.new_allows}",
             f"- Approval bypasses: {report.summary.approval_bypasses}",
+            f"- Static authority expansions: {report.summary.static_authority_expansions}",
+            f"- Static authority unknowns: {report.summary.static_authority_unknowns}",
             f"- Candidate rules without observed coverage: "
             f"{len(report.candidate_coverage.uncovered_rules)}",
             "",
@@ -90,13 +93,44 @@ class ReportBundle:
         else:
             lines.append("| _none_ | - | - | - | - | - |")
 
+        lines.extend(["", "## Static authority analysis", ""])
+        if report.authority_findings:
+            lines.extend(
+                [
+                    "| Kind | Code | Baseline rule | Candidate rule | Finding | Fingerprint |",
+                    "|---|---|---|---|---|---|",
+                ]
+            )
+            for finding in report.authority_findings:
+                lines.append(
+                    "| "
+                    + " | ".join(
+                        [
+                            finding.kind.value,
+                            finding.code,
+                            _escape_markdown(finding.baseline_rule_id or "-"),
+                            _escape_markdown(finding.candidate_rule_id or "-"),
+                            _escape_markdown(finding.message),
+                            f"`{finding.fingerprint[:12]}`",
+                        ]
+                    )
+                    + " |"
+                )
+        else:
+            lines.append("- No expansion or unknown finding in the bounded static model.")
+
         lines.extend(["", "## Structural policy diff", ""])
         lines.append(f"- Added rules: {_inline(report.structural_diff.added_rules)}")
         lines.append(f"- Removed rules: {_inline(report.structural_diff.removed_rules)}")
-        lines.append(f"- Modified rules: {_inline(report.structural_diff.modified_rules)}")
+        lines.append(f"- Modified semantic rules: {_inline(report.structural_diff.modified_rules)}")
         lines.append(f"- Shared rules reordered: `{report.structural_diff.reordered_rules}`")
         lines.append(f"- Default effect changed: `{report.structural_diff.default_effect_changed}`")
         lines.extend(["", "## Candidate coverage", ""])
+        lines.append(
+            "Observed scenario coverage is evidence of exercised rules, "
+            "not exhaustive policy coverage."
+        )
+        lines.append("")
         for rule_id, hits in report.candidate_coverage.rule_hits.items():
             lines.append(f"- `{rule_id}`: {hits} hit(s)")
         lines.append(f"- `default`: {report.candidate_coverage.default_hits} hit(s)")
@@ -113,6 +147,11 @@ class ReportBundle:
                 lines.append("- No violations.")
             if self.gate.waived_scenarios:
                 lines.append("- Waived scenarios: " + _inline(self.gate.waived_scenarios))
+            if self.gate.waived_authority_findings:
+                lines.append(
+                    "- Waived static authority findings: "
+                    + _inline([item[:12] for item in self.gate.waived_authority_findings])
+                )
             if self.gate.expired_waivers:
                 lines.append("- Expired waivers: " + _inline(self.gate.expired_waivers))
             if self.gate.unused_waivers:
@@ -121,11 +160,18 @@ class ReportBundle:
 
     def sarif(self, candidate_path: str | Path = "candidate-policy.yaml") -> str:
         results: list[dict[str, Any]] = []
-        waived = set(self.gate.waived_scenarios) if self.gate is not None else set()
+        waived_scenarios = set(self.gate.waived_scenarios) if self.gate is not None else set()
+        waived_authority = (
+            set(self.gate.waived_authority_findings) if self.gate is not None else set()
+        )
         for item in self.report.transitions:
-            if not item.privilege_expansion or item.scenario_id in waived:
+            if not item.privilege_expansion or item.scenario_id in waived_scenarios:
                 continue
             results.append(_transition_sarif(item, str(candidate_path)))
+        for finding in self.report.authority_findings:
+            if finding.fingerprint in waived_authority:
+                continue
+            results.append(_authority_sarif(finding, str(candidate_path)))
         for rule_id in self.report.candidate_coverage.uncovered_rules:
             results.append(
                 {
@@ -152,7 +198,25 @@ class ReportBundle:
                                 {
                                     "id": "permitdiff/privilege-expansion",
                                     "shortDescription": {
-                                        "text": "AI-agent permission became more permissive"
+                                        "text": (
+                                            "Observed AI-agent permission became more permissive"
+                                        )
+                                    },
+                                },
+                                {
+                                    "id": "permitdiff/static-authority-expansion",
+                                    "shortDescription": {
+                                        "text": (
+                                            "Static analysis found a potential authority expansion"
+                                        )
+                                    },
+                                },
+                                {
+                                    "id": "permitdiff/static-authority-unknown",
+                                    "shortDescription": {
+                                        "text": (
+                                            "Static analysis cannot prove the change non-expanding"
+                                        )
                                     },
                                 },
                                 {
@@ -187,10 +251,14 @@ class ReportBundle:
         )
         summary = Table(show_header=False, box=None)
         summary.add_row("Scenarios", str(report.summary.scenarios))
-        summary.add_row("Privilege expansions", str(report.summary.privilege_expansions))
+        summary.add_row("Observed privilege expansions", str(report.summary.privilege_expansions))
         summary.add_row("New allows", str(report.summary.new_allows))
         summary.add_row("Approval bypasses", str(report.summary.approval_bypasses))
         summary.add_row("Restrictions", str(report.summary.restrictions))
+        summary.add_row(
+            "Static authority expansions", str(report.summary.static_authority_expansions)
+        )
+        summary.add_row("Static authority unknowns", str(report.summary.static_authority_unknowns))
         summary.add_row(
             "Uncovered candidate rules",
             str(len(report.candidate_coverage.uncovered_rules)),
@@ -198,7 +266,7 @@ class ReportBundle:
         console.print(summary)
 
         changed = [item for item in report.transitions if item.changed]
-        table = Table(title="Permission changes")
+        table = Table(title="Observed permission changes")
         table.add_column("Scenario")
         table.add_column("Risk")
         table.add_column("Baseline")
@@ -219,6 +287,25 @@ class ReportBundle:
         console.print(table)
         if len(changed) > max_changes:
             console.print(f"Showing {max_changes} of {len(changed)} changed scenarios.")
+
+        if report.authority_findings:
+            authority = Table(title="Static authority findings")
+            authority.add_column("Kind")
+            authority.add_column("Code")
+            authority.add_column("Rules")
+            authority.add_column("Finding")
+            for finding in report.authority_findings[:max_changes]:
+                authority.add_row(
+                    finding.kind.value,
+                    finding.code,
+                    f"{finding.baseline_rule_id or '-'} → {finding.candidate_rule_id or '-'}",
+                    finding.message,
+                )
+            console.print(authority)
+            if len(report.authority_findings) > max_changes:
+                console.print(
+                    f"Showing {max_changes} of {len(report.authority_findings)} static findings."
+                )
 
         if self.gate is not None and self.gate.violations:
             violations = Table(title="Gate violations")
@@ -260,6 +347,30 @@ def _transition_sarif(item: ScenarioTransition, candidate_path: str) -> dict[str
     }
 
 
+def _authority_sarif(item: AuthorityFinding, candidate_path: str) -> dict[str, Any]:
+    rule_id = (
+        "permitdiff/static-authority-expansion"
+        if item.kind is AuthorityFindingKind.POTENTIAL_EXPANSION
+        else "permitdiff/static-authority-unknown"
+    )
+    return {
+        "ruleId": rule_id,
+        "level": "error",
+        "message": {"text": item.message},
+        "locations": [_sarif_location(candidate_path)],
+        "properties": {
+            "finding_kind": item.kind.value,
+            "finding_code": item.code,
+            "finding_fingerprint": item.fingerprint,
+            "baseline_rule_id": item.baseline_rule_id,
+            "candidate_rule_id": item.candidate_rule_id,
+            "match_relation": item.match_relation.value
+            if item.match_relation is not None
+            else None,
+        },
+    }
+
+
 def _sarif_location(path: str) -> dict[str, Any]:
     return {"physicalLocation": {"artifactLocation": {"uri": path}}}
 
@@ -275,4 +386,4 @@ def _inline(values: list[str]) -> str:
 
 
 def _escape_markdown(value: str) -> str:
-    return value.replace("|", "\\|")
+    return value.replace("|", "\\|").replace("\n", " ")

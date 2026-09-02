@@ -1,5 +1,88 @@
 {
   "$defs": {
+    "AuthorityFindingKind": {
+      "description": "Gate-relevant conclusion from bounded static analysis.",
+      "enum": [
+        "potential_expansion",
+        "unknown"
+      ],
+      "title": "AuthorityFindingKind",
+      "type": "string"
+    },
+    "AuthorityWaiver": {
+      "additionalProperties": false,
+      "description": "Review evidence for one exact, temporary static authority finding.",
+      "properties": {
+        "baseline_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Baseline Digest",
+          "type": "string"
+        },
+        "candidate_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Candidate Digest",
+          "type": "string"
+        },
+        "expires_on": {
+          "format": "date",
+          "title": "Expires On",
+          "type": "string"
+        },
+        "finding_fingerprint": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Finding Fingerprint",
+          "type": "string"
+        },
+        "finding_kind": {
+          "$ref": "#/$defs/AuthorityFindingKind"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "issue": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issue"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 10,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "finding_kind",
+        "finding_fingerprint",
+        "baseline_digest",
+        "candidate_digest",
+        "reason",
+        "expires_on"
+      ],
+      "title": "AuthorityWaiver",
+      "type": "object"
+    },
     "DecisionEffect": {
       "description": "Ordered authorization outcomes from least to most permissive.",
       "enum": [
@@ -12,7 +95,7 @@
     },
     "TransitionWaiver": {
       "additionalProperties": false,
-      "description": "Review evidence for one exact, temporary permission transition.",
+      "description": "Review evidence for one exact, temporary observed permission transition.",
       "properties": {
         "action_fingerprint": {
           "maxLength": 64,
@@ -89,6 +172,13 @@
       "title": "Api Version",
       "type": "string"
     },
+    "authority_waivers": {
+      "items": {
+        "$ref": "#/$defs/AuthorityWaiver"
+      },
+      "title": "Authority Waivers",
+      "type": "array"
+    },
     "fail_on_removed_rules": {
       "default": false,
       "title": "Fail On Removed Rules",
@@ -126,6 +216,12 @@
       "default": 0,
       "minimum": 0,
       "title": "Max Privilege Expansions",
+      "type": "integer"
+    },
+    "max_static_authority_expansions": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Max Static Authority Expansions",
       "type": "integer"
     },
     "max_uncovered_candidate_rules": {

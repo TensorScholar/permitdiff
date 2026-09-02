@@ -21,17 +21,22 @@
 
 ## Why PermitDiff
 
-A text diff shows that policy YAML changed. It does **not** prove whether an agent can now perform an action that was previously denied or required human approval.
+A text diff shows that policy YAML changed. It does **not** tell a reviewer what new authority became reachable.
 
-PermitDiff evaluates one review corpus against both policies and emits an auditable permission plan.
+PermitDiff evaluates the same review corpus against baseline and candidate policies **and** performs bounded static authority analysis over the policy change. The result separates observed scenario evidence from conservative policy-level findings.
 
 | Detects | Example |
 |---|---|
-| **Privilege expansion** | `deny → allow` |
+| **Observed privilege expansion** | scenario resolves `deny → allow` |
 | **Approval bypass** | `require_approval → allow` |
-| **Coverage drift** | New rule has no scenario |
-| **Unsafe defaults** | Fallback changes to `allow` |
-| **Stale exceptions** | Waiver expired or unused |
+| **Scope widening** | `payments.refund → payments.*` |
+| **Constraint weakening** | `amount <= 100 → amount <= 10000` |
+| **Coverage drift** | New rule has no observed scenario |
+| **Unsafe defaults** | Fallback becomes more permissive |
+| **Precedence uncertainty** | Mixed-effect rules change order |
+| **Stale exceptions** | Waiver expired, drifted, or unused |
+
+When bounded static analysis cannot prove a changed construct non-expanding, the result is `unknown` and the strict gate fails closed. PermitDiff does not convert uncertainty into safety.
 
 ## Five-minute start
 
@@ -48,19 +53,24 @@ Exit `0` = pass · `2` = valid comparison blocked by policy · `1` = invalid inp
 
 ```mermaid
 flowchart LR
-  B[Baseline] --> E[Deterministic evaluator]
-  C[Candidate] --> E
-  S[Scenario corpus] --> E
-  E --> P[Permission plan]
+  B[Baseline policy] --> C[Deterministic comparison]
+  N[Candidate policy] --> C
+  S[Scenario corpus] --> C
+  C --> O[Observed transitions]
+  C --> A[Bounded static authority findings]
+  O --> P[Permission plan]
+  A --> P
   P --> G{Release gate}
   G -->|pass| M[Merge]
-  G -->|fail| R[Review / bounded waiver]
+  G -->|fail| R[Review / exact bounded waiver]
 ```
 
 - **No LLM in the decision path** — deterministic, local, reproducible.
-- **Evidence-first** — canonical digests, action fingerprints, JSON, Markdown, SARIF.
-- **Fail-closed** — untrusted MCP-style annotations cannot authorize actions.
-- **Bounded waivers** — exact scenario + transition + reason + expiry.
+- **Semantics over text** — rule effects, scopes, constraints, defaults, and precedence matter; descriptions do not grant authority.
+- **Two evidence channels** — observed scenario transitions remain distinct from bounded static authority findings.
+- **Fail-closed** — invalid inputs and unresolved static semantics do not become `allow` or `pass`.
+- **Evidence-first** — policy/corpus digests, action/finding fingerprints, JSON, Markdown, SARIF.
+- **Bounded waivers** — observed transitions and policy-level findings require exact, expiring review evidence; static waivers are bound to baseline/candidate digests.
 
 ## GitHub Action
 
@@ -80,11 +90,13 @@ The action writes a Markdown step summary and a SARIF report for code scanning.
 
 ## Scope
 
-PermitDiff is a **release-control layer**, not a runtime authorizer, sandbox, identity provider, or proof of exhaustive corpus coverage. Review the [methodology](docs/methodology.md), [threat model](docs/threat-model.md), and [limitations](docs/limitations.md) before sensitive use.
+PermitDiff is a **release-time semantic permission regression gate**. It is not a runtime authorizer, credential broker, sandbox, identity provider, generic behavioral evaluator, or proof of exhaustive authorization safety.
+
+Observed scenario coverage is not proven policy coverage. The built-in static analyzer deliberately handles a bounded semantic subset and reports unsupported or ambiguous containment as `unknown`. Review the [methodology](docs/methodology.md), [threat model](docs/threat-model.md), and [limitations](docs/limitations.md) before sensitive use.
 
 ## Trust & delivery
 
-The release pipeline is configured for Python 3.11–3.14 tests, branch-aware coverage, strict typing, linting, dependency audit, CodeQL, OpenSSF Scorecard, clean-wheel smoke tests, CycloneDX SBOMs, Trusted Publishing, checksums, and GitHub build attestations.
+The release pipeline is configured for Python 3.11–3.14 tests, branch-aware coverage, strict typing, linting, dependency audit, CodeQL, OpenSSF Scorecard, clean-wheel smoke tests, CycloneDX SBOMs, Trusted Publishing, checksums, and GitHub build attestations. Configuration is not evidence that every release control has executed successfully; release evidence is evaluated separately.
 
 **Commercial adoption:** permission architecture reviews, scenario-corpus design, CI rollout, policy migration, and private adapters. [Engagement model →](docs/commercial-support.md)
 

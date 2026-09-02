@@ -10,15 +10,17 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from permitdiff.analysis import ComparisonReport
+from permitdiff.authority import AuthorityFindingKind
 from permitdiff.errors import GateLoadError
 from permitdiff.models import DecisionEffect
 from permitdiff.yaml_utils import safe_load_yaml
 
 _MAX_GATE_BYTES = 1_000_000
+_SHA256_PATTERN = r"^[0-9a-f]{64}$"
 
 
 class TransitionWaiver(BaseModel):
-    """Review evidence for one exact, temporary permission transition."""
+    """Review evidence for one exact, temporary observed permission transition."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -26,11 +28,22 @@ class TransitionWaiver(BaseModel):
     scenario_id: str = Field(min_length=1, max_length=256)
     from_effect: DecisionEffect
     to_effect: DecisionEffect
-    action_fingerprint: str = Field(
-        min_length=64,
-        max_length=64,
-        pattern=r"^[0-9a-f]{64}$",
-    )
+    action_fingerprint: str = Field(min_length=64, max_length=64, pattern=_SHA256_PATTERN)
+    reason: str = Field(min_length=10, max_length=2000)
+    expires_on: date
+    issue: HttpUrl | None = None
+
+
+class AuthorityWaiver(BaseModel):
+    """Review evidence for one exact, temporary static authority finding."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    finding_kind: AuthorityFindingKind
+    finding_fingerprint: str = Field(min_length=64, max_length=64, pattern=_SHA256_PATTERN)
+    baseline_digest: str = Field(min_length=64, max_length=64, pattern=_SHA256_PATTERN)
+    candidate_digest: str = Field(min_length=64, max_length=64, pattern=_SHA256_PATTERN)
     reason: str = Field(min_length=10, max_length=2000)
     expires_on: date
     issue: HttpUrl | None = None
@@ -46,16 +59,18 @@ class GateConfig(BaseModel):
     max_privilege_expansions: int = Field(default=0, ge=0)
     max_new_allows: int = Field(default=0, ge=0)
     max_approval_bypasses: int = Field(default=0, ge=0)
+    max_static_authority_expansions: int = Field(default=0, ge=0)
     max_uncovered_candidate_rules: int | None = Field(default=0, ge=0)
     forbid_default_effect_relaxation: bool = True
     fail_on_removed_rules: bool = False
     fail_on_unused_waivers: bool = False
     waivers: list[TransitionWaiver] = Field(default_factory=list)
+    authority_waivers: list[AuthorityWaiver] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def unique_waivers(self) -> GateConfig:
-        ids = [item.id for item in self.waivers]
-        if len(ids) != len(set(ids)):
+        all_ids = [item.id for item in self.waivers] + [item.id for item in self.authority_waivers]
+        if len(all_ids) != len(set(all_ids)):
             raise ValueError("waiver ids must be unique")
         transitions = [
             (
@@ -68,6 +83,17 @@ class GateConfig(BaseModel):
         ]
         if len(transitions) != len(set(transitions)):
             raise ValueError("waivers must target unique scenario transitions")
+        findings = [
+            (
+                item.finding_kind,
+                item.finding_fingerprint,
+                item.baseline_digest,
+                item.candidate_digest,
+            )
+            for item in self.authority_waivers
+        ]
+        if len(findings) != len(set(findings)):
+            raise ValueError("authority waivers must target unique static findings")
         return self
 
     @classmethod
@@ -104,6 +130,7 @@ class GateResult(BaseModel):
     passed: bool
     violations: list[GateViolation]
     waived_scenarios: list[str]
+    waived_authority_findings: list[str] = Field(default_factory=list)
     expired_waivers: list[str]
     unused_waivers: list[str]
 
@@ -114,20 +141,29 @@ def evaluate_gate(
     *,
     today: date | None = None,
 ) -> GateResult:
-    """Apply thresholds after exact, non-expired transition waivers."""
+    """Apply thresholds after exact, non-expired transition and authority waivers."""
 
     resolved_today = today or datetime.now(UTC).date()
-    active_waivers = [item for item in config.waivers if item.expires_on >= resolved_today]
-    expired = sorted(item.id for item in config.waivers if item.expires_on < resolved_today)
+    active_transition_waivers = [
+        item for item in config.waivers if item.expires_on >= resolved_today
+    ]
+    active_authority_waivers = [
+        item for item in config.authority_waivers if item.expires_on >= resolved_today
+    ]
+    expired = sorted(
+        [item.id for item in config.waivers if item.expires_on < resolved_today]
+        + [item.id for item in config.authority_waivers if item.expires_on < resolved_today]
+    )
     used_waivers: set[str] = set()
     waived_scenarios: set[str] = set()
-    unwaived = []
+    waived_authority_findings: set[str] = set()
+    unwaived_transitions = []
 
     for transition in report.transitions:
-        matching = next(
+        matching_transition = next(
             (
                 waiver
-                for waiver in active_waivers
+                for waiver in active_transition_waivers
                 if waiver.scenario_id == transition.scenario_id
                 and waiver.from_effect is transition.baseline_effect
                 and waiver.to_effect is transition.candidate_effect
@@ -135,15 +171,41 @@ def evaluate_gate(
             ),
             None,
         )
-        if matching is not None and transition.privilege_expansion:
-            used_waivers.add(matching.id)
+        if matching_transition is not None and transition.privilege_expansion:
+            used_waivers.add(matching_transition.id)
             waived_scenarios.add(transition.scenario_id)
         else:
-            unwaived.append(transition)
+            unwaived_transitions.append(transition)
 
-    expansions = sum(item.privilege_expansion for item in unwaived)
-    new_allows = sum(item.new_allow for item in unwaived)
-    approval_bypasses = sum(item.approval_bypass for item in unwaived)
+    unwaived_authority_findings = []
+    for finding in report.authority_findings:
+        matching_authority = next(
+            (
+                waiver
+                for waiver in active_authority_waivers
+                if waiver.finding_kind is finding.kind
+                and waiver.finding_fingerprint == finding.fingerprint
+                and waiver.baseline_digest == report.baseline_digest
+                and waiver.candidate_digest == report.candidate_digest
+            ),
+            None,
+        )
+        if matching_authority is not None:
+            used_waivers.add(matching_authority.id)
+            waived_authority_findings.add(finding.fingerprint)
+        else:
+            unwaived_authority_findings.append(finding)
+
+    expansions = sum(item.privilege_expansion for item in unwaived_transitions)
+    new_allows = sum(item.new_allow for item in unwaived_transitions)
+    approval_bypasses = sum(item.approval_bypass for item in unwaived_transitions)
+    static_expansions = sum(
+        item.kind is AuthorityFindingKind.POTENTIAL_EXPANSION
+        for item in unwaived_authority_findings
+    )
+    static_unknowns = sum(
+        item.kind is AuthorityFindingKind.UNKNOWN for item in unwaived_authority_findings
+    )
     violations: list[GateViolation] = []
     _append_threshold(
         violations,
@@ -166,6 +228,24 @@ def evaluate_gate(
         config.max_approval_bypasses,
         "unwaived approval-to-allow transitions",
     )
+    _append_threshold(
+        violations,
+        "static_authority_expansions",
+        static_expansions,
+        config.max_static_authority_expansions,
+        "unwaived static authority expansions",
+    )
+    if static_unknowns:
+        violations.append(
+            GateViolation(
+                code="static_authority_unknown",
+                message=(
+                    "bounded static analysis cannot prove one or more policy changes non-expanding"
+                ),
+                actual=static_unknowns,
+                limit=0,
+            )
+        )
 
     uncovered = len(report.candidate_coverage.uncovered_rules)
     if (
@@ -210,12 +290,15 @@ def evaluate_gate(
             )
         )
 
-    unused = sorted(item.id for item in active_waivers if item.id not in used_waivers)
+    unused = sorted(
+        [item.id for item in active_transition_waivers if item.id not in used_waivers]
+        + [item.id for item in active_authority_waivers if item.id not in used_waivers]
+    )
     if config.fail_on_unused_waivers and unused:
         violations.append(
             GateViolation(
                 code="unused_waivers",
-                message="active waivers do not match any privilege expansion",
+                message="active waivers do not match any gate-relevant authority expansion",
                 actual=len(unused),
                 limit=0,
             )
@@ -225,13 +308,14 @@ def evaluate_gate(
         passed=not violations,
         violations=violations,
         waived_scenarios=sorted(waived_scenarios),
+        waived_authority_findings=sorted(waived_authority_findings),
         expired_waivers=expired,
         unused_waivers=unused,
     )
 
 
 def strict_gate() -> GateConfig:
-    """Return a zero-expansion, full-candidate-coverage release gate."""
+    """Return a zero-expansion, fail-closed, full-candidate-coverage release gate."""
 
     return GateConfig()
 
