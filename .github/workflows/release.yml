@@ -64,11 +64,14 @@ jobs:
             --wheel ../../dist/permitdiff-*.whl \
             --output ../../dist/external-repository-evidence.json
           test -z "$(git status --porcelain)"
-      - name: Generate CycloneDX SBOM
+      - name: Generate reproducible CycloneDX SBOM
         run: |
           cyclonedx-py environment /tmp/permitdiff-smoke/bin/python \
             --spec-version 1.6 --output-format JSON --output-reproducible \
             --output-file dist/permitdiff-sbom.cdx.json
+          python scripts/finalize_cyclonedx_sbom.py \
+            --sbom dist/permitdiff-sbom.cdx.json \
+            --subject dist/permitdiff-*.whl
       - name: Generate checksums
         working-directory: dist
         run: |
