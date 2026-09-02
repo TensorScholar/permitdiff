@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from scripts.check_release import validate_release_metadata
 
 from permitdiff import __version__
-from scripts.check_release import validate_release_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 _SHA_PIN = re.compile(r"^[^@\s]+@[0-9a-f]{40}(?:\s+#.*)?$")
