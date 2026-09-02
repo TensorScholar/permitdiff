@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from permitdiff.authority import (
     AuthorityFindingKind,
@@ -61,9 +62,7 @@ def test_numeric_upper_bound_relaxation_is_static_expansion() -> None:
             _rule(arguments=[Predicate(path="amount", operator="less_than_or_equal", value=100)])
         ),
         _policy(
-            _rule(
-                arguments=[Predicate(path="amount", operator="less_than_or_equal", value=10_000)]
-            )
+            _rule(arguments=[Predicate(path="amount", operator="less_than_or_equal", value=10_000)])
         ),
     )
     assert finding.kind is AuthorityFindingKind.POTENTIAL_EXPANSION
@@ -278,12 +277,9 @@ def test_multiple_changed_predicates_remain_unknown() -> None:
     assert match_relation(baseline, candidate) is MatchRelation.UNKNOWN
 
 
-def test_huge_numeric_bound_fails_closed_as_unknown_instead_of_crashing() -> None:
-    baseline = _predicate_match(Predicate(path="amount", operator="less_than", value=1))
-    candidate = _predicate_match(
+def test_huge_numeric_bound_is_rejected_before_static_analysis() -> None:
+    with pytest.raises(ValidationError, match="cannot be canonicalized"):
         Predicate(path="amount", operator="less_than", value=10**10_000)
-    )
-    assert match_relation(baseline, candidate) is MatchRelation.UNKNOWN
 
 
 def test_non_numeric_bound_fails_closed_as_unknown() -> None:
