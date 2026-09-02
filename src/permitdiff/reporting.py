@@ -248,7 +248,9 @@ class ReportBundle:
         summary.add_row("New allows", str(report.summary.new_allows))
         summary.add_row("Approval bypasses", str(report.summary.approval_bypasses))
         summary.add_row("Restrictions", str(report.summary.restrictions))
-        summary.add_row("Static authority expansions", str(report.summary.static_authority_expansions))
+        summary.add_row(
+            "Static authority expansions", str(report.summary.static_authority_expansions)
+        )
         summary.add_row("Static authority unknowns", str(report.summary.static_authority_unknowns))
         summary.add_row(
             "Uncovered candidate rules",
@@ -355,7 +357,9 @@ def _authority_sarif(item: AuthorityFinding, candidate_path: str) -> dict[str, A
             "finding_fingerprint": item.fingerprint,
             "baseline_rule_id": item.baseline_rule_id,
             "candidate_rule_id": item.candidate_rule_id,
-            "match_relation": item.match_relation.value if item.match_relation is not None else None,
+            "match_relation": item.match_relation.value
+            if item.match_relation is not None
+            else None,
         },
     }
 
