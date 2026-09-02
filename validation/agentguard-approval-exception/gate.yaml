@@ -1,0 +1,12 @@
+api_version: permitdiff.dev/v1alpha1
+kind: Gate
+max_privilege_expansions: 0
+max_new_allows: 0
+max_approval_bypasses: 0
+max_static_authority_expansions: 0
+max_uncovered_candidate_rules: 0
+forbid_default_effect_relaxation: true
+fail_on_removed_rules: false
+fail_on_unused_waivers: true
+waivers: []
+authority_waivers: []
