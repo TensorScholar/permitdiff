@@ -12,6 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 _EXPECTED_SUMMARY = {
     "privilege_expansions": 2,
@@ -65,6 +66,53 @@ def _installed_package_origin() -> Path:
     return Path(spec.origin).resolve()
 
 
+def _assert_installed_wheel(wheel: Path, source_root: Path) -> dict[str, str]:
+    package_origin = _installed_package_origin()
+    if package_origin.is_relative_to(source_root):
+        raise RuntimeError(
+            "PermitDiff resolved from the source checkout instead of the installed wheel"
+        )
+
+    distribution = importlib.metadata.distribution("permitdiff")
+    direct_url_text = distribution.read_text("direct_url.json")
+    if direct_url_text is None:
+        raise RuntimeError("installed PermitDiff distribution has no PEP 610 direct_url metadata")
+    try:
+        direct_url = json.loads(direct_url_text)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("installed PermitDiff direct_url metadata is invalid JSON") from exc
+    if not isinstance(direct_url, dict):
+        raise RuntimeError("installed PermitDiff direct_url metadata must be an object")
+
+    parsed = urlparse(str(direct_url.get("url", "")))
+    if parsed.scheme != "file":
+        raise RuntimeError(f"PermitDiff was not installed from a local wheel: {parsed.scheme!r}")
+    installed_from = Path(unquote(parsed.path)).resolve()
+    if installed_from != wheel:
+        raise RuntimeError(f"PermitDiff was installed from {installed_from}, expected {wheel}")
+
+    wheel_sha256 = _sha256(wheel)
+    archive_info = direct_url.get("archive_info")
+    if not isinstance(archive_info, dict):
+        raise RuntimeError("installed PermitDiff direct_url metadata has no archive_info")
+    hashes = archive_info.get("hashes")
+    legacy_hash = archive_info.get("hash")
+    recorded_sha256 = hashes.get("sha256") if isinstance(hashes, dict) else None
+    if recorded_sha256 is None and isinstance(legacy_hash, str):
+        prefix = "sha256="
+        if legacy_hash.startswith(prefix):
+            recorded_sha256 = legacy_hash[len(prefix) :]
+    if recorded_sha256 != wheel_sha256:
+        raise RuntimeError(
+            "installed PermitDiff wheel hash does not match the wheel under validation"
+        )
+
+    return {
+        "package_origin": str(package_origin),
+        "wheel_sha256": wheel_sha256,
+    }
+
+
 def _assert_external_checkout(
     *,
     expected_origin: str,
@@ -75,7 +123,9 @@ def _assert_external_checkout(
     candidate_blob: str,
     evidence_root: Path,
 ) -> dict[str, str]:
-    repository_root = Path(str(_run_git("rev-parse", "--show-toplevel").stdout).strip()).resolve()
+    repository_root = Path(
+        str(_run_git("rev-parse", "--show-toplevel").stdout).strip()
+    ).resolve()
     if Path.cwd().resolve() != repository_root:
         raise RuntimeError("validation must execute from the external repository root")
 
@@ -99,7 +149,9 @@ def _assert_external_checkout(
     if _git_show(baseline_commit, source_path) != frozen_baseline:
         raise RuntimeError("frozen baseline evidence does not match the external repository blob")
     if (repository_root / source_path).read_bytes() != frozen_candidate:
-        raise RuntimeError("frozen candidate evidence does not match the external repository checkout")
+        raise RuntimeError(
+            "frozen candidate evidence does not match the external repository checkout"
+        )
 
     return {
         "origin": actual_origin,
@@ -176,10 +228,7 @@ def main() -> int:
         raise RuntimeError(f"wheel does not exist: {wheel}")
 
     source_root = evidence_root.parents[1]
-    package_origin = _installed_package_origin()
-    if package_origin.is_relative_to(source_root):
-        raise RuntimeError("PermitDiff resolved from the source checkout instead of the installed wheel")
-
+    installed = _assert_installed_wheel(wheel, source_root)
     external = _assert_external_checkout(
         expected_origin=args.expected_origin,
         baseline_commit=args.baseline_commit,
@@ -204,8 +253,8 @@ def main() -> int:
         "release_candidate": {
             "version": importlib.metadata.version("permitdiff"),
             "wheel": wheel.name,
-            "wheel_sha256": _sha256(wheel),
-            "installed_from_wheel": True,
+            "wheel_sha256": installed["wheel_sha256"],
+            "installed_from_exact_wheel": True,
         },
         "execution": {
             "repository_root_cwd": True,
