@@ -48,6 +48,10 @@ jobs:
           python-version: "3.13"
           cache: pip
       - run: python -m pip install -e '.[dev]'
+      - name: Rehearse release metadata contract
+        run: |
+          release_tag="$(python -c 'from permitdiff import __version__; print(f"v{__version__}")')"
+          python scripts/check_release.py --tag "$release_tag"
       - run: ruff format --check .
       - run: ruff check .
       - run: mypy src
