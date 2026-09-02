@@ -64,7 +64,7 @@ def main() -> None:
 
     try:
         serial_number = finalize_cyclonedx_sbom(args.sbom, args.subject)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
     print(f"finalized CycloneDX SBOM with deterministic serialNumber {serial_number}")
