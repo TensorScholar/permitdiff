@@ -38,6 +38,28 @@ jobs:
           python -m venv /tmp/permitdiff-smoke
           /tmp/permitdiff-smoke/bin/python -m pip install dist/*.whl
           /tmp/permitdiff-smoke/bin/python scripts/smoke_install.py
+      - name: Checkout pinned external repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: SpearIT-LLC/project-framework
+          ref: d8a47de7f5f96d501432a7f02c6909c667a5f31d
+          fetch-depth: 2
+          persist-credentials: false
+          path: external/project-framework
+      - name: Validate release wheel in external repository
+        working-directory: external/project-framework
+        run: |
+          /tmp/permitdiff-smoke/bin/python ../../scripts/validate_external_repository.py \
+            --expected-origin https://github.com/SpearIT-LLC/project-framework \
+            --baseline-commit 28133b63a9a54621c8d7be879ba671daf8464c1c \
+            --candidate-commit d8a47de7f5f96d501432a7f02c6909c667a5f31d \
+            --source-path .claude/settings.local.json \
+            --baseline-blob 87d28d71c3a8b65142e5e090e8deb42130fd3637 \
+            --candidate-blob 2e5f2bb998c7e5ed4d6394b8934144207546472d \
+            --evidence-root ../../validation/public-claude-permission-widening \
+            --wheel ../../dist/permitdiff-*.whl \
+            --output ../../dist/external-repository-evidence.json
+          test -z "$(git status --porcelain)"
       - name: Generate CycloneDX SBOM
         run: |
           cyclonedx-py environment /tmp/permitdiff-smoke/bin/python \
@@ -45,7 +67,13 @@ jobs:
             --output-file dist/permitdiff-sbom.cdx.json
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum *.whl *.tar.gz permitdiff-sbom.cdx.json > SHA256SUMS
+        run: |
+          sha256sum \
+            *.whl \
+            *.tar.gz \
+            permitdiff-sbom.cdx.json \
+            external-repository-evidence.json \
+            > SHA256SUMS
       - name: Attest release artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -53,6 +81,7 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
             dist/SHA256SUMS
+            dist/external-repository-evidence.json
       - name: Attest SBOM
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -95,7 +124,8 @@ jobs:
         with:
           name: distributions
           path: dist
-      - run: rm -f dist/SHA256SUMS dist/*sbom*.json
+      - name: Keep only Python distribution files for PyPI
+        run: rm -f dist/SHA256SUMS dist/*sbom*.json dist/external-repository-evidence.json
       - uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
         with:
           packages-dir: dist/
