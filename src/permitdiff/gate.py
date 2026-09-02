@@ -69,7 +69,9 @@ class GateConfig(BaseModel):
 
     @model_validator(mode="after")
     def unique_waivers(self) -> GateConfig:
-        all_ids = [item.id for item in [*self.waivers, *self.authority_waivers]]
+        all_ids = [item.id for item in self.waivers] + [
+            item.id for item in self.authority_waivers
+        ]
         if len(all_ids) != len(set(all_ids)):
             raise ValueError("waiver ids must be unique")
         transitions = [
@@ -151,9 +153,12 @@ def evaluate_gate(
         item for item in config.authority_waivers if item.expires_on >= resolved_today
     ]
     expired = sorted(
-        item.id
-        for item in [*config.waivers, *config.authority_waivers]
-        if item.expires_on < resolved_today
+        [item.id for item in config.waivers if item.expires_on < resolved_today]
+        + [
+            item.id
+            for item in config.authority_waivers
+            if item.expires_on < resolved_today
+        ]
     )
     used_waivers: set[str] = set()
     waived_scenarios: set[str] = set()
@@ -161,7 +166,7 @@ def evaluate_gate(
     unwaived_transitions = []
 
     for transition in report.transitions:
-        matching = next(
+        matching_transition = next(
             (
                 waiver
                 for waiver in active_transition_waivers
@@ -172,15 +177,15 @@ def evaluate_gate(
             ),
             None,
         )
-        if matching is not None and transition.privilege_expansion:
-            used_waivers.add(matching.id)
+        if matching_transition is not None and transition.privilege_expansion:
+            used_waivers.add(matching_transition.id)
             waived_scenarios.add(transition.scenario_id)
         else:
             unwaived_transitions.append(transition)
 
     unwaived_authority_findings = []
     for finding in report.authority_findings:
-        matching = next(
+        matching_authority = next(
             (
                 waiver
                 for waiver in active_authority_waivers
@@ -191,8 +196,8 @@ def evaluate_gate(
             ),
             None,
         )
-        if matching is not None:
-            used_waivers.add(matching.id)
+        if matching_authority is not None:
+            used_waivers.add(matching_authority.id)
             waived_authority_findings.add(finding.fingerprint)
         else:
             unwaived_authority_findings.append(finding)
@@ -292,9 +297,8 @@ def evaluate_gate(
         )
 
     unused = sorted(
-        item.id
-        for item in [*active_transition_waivers, *active_authority_waivers]
-        if item.id not in used_waivers
+        [item.id for item in active_transition_waivers if item.id not in used_waivers]
+        + [item.id for item in active_authority_waivers if item.id not in used_waivers]
     )
     if config.fail_on_unused_waivers and unused:
         violations.append(
