@@ -84,6 +84,13 @@
       "title": "Violations",
       "type": "array"
     },
+    "waived_authority_findings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Waived Authority Findings",
+      "type": "array"
+    },
     "waived_scenarios": {
       "items": {
         "type": "string"
