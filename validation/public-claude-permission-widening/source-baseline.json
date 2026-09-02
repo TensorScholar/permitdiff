@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Task",
+      "Bash"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(secrets/**)",
+      "Read(credentials.json)",
+      "Read(.aws/**)",
+      "Read(.git/config)",
+      "Read(../**)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(secrets/**)",
+      "Edit(.git/config)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Write(secrets/**)",
+      "Write(.git/config)",
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(git reset --hard)",
+      "Bash(git push --force)",
+      "Bash(git push -f *)",
+      "Bash(git clean -fd)",
+      "Bash(git clean -fdx)",
+      "Bash(git branch -D *)",
+      "Bash(dd *)"
+    ],
+    "defaultMode": "dontAsk"
+  },
+  "enabledPlugins": {
+    "spearit-framework@dev-marketplace": true,
+    "spearit-framework-light@dev-marketplace": true
+  }
+}
