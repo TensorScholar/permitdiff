@@ -2,6 +2,14 @@
 
 All notable changes are documented here. Semantic Versioning begins when the `v1` schema stabilizes.
 
+## [0.1.0rc2] - 2026-09-02
+
+### Fixed
+
+- preserved reproducible CycloneDX generation while adding a deterministic `urn:uuid:` `serialNumber` derived from canonical BOM content and the release-wheel SHA-256, making the SBOM recognizable to GitHub artifact attestation without reintroducing random or timestamp entropy;
+- added a regression contract for deterministic SBOM identity and release-workflow finalization;
+- preserved `v0.1.0rc1` as an immutable failed release-attempt tag after its workflow stopped at SBOM attestation before artifact upload, GitHub Release creation, or PyPI publication.
+
 ## [0.1.0rc1] - 2026-09-02
 
 ### Added
