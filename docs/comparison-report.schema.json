@@ -1,5 +1,100 @@
 {
   "$defs": {
+    "AuthorityFinding": {
+      "additionalProperties": false,
+      "description": "One deterministic static finding about a policy change.",
+      "properties": {
+        "baseline_effect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionEffect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "baseline_rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Baseline Rule Id"
+        },
+        "candidate_effect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionEffect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidate_rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Candidate Rule Id"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "fingerprint": {
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AuthorityFindingKind"
+        },
+        "match_relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MatchRelation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fingerprint",
+        "kind",
+        "code",
+        "baseline_rule_id",
+        "candidate_rule_id",
+        "baseline_effect",
+        "candidate_effect",
+        "match_relation",
+        "message"
+      ],
+      "title": "AuthorityFinding",
+      "type": "object"
+    },
+    "AuthorityFindingKind": {
+      "description": "Gate-relevant conclusion from bounded static analysis.",
+      "enum": [
+        "potential_expansion",
+        "unknown"
+      ],
+      "title": "AuthorityFindingKind",
+      "type": "string"
+    },
     "ChangeDirection": {
       "description": "Whether candidate policy semantics expand or restrict permissions.",
       "enum": [
@@ -38,6 +133,14 @@
           "title": "Scenarios",
           "type": "integer"
         },
+        "static_authority_expansions": {
+          "title": "Static Authority Expansions",
+          "type": "integer"
+        },
+        "static_authority_unknowns": {
+          "title": "Static Authority Unknowns",
+          "type": "integer"
+        },
         "unchanged_effects": {
           "title": "Unchanged Effects",
           "type": "integer"
@@ -50,7 +153,9 @@
         "privilege_expansions",
         "restrictions",
         "new_allows",
-        "approval_bypasses"
+        "approval_bypasses",
+        "static_authority_expansions",
+        "static_authority_unknowns"
       ],
       "title": "ComparisonSummary",
       "type": "object"
@@ -63,6 +168,18 @@
         "allow"
       ],
       "title": "DecisionEffect",
+      "type": "string"
+    },
+    "MatchRelation": {
+      "description": "Conservative containment relation for candidate versus baseline match sets.",
+      "enum": [
+        "equal",
+        "broader",
+        "narrower",
+        "incomparable",
+        "unknown"
+      ],
+      "title": "MatchRelation",
       "type": "string"
     },
     "RiskLevel": {
@@ -271,6 +388,13 @@
   "additionalProperties": false,
   "description": "Complete deterministic comparison artifact.",
   "properties": {
+    "authority_findings": {
+      "items": {
+        "$ref": "#/$defs/AuthorityFinding"
+      },
+      "title": "Authority Findings",
+      "type": "array"
+    },
     "baseline_coverage": {
       "$ref": "#/$defs/RuleCoverage"
     },
@@ -336,7 +460,8 @@
     "structural_diff",
     "baseline_coverage",
     "candidate_coverage",
-    "transitions"
+    "transitions",
+    "authority_findings"
   ],
   "title": "ComparisonReport",
   "type": "object"
