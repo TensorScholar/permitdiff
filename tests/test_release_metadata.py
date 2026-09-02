@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -40,7 +40,10 @@ def test_release_metadata_uses_one_version() -> None:
 
 
 def test_current_release_metadata_is_coherent() -> None:
-    assert validate_release_metadata(f"v{__version__}", ROOT) == date(2026, 9, 2)
+    citation = yaml.safe_load((ROOT / "CITATION.cff").read_text(encoding="utf-8"))
+    release_date = validate_release_metadata(f"v{__version__}", ROOT)
+
+    assert release_date.isoformat() == str(citation["date-released"])
 
 
 def test_release_metadata_rejects_noncanonical_tag() -> None:
@@ -74,6 +77,16 @@ def test_release_metadata_rejects_citation_date_drift(tmp_path: Path) -> None:
     _write_metadata(tmp_path, changelog=changelog, citation_date="2026-09-01")
 
     with pytest.raises(ValueError, match="date-released does not match"):
+        validate_release_metadata(f"v{__version__}", tmp_path)
+
+
+def test_release_metadata_rejects_future_release_date(tmp_path: Path) -> None:
+    future_date = date.today() + timedelta(days=1)
+    release_date = future_date.isoformat()
+    changelog = f"# Changelog\n\n## [{__version__}] - {release_date}\n\n- release\n"
+    _write_metadata(tmp_path, changelog=changelog, citation_date=release_date)
+
+    with pytest.raises(ValueError, match="in the future"):
         validate_release_metadata(f"v{__version__}", tmp_path)
 
 
