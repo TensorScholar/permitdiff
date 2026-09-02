@@ -90,6 +90,20 @@ def test_release_metadata_rejects_future_release_date(tmp_path: Path) -> None:
         validate_release_metadata(f"v{__version__}", tmp_path)
 
 
+def test_release_metadata_rejects_publish_day_drift(tmp_path: Path) -> None:
+    metadata_date = date.today()
+    release_date = metadata_date.isoformat()
+    changelog = f"# Changelog\n\n## [{__version__}] - {release_date}\n\n- release\n"
+    _write_metadata(tmp_path, changelog=changelog, citation_date=release_date)
+
+    with pytest.raises(ValueError, match="does not match expected release date"):
+        validate_release_metadata(
+            f"v{__version__}",
+            tmp_path,
+            expected_date=metadata_date - timedelta(days=1),
+        )
+
+
 def test_release_workflow_preserves_external_evidence() -> None:
     release_workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
@@ -104,6 +118,7 @@ def test_release_workflow_preserves_external_evidence() -> None:
     assert "mkdir pypi-dist" in release_workflow
     assert "cp dist/*.whl dist/*.tar.gz pypi-dist/" in release_workflow
     assert "packages-dir: pypi-dist/" in release_workflow
+    assert "--expected-date \"$(date -u +%F)\"" in release_workflow
 
 
 def test_workflow_actions_are_pinned_to_commits() -> None:
