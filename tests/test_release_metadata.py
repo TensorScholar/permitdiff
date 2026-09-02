@@ -114,11 +114,11 @@ def test_release_workflow_preserves_external_evidence() -> None:
     assert "sha256sum --check SHA256SUMS" in release_workflow
     assert "subject-path: |" in release_workflow
     assert "dist/external-repository-evidence.json" in release_workflow
-    assert "gh release create \"$GITHUB_REF_NAME\" dist/*" in release_workflow
+    assert 'gh release create "$GITHUB_REF_NAME" dist/*' in release_workflow
     assert "mkdir pypi-dist" in release_workflow
     assert "cp dist/*.whl dist/*.tar.gz pypi-dist/" in release_workflow
     assert "packages-dir: pypi-dist/" in release_workflow
-    assert "--expected-date \"$(date -u +%F)\"" in release_workflow
+    assert '--expected-date "$(date -u +%F)"' in release_workflow
     assert "needs: [build, github-release]" in release_workflow
 
 
