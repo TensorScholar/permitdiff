@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import re
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -11,25 +12,59 @@ import yaml
 from permitdiff import __version__
 
 
+def _release_date_from_changelog(changelog: str) -> date:
+    pattern = rf"^## \[{re.escape(__version__)}\] - (\d{{4}}-\d{{2}}-\d{{2}})$"
+    matches = re.findall(pattern, changelog, flags=re.MULTILINE)
+    if len(matches) != 1:
+        raise ValueError(
+            f"CHANGELOG.md must contain exactly one dated entry for {__version__}; "
+            f"found {len(matches)}"
+        )
+    try:
+        release_date = date.fromisoformat(matches[0])
+    except ValueError as exc:  # pragma: no cover - regex already constrains the shape
+        raise ValueError(f"CHANGELOG.md has an invalid release date for {__version__}") from exc
+    if release_date > date.today():
+        raise ValueError(f"CHANGELOG.md release date {release_date} is in the future")
+    return release_date
+
+
+def validate_release_metadata(tag: str, root: Path = Path(".")) -> date:
+    """Validate immutable release identity across tag, changelog, and citation metadata."""
+
+    expected_tag = f"v{__version__}"
+    if tag != expected_tag:
+        raise ValueError(f"tag {tag!r} does not match expected release tag {expected_tag!r}")
+
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    release_date = _release_date_from_changelog(changelog)
+
+    citation = yaml.safe_load((root / "CITATION.cff").read_text(encoding="utf-8"))
+    if not isinstance(citation, dict):
+        raise ValueError("CITATION.cff must contain a mapping")
+    if citation.get("version") != __version__:
+        raise ValueError("CITATION.cff version does not match the package version")
+
+    citation_date = citation.get("date-released")
+    if str(citation_date) != release_date.isoformat():
+        raise ValueError(
+            "CITATION.cff date-released does not match the dated CHANGELOG.md release entry"
+        )
+
+    return release_date
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", required=True)
     args = parser.parse_args()
 
-    tag_version = args.tag.removeprefix("v")
-    if tag_version != __version__:
-        raise SystemExit(f"tag {args.tag!r} does not match package version {__version__!r}")
+    try:
+        release_date = validate_release_metadata(args.tag)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        raise SystemExit(str(exc)) from exc
 
-    changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-    pattern = rf"^## \[{re.escape(__version__)}\]"
-    if re.search(pattern, changelog, flags=re.MULTILINE) is None:
-        raise SystemExit(f"CHANGELOG.md has no entry for {__version__}")
-
-    citation = yaml.safe_load(Path("CITATION.cff").read_text(encoding="utf-8"))
-    if citation.get("version") != __version__:
-        raise SystemExit("CITATION.cff version does not match the package version")
-
-    print(f"release metadata valid for {args.tag}")
+    print(f"release metadata valid for {args.tag} ({release_date.isoformat()})")
 
 
 if __name__ == "__main__":
