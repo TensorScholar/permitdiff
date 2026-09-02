@@ -123,9 +123,7 @@ def _assert_external_checkout(
     candidate_blob: str,
     evidence_root: Path,
 ) -> dict[str, str]:
-    repository_root = Path(
-        str(_run_git("rev-parse", "--show-toplevel").stdout).strip()
-    ).resolve()
+    repository_root = Path(str(_run_git("rev-parse", "--show-toplevel").stdout).strip()).resolve()
     if Path.cwd().resolve() != repository_root:
         raise RuntimeError("validation must execute from the external repository root")
 
