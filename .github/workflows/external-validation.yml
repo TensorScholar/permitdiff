@@ -1,0 +1,77 @@
+name: External repository validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  external-repository:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PermitDiff
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          path: permitdiff
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: permitdiff/pyproject.toml
+
+      - name: Build release-candidate wheel
+        working-directory: permitdiff
+        run: |
+          python -m pip install 'build>=1.2,<2'
+          python -m build --wheel
+
+      - name: Checkout pinned external repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: SpearIT-LLC/project-framework
+          ref: d8a47de7f5f96d501432a7f02c6909c667a5f31d
+          fetch-depth: 2
+          persist-credentials: false
+          path: external/project-framework
+
+      - name: Install release-candidate wheel
+        run: python -m pip install permitdiff/dist/*.whl
+
+      - name: Execute PermitDiff from external repository root
+        working-directory: external/project-framework
+        run: |
+          python ../../permitdiff/scripts/validate_external_repository.py \
+            --expected-origin https://github.com/SpearIT-LLC/project-framework \
+            --baseline-commit 28133b63a9a54621c8d7be879ba671daf8464c1c \
+            --candidate-commit d8a47de7f5f96d501432a7f02c6909c667a5f31d \
+            --source-path .claude/settings.local.json \
+            --baseline-blob 87d28d71c3a8b65142e5e090e8deb42130fd3637 \
+            --candidate-blob 2e5f2bb998c7e5ed4d6394b8934144207546472d \
+            --evidence-root ../../permitdiff/validation/public-claude-permission-widening \
+            --wheel ../../permitdiff/dist/permitdiff-*.whl \
+            --output ../../external-repository-evidence.json
+
+      - name: Verify external checkout remained clean
+        working-directory: external/project-framework
+        run: test -z "$(git status --porcelain)"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: permitdiff-external-repository-evidence
+          path: external-repository-evidence.json
+          if-no-files-found: error
+          retention-days: 14

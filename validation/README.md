@@ -16,4 +16,6 @@ Current pilots:
 
 - [`public-claude-permission-widening`](public-claude-permission-widening/) — a public Claude Code project-permission change that adds web pre-approvals under `dontAsk`, while a newly added scoped Bash rule is correctly treated as redundant because broad `Bash` access already existed.
 
-Repository-local retrospectives do not replace the separate release-readiness requirement to run a PermitDiff release candidate successfully in an external repository.
+Repository-local retrospectives are complemented by `.github/workflows/external-validation.yml`, which builds the wheel under test and executes it from the root of the pinned public repository used by the current pilot. That workflow verifies external commit/blob identity, keeps the external checkout clean, and uploads machine-readable execution evidence.
+
+External-workspace validation is evidence of package execution and bounded semantic compatibility. It is not third-party adoption or a claim that PermitDiff models every permission system.
