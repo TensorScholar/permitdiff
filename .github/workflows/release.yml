@@ -116,7 +116,7 @@ jobs:
         run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag
 
   publish-pypi:
-    needs: build
+    needs: [build, github-release]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
