@@ -1,0 +1,23 @@
+api_version: permitdiff.dev/v1alpha1
+kind: Policy
+metadata:
+  name: public-claude-project-permissions
+  version: 28133b63
+  description: >-
+    Normalized project permission layer before the public permission widening.
+default_effect: deny
+rules:
+  - id: existing-tool-preapprovals
+    description: >-
+      Existing broad tool pre-approvals relevant to this pilot. Unchanged deny
+      rules are outside the selected scenarios.
+    effect: allow
+    match:
+      tools:
+        - Read
+        - Edit
+        - Write
+        - Glob
+        - Grep
+        - Task
+        - Bash

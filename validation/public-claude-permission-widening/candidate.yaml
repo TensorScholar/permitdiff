@@ -1,0 +1,39 @@
+api_version: permitdiff.dev/v1alpha1
+kind: Policy
+metadata:
+  name: public-claude-project-permissions
+  version: d8a47de7
+  description: >-
+    Normalized project permission layer after the public permission widening.
+default_effect: deny
+rules:
+  - id: websearch-preapproval
+    description: Candidate adds project-level WebSearch pre-approval.
+    effect: allow
+    match:
+      tools: [WebSearch]
+
+  - id: anthropic-webfetch-preapproval
+    description: Candidate adds project-level WebFetch pre-approval for one domain.
+    effect: allow
+    match:
+      tools: [WebFetch]
+      arguments:
+        - path: _claude.permission_domain
+          operator: equals
+          value: www.anthropic.com
+
+  - id: existing-tool-preapprovals
+    description: >-
+      Existing broad tool pre-approvals relevant to this pilot. Bare Bash
+      already covers the source delta's Bash(git mv *) rule.
+    effect: allow
+    match:
+      tools:
+        - Read
+        - Edit
+        - Write
+        - Glob
+        - Grep
+        - Task
+        - Bash
