@@ -94,8 +94,10 @@ def test_release_workflow_preserves_external_evidence() -> None:
     release_workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
     assert "scripts/validate_external_repository.py" in release_workflow
-    assert "dist/external-repository-evidence.json" in release_workflow
-    assert "external-repository-evidence.json \\\n            > SHA256SUMS" in release_workflow
+    assert "--output ../../dist/external-repository-evidence.json" in release_workflow
+    assert "external-repository-evidence.json \\" in release_workflow
+    assert "> SHA256SUMS" in release_workflow
+    assert "subject-path: |" in release_workflow
     assert "dist/external-repository-evidence.json" in release_workflow
     assert "gh release create \"$GITHUB_REF_NAME\" dist/*" in release_workflow
     assert "rm -f dist/SHA256SUMS dist/*sbom*.json dist/external-repository-evidence.json" in (
