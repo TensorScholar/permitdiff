@@ -97,12 +97,13 @@ def test_release_workflow_preserves_external_evidence() -> None:
     assert "--output ../../dist/external-repository-evidence.json" in release_workflow
     assert "external-repository-evidence.json \\" in release_workflow
     assert "> SHA256SUMS" in release_workflow
+    assert "sha256sum --check SHA256SUMS" in release_workflow
     assert "subject-path: |" in release_workflow
     assert "dist/external-repository-evidence.json" in release_workflow
     assert "gh release create \"$GITHUB_REF_NAME\" dist/*" in release_workflow
-    assert "rm -f dist/SHA256SUMS dist/*sbom*.json dist/external-repository-evidence.json" in (
-        release_workflow
-    )
+    assert "mkdir pypi-dist" in release_workflow
+    assert "cp dist/*.whl dist/*.tar.gz pypi-dist/" in release_workflow
+    assert "packages-dir: pypi-dist/" in release_workflow
 
 
 def test_workflow_actions_are_pinned_to_commits() -> None:
