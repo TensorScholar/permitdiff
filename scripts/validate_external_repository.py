@@ -164,6 +164,7 @@ def _assert_external_checkout(
 def _run_permitdiff(evidence_root: Path) -> tuple[dict[str, Any], int]:
     command = [
         sys.executable,
+        "-I",
         "-m",
         "permitdiff.cli",
         "compare",
@@ -256,6 +257,7 @@ def main() -> int:
         },
         "execution": {
             "repository_root_cwd": True,
+            "isolated_python": True,
             "external_repository_code_executed": False,
             "cli_module": "permitdiff.cli",
             "exit_code": exit_code,
