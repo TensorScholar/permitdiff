@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
+import uuid
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
 from pathlib import Path
@@ -8,6 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 from scripts.check_release import validate_release_metadata
+from scripts.finalize_cyclonedx_sbom import finalize_cyclonedx_sbom
 
 from permitdiff import __version__
 
@@ -104,6 +107,36 @@ def test_release_metadata_rejects_publish_day_drift(tmp_path: Path) -> None:
         )
 
 
+def test_cyclonedx_finalizer_is_deterministic_and_subject_bound(tmp_path: Path) -> None:
+    subject = tmp_path / "permitdiff.whl"
+    subject.write_bytes(b"wheel-one")
+    sbom_path = tmp_path / "permitdiff-sbom.cdx.json"
+    base_sbom = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "version": 1,
+        "components": [],
+    }
+    sbom_path.write_text(json.dumps(base_sbom), encoding="utf-8")
+
+    first_serial = finalize_cyclonedx_sbom(sbom_path, subject)
+    first_document = json.loads(sbom_path.read_text(encoding="utf-8"))
+
+    assert first_document["serialNumber"] == first_serial
+    assert first_serial.startswith("urn:uuid:")
+    uuid.UUID(first_serial.removeprefix("urn:uuid:"))
+
+    second_serial = finalize_cyclonedx_sbom(sbom_path, subject)
+    second_document = json.loads(sbom_path.read_text(encoding="utf-8"))
+
+    assert second_serial == first_serial
+    assert second_document == first_document
+
+    subject.write_bytes(b"wheel-two")
+    third_serial = finalize_cyclonedx_sbom(sbom_path, subject)
+    assert third_serial != first_serial
+
+
 def test_release_workflow_preserves_external_evidence() -> None:
     release_workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
@@ -120,6 +153,17 @@ def test_release_workflow_preserves_external_evidence() -> None:
     assert "packages-dir: pypi-dist/" in release_workflow
     assert '--expected-date "$(date -u +%F)"' in release_workflow
     assert "needs: [build, github-release]" in release_workflow
+
+
+def test_release_workflow_finalizes_reproducible_cyclonedx_before_attestation() -> None:
+    release_workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert "--output-reproducible" in release_workflow
+    assert "scripts/finalize_cyclonedx_sbom.py" in release_workflow
+    assert "--subject dist/permitdiff-*.whl" in release_workflow
+    assert release_workflow.index("scripts/finalize_cyclonedx_sbom.py") < release_workflow.index(
+        "- name: Attest SBOM"
+    )
 
 
 def test_workflow_actions_are_pinned_to_commits() -> None:
