@@ -1,0 +1,118 @@
+name: Temporary P0 quality fixer
+
+on:
+  push:
+    branches:
+      - audit/effective-authority-p0
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: audit/effective-authority-p0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.13'
+      - name: Apply exact lint fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          authority = Path('src/permitdiff/authority.py')
+          text = authority.read_text(encoding='utf-8')
+          text = text.replace(
+              '                    "requests previously stopped by it can fall through to a more-permissive decision."\n',
+              '                    "requests previously stopped by it can fall through to a "\n'
+              '                    "more-permissive decision."\n',
+          )
+          text = text.replace(
+              '''    if all(not _glob_meta(item) for item in before):
+                  if all(any(fnmatchcase(value, pattern) for pattern in after) for value in before):
+                      return (
+                          MatchRelation.BROADER
+                          if _glob_has_extra_witness(after, before)
+                          else MatchRelation.UNKNOWN
+                      )
+              ''',
+              '''    if all(not _glob_meta(item) for item in before) and all(
+                  any(fnmatchcase(value, pattern) for pattern in after) for value in before
+              ):
+                  return (
+                      MatchRelation.BROADER
+                      if _glob_has_extra_witness(after, before)
+                      else MatchRelation.UNKNOWN
+                  )
+              ''',
+          )
+          text = text.replace(
+              '''    if all(not _glob_meta(item) for item in after):
+                  if all(any(fnmatchcase(value, pattern) for pattern in before) for value in after):
+                      return (
+                          MatchRelation.NARROWER
+                          if _glob_has_extra_witness(before, after)
+                          else MatchRelation.UNKNOWN
+                      )
+              ''',
+              '''    if all(not _glob_meta(item) for item in after) and all(
+                  any(fnmatchcase(value, pattern) for pattern in before) for value in after
+              ):
+                  return (
+                      MatchRelation.NARROWER
+                      if _glob_has_extra_witness(before, after)
+                      else MatchRelation.UNKNOWN
+                  )
+              ''',
+          )
+          authority.write_text(text, encoding='utf-8')
+
+          reporting = Path('src/permitdiff/reporting.py')
+          text = reporting.read_text(encoding='utf-8')
+          text = text.replace(
+              '            "Observed scenario coverage is evidence of exercised rules, not exhaustive policy coverage."\n',
+              '            "Observed scenario coverage is evidence of exercised rules, "\n'
+              '            "not exhaustive policy coverage."\n',
+          )
+          text = text.replace(
+              '                                        "text": "Observed AI-agent permission became more permissive"\n',
+              '                                        "text": (\n'
+              '                                            "Observed AI-agent permission became more permissive"\n'
+              '                                        )\n',
+          )
+          text = text.replace(
+              '                                        "text": "Static analysis found a potential authority expansion"\n',
+              '                                        "text": (\n'
+              '                                            "Static analysis found a potential authority expansion"\n'
+              '                                        )\n',
+          )
+          text = text.replace(
+              '                                        "text": "Static analysis cannot prove the change non-expanding"\n',
+              '                                        "text": (\n'
+              '                                            "Static analysis cannot prove the change non-expanding"\n'
+              '                                        )\n',
+          )
+          reporting.write_text(text, encoding='utf-8')
+      - name: Install quality tooling
+        run: python -m pip install -e '.[dev]'
+      - name: Normalize and verify
+        run: |
+          ruff check --fix .
+          ruff format .
+          ruff check .
+          python scripts/generate_schemas.py
+          git diff --check
+      - name: Commit fixes
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src tests docs/*.schema.json
+          git commit -m 'chore: normalize P0 quality fixes'
+          git push origin HEAD:audit/effective-authority-p0
