@@ -4,7 +4,7 @@
 
 - integrity of the release verdict;
 - traceability of compared policy and corpus artifacts;
-- visibility of privilege expansions and approval bypasses;
+- visibility of observed privilege expansions, approval bypasses, and policy-level authority findings;
 - integrity and expiry of waivers;
 - CI availability within documented resource bounds.
 
@@ -15,16 +15,16 @@
 | Policy/gate YAML committed by maintainers | Untrusted until validated | Safe YAML parsing, strict schemas, size limits. |
 | Scenario JSONL | Untrusted until validated | Streaming parse, line-aware failures, bounded size/count/depth. |
 | MCP-style annotations | Untrusted hints | Cannot support an `allow` rule unless trusted metadata is explicitly required. |
-| Waiver metadata | Administrative evidence | Exact transition binding, mandatory reason, expiry; repository review remains external. |
+| Waiver metadata | Administrative evidence | Exact evidence binding, mandatory reason, expiry; repository review remains external. |
 | CI environment | Operationally trusted | PermitDiff does not protect a compromised runner or repository administrator. |
 
 ## Threats and controls
 
 ### Malformed or ambiguous policy
 
-**Threat:** typos, unknown keys, duplicate IDs, implicit defaults, invalid predicates.
+**Threat:** typos, unknown keys, duplicate IDs, implicit defaults, invalid predicates, or values that cannot be canonically serialized.
 
-**Controls:** strict Pydantic schemas, duplicate checks, explicit API/kind fields, safe YAML loader, validation commands.
+**Controls:** strict Pydantic schemas, duplicate checks, explicit API/kind fields, safe YAML loader, bounded canonical JSON validation, and validation commands.
 
 ### Untrusted annotation escalation
 
@@ -34,21 +34,27 @@
 
 ### Corpus resource exhaustion
 
-**Threat:** very large files, excessive scenario count, deeply nested arguments, or non-finite values consume CI resources or break canonicalization.
+**Threat:** very large files, excessive scenario count, deeply nested arguments, non-finite values, or non-canonicalizable values consume CI resources or break evidence hashing.
 
-**Controls:** 50 MB file limit, 100,000-case limit, maximum JSON depth, finite-number validation, line streaming.
+**Controls:** 50 MB file limit, 100,000-case limit, maximum JSON depth, canonical-value validation, finite-number validation, and line streaming.
 
-### Waiver abuse
+### Scenario blind spots
 
-**Threat:** a broad or permanent waiver masks unrelated future permission expansions.
+**Threat:** the supplied corpus omits a permission-relevant request, so a policy change has no observed transition even though effective authority changed.
 
-**Controls:** exact scenario/effect binding, expiry, optional issue link, and unused-waiver failures. There is no wildcard waiver.
+**Controls:** the scenario report is explicitly labeled observed evidence, not exhaustive policy coverage. PermitDiff also performs bounded static authority analysis over rule effects, supported match-set containment, defaults, and precedence. Unsupported or ambiguous containment becomes `unknown` and the strict gate fails closed.
+
+### Waiver abuse or replay
+
+**Threat:** a broad, stale, or replayed waiver masks unrelated future permission expansions.
+
+**Controls:** no wildcard waivers. Observed-transition waivers bind to scenario ID, exact effect transition, and action fingerprint. Static-authority waivers bind to finding kind and fingerprint plus exact baseline/candidate policy digests. Both require expiry and substantive reason; unused-waiver failures can detect stale approvals. A waiver for one evidence channel cannot suppress the other channel.
 
 ### Report tampering or confusion
 
 **Threat:** reviewers compare the wrong artifacts or machine output is nondeterministic.
 
-**Controls:** policy and corpus digests, per-action fingerprints, stable schema versions, deterministic sorting, explicit baseline/candidate metadata.
+**Controls:** policy and corpus digests, per-action and per-finding fingerprints, stable serialization, deterministic sorting, explicit baseline/candidate metadata, and separate observed/static evidence channels.
 
 ### CI bypass
 
@@ -58,4 +64,4 @@
 
 ## Out of scope
 
-PermitDiff does not provide authentication, runtime authorization, sandboxing, secret isolation, tool-server attestation, policy distribution, approval workflow, or tamper-proof storage. It cannot defend against a compromised CI runner or repository administrator.
+PermitDiff does not provide authentication, runtime authorization, sandboxing, secret isolation, tool-server attestation, policy distribution, approval workflow, or tamper-proof storage. Its static analyzer is deliberately bounded and is not a proof of exhaustive authorization safety. It cannot defend against a compromised CI runner or repository administrator.
