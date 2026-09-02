@@ -127,7 +127,8 @@ class ReportBundle:
         lines.append(f"- Default effect changed: `{report.structural_diff.default_effect_changed}`")
         lines.extend(["", "## Candidate coverage", ""])
         lines.append(
-            "Observed scenario coverage is evidence of exercised rules, not exhaustive policy coverage."
+            "Observed scenario coverage is evidence of exercised rules, "
+            "not exhaustive policy coverage."
         )
         lines.append("")
         for rule_id, hits in report.candidate_coverage.rule_hits.items():
@@ -197,19 +198,25 @@ class ReportBundle:
                                 {
                                     "id": "permitdiff/privilege-expansion",
                                     "shortDescription": {
-                                        "text": "Observed AI-agent permission became more permissive"
+                                        "text": (
+                                            "Observed AI-agent permission became more permissive"
+                                        )
                                     },
                                 },
                                 {
                                     "id": "permitdiff/static-authority-expansion",
                                     "shortDescription": {
-                                        "text": "Static analysis found a potential authority expansion"
+                                        "text": (
+                                            "Static analysis found a potential authority expansion"
+                                        )
                                     },
                                 },
                                 {
                                     "id": "permitdiff/static-authority-unknown",
                                     "shortDescription": {
-                                        "text": "Static analysis cannot prove the change non-expanding"
+                                        "text": (
+                                            "Static analysis cannot prove the change non-expanding"
+                                        )
                                     },
                                 },
                                 {

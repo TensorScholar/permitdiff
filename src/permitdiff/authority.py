@@ -160,7 +160,8 @@ def analyze_authority_changes(
                 relation=None,
                 message=(
                     f"Candidate removes {rule.effect.value} rule {rule_id!r}; "
-                    "requests previously stopped by it can fall through to a more-permissive decision."
+                    "requests previously stopped by it can fall through to a "
+                    "more-permissive decision."
                 ),
             )
         )
@@ -431,20 +432,22 @@ def _glob_relation(baseline: list[str], candidate: list[str]) -> MatchRelation:
     if all(not _glob_meta(item) for item in before | after):
         return _finite_set_relation(before, after)
 
-    if all(not _glob_meta(item) for item in before):
-        if all(any(fnmatchcase(value, pattern) for pattern in after) for value in before):
-            return (
-                MatchRelation.BROADER
-                if _glob_has_extra_witness(after, before)
-                else MatchRelation.UNKNOWN
-            )
-    if all(not _glob_meta(item) for item in after):
-        if all(any(fnmatchcase(value, pattern) for pattern in before) for value in after):
-            return (
-                MatchRelation.NARROWER
-                if _glob_has_extra_witness(before, after)
-                else MatchRelation.UNKNOWN
-            )
+    if all(not _glob_meta(item) for item in before) and all(
+        any(fnmatchcase(value, pattern) for pattern in after) for value in before
+    ):
+        return (
+            MatchRelation.BROADER
+            if _glob_has_extra_witness(after, before)
+            else MatchRelation.UNKNOWN
+        )
+    if all(not _glob_meta(item) for item in after) and all(
+        any(fnmatchcase(value, pattern) for pattern in before) for value in after
+    ):
+        return (
+            MatchRelation.NARROWER
+            if _glob_has_extra_witness(before, after)
+            else MatchRelation.UNKNOWN
+        )
     return MatchRelation.UNKNOWN
 
 
