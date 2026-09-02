@@ -88,8 +88,7 @@ def test_public_claude_permission_widening_pilot() -> None:
 
     assert len(report.authority_findings) == 2
     assert all(
-        item.kind is AuthorityFindingKind.POTENTIAL_EXPANSION
-        for item in report.authority_findings
+        item.kind is AuthorityFindingKind.POTENTIAL_EXPANSION for item in report.authority_findings
     )
     assert {item.candidate_rule_id for item in report.authority_findings} == {
         "websearch-preapproval",
