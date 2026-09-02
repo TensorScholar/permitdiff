@@ -153,9 +153,7 @@ def test_waiver_does_not_apply_after_action_fingerprint_changes(
                 action_fingerprint=original_transition.action_fingerprint,
             )
         ],
-        authority_waivers=[
-            _authority_waiver(original_report, today + timedelta(days=7))
-        ],
+        authority_waivers=[_authority_waiver(original_report, today + timedelta(days=7))],
     )
     result = evaluate_gate(
         _report(baseline, candidate, changed_scenarios),
@@ -187,9 +185,7 @@ def test_authority_waiver_does_not_replay_after_candidate_digest_changes(
             max_privilege_expansions=10,
             max_new_allows=10,
             max_approval_bypasses=10,
-            authority_waivers=[
-                _authority_waiver(original_report, today + timedelta(days=7))
-            ],
+            authority_waivers=[_authority_waiver(original_report, today + timedelta(days=7))],
         ),
         today=today,
     )
