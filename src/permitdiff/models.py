@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _MAX_JSON_DEPTH = 32
 
@@ -58,6 +58,12 @@ class ActionContext(BaseModel):
     source: str = Field(default="corpus", min_length=1, max_length=128)
     risk: RiskLevel | None = None
     security_metadata_trusted: bool = False
+
+    @model_validator(mode="after")
+    def extra_context_must_be_json_compatible(self) -> ActionContext:
+        if self.model_extra:
+            validate_json_value(self.model_extra, depth=0)
+        return self
 
 
 class ActionRequest(BaseModel):
