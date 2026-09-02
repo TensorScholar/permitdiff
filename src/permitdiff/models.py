@@ -142,7 +142,13 @@ class Decision(BaseModel):
 def validate_json_value(value: Any, depth: int = 0) -> None:
     if depth > _MAX_JSON_DEPTH:
         raise ValueError(f"arguments exceed the maximum JSON depth of {_MAX_JSON_DEPTH}")
-    if value is None or isinstance(value, (str, bool, int)):
+    if value is None or isinstance(value, (str, bool)):
+        return
+    if isinstance(value, int):
+        try:
+            json.dumps(value, allow_nan=False)
+        except (OverflowError, TypeError, ValueError) as exc:
+            raise ValueError("arguments contain an integer that cannot be canonicalized") from exc
         return
     if isinstance(value, float):
         if not math.isfinite(value):
