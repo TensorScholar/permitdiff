@@ -69,9 +69,7 @@ class GateConfig(BaseModel):
 
     @model_validator(mode="after")
     def unique_waivers(self) -> GateConfig:
-        all_ids = [item.id for item in self.waivers] + [
-            item.id for item in self.authority_waivers
-        ]
+        all_ids = [item.id for item in self.waivers] + [item.id for item in self.authority_waivers]
         if len(all_ids) != len(set(all_ids)):
             raise ValueError("waiver ids must be unique")
         transitions = [
@@ -154,11 +152,7 @@ def evaluate_gate(
     ]
     expired = sorted(
         [item.id for item in config.waivers if item.expires_on < resolved_today]
-        + [
-            item.id
-            for item in config.authority_waivers
-            if item.expires_on < resolved_today
-        ]
+        + [item.id for item in config.authority_waivers if item.expires_on < resolved_today]
     )
     used_waivers: set[str] = set()
     waived_scenarios: set[str] = set()
