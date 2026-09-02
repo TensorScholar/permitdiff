@@ -9,7 +9,8 @@ All notable changes are documented here. Semantic Versioning begins when the `v1
 - bounded static authority analysis for policy-level scope widening, constraint weakening, deny narrowing, default relaxation, and precedence uncertainty;
 - separate static-authority findings in comparison, Markdown, console, JSON schema, and SARIF outputs;
 - exact expiring authority waivers bound to finding fingerprints and baseline/candidate policy digests;
-- a reproducible public historical Claude Code permission-widening validation pilot with frozen source blobs, semantic de-noising, negative controls, and an executable regression contract.
+- a reproducible public historical Claude Code permission-widening validation pilot with frozen source blobs, semantic de-noising, negative controls, and an executable regression contract;
+- a read-only external-repository execution workflow that builds and installs the wheel under test, verifies pinned external source commits/blobs, executes PermitDiff from the external repository root, and publishes machine-readable evidence.
 
 ### Changed
 
