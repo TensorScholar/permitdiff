@@ -1,0 +1,22 @@
+{
+  "schema_version": "permitdiff.external-validation/v1alpha1",
+  "source_repository": "TensorScholar/agentguard",
+  "baseline_commit": "0b65e4dc7d3069471b005da8d29297586f1d5f64",
+  "candidate_commit": "0ebd301db4fcc20c97b0866cd05360ebf3499c7d",
+  "candidate_commit_message": "Add scoped approval exceptions",
+  "source_policy_path": "examples/policy_with_exception.yaml",
+  "source_engine_path": "agentguard/policy.py",
+  "ground_truth": {
+    "change": "A matching, non-hard-denied shell_execution approval exception returns ALLOW where the prior policy path required approval.",
+    "tool_pattern": "run_*",
+    "required_capability": "shell_execution",
+    "baseline_effect": "require_approval",
+    "candidate_effect": "allow",
+    "hard_denies_precede_exception": true
+  },
+  "normalization": {
+    "capability_projection": "AgentGuard discovered capabilities are materialized under action.arguments._agentguard.capabilities.",
+    "hard_deny_projection": "Calls rejected by AgentGuard hard-deny rules are outside this pilot corpus and are not claimed as validated.",
+    "external_state": "No external state, credential issuance, runtime execution, or approval workflow is modeled."
+  }
+}
