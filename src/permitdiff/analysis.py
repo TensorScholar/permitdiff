@@ -9,6 +9,12 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
+from permitdiff.authority import (
+    AuthorityFinding,
+    AuthorityFindingKind,
+    analyze_authority_changes,
+    semantic_rule_payload,
+)
 from permitdiff.engine import PolicyEngine
 from permitdiff.models import DecisionEffect, RiskLevel, Scenario
 from permitdiff.policy import PolicyDocument
@@ -118,6 +124,8 @@ class ComparisonSummary(BaseModel):
     restrictions: int
     new_allows: int
     approval_bypasses: int
+    static_authority_expansions: int
+    static_authority_unknowns: int
 
 
 class ComparisonReport(BaseModel):
@@ -138,6 +146,7 @@ class ComparisonReport(BaseModel):
     baseline_coverage: RuleCoverage
     candidate_coverage: RuleCoverage
     transitions: list[ScenarioTransition]
+    authority_findings: list[AuthorityFinding]
 
 
 def compare_policies(
@@ -145,7 +154,7 @@ def compare_policies(
     candidate: PolicyDocument,
     scenarios: list[Scenario],
 ) -> ComparisonReport:
-    """Evaluate the same corpus against both policies and compare effective permissions."""
+    """Evaluate the same corpus and add conservative static authority analysis."""
 
     if not scenarios:
         raise ValueError("at least one scenario is required")
@@ -194,6 +203,7 @@ def compare_policies(
     changed_effects = sum(item.baseline_effect is not item.candidate_effect for item in transitions)
     expansions = sum(item.privilege_expansion for item in transitions)
     restrictions = sum(item.direction is ChangeDirection.RESTRICTED for item in transitions)
+    authority_findings = analyze_authority_changes(baseline, candidate)
     summary = ComparisonSummary(
         scenarios=len(transitions),
         unchanged_effects=len(transitions) - changed_effects,
@@ -202,6 +212,12 @@ def compare_policies(
         restrictions=restrictions,
         new_allows=sum(item.new_allow for item in transitions),
         approval_bypasses=sum(item.approval_bypass for item in transitions),
+        static_authority_expansions=sum(
+            item.kind is AuthorityFindingKind.POTENTIAL_EXPANSION for item in authority_findings
+        ),
+        static_authority_unknowns=sum(
+            item.kind is AuthorityFindingKind.UNKNOWN for item in authority_findings
+        ),
     )
 
     return ComparisonReport(
@@ -217,6 +233,7 @@ def compare_policies(
         baseline_coverage=_coverage(baseline, baseline_hits, baseline_default_hits),
         candidate_coverage=_coverage(candidate, candidate_hits, candidate_default_hits),
         transitions=transitions,
+        authority_findings=authority_findings,
     )
 
 
@@ -279,8 +296,8 @@ def _structural_diff(
     modified = [
         rule_id
         for rule_id in shared
-        if baseline_by_id[rule_id].model_dump(mode="json")
-        != candidate_by_id[rule_id].model_dump(mode="json")
+        if semantic_rule_payload(baseline_by_id[rule_id])
+        != semantic_rule_payload(candidate_by_id[rule_id])
     ]
     baseline_shared_order = [rule.id for rule in baseline.rules if rule.id in shared]
     candidate_shared_order = [rule.id for rule in candidate.rules if rule.id in shared]
