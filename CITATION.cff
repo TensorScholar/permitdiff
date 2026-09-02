@@ -7,7 +7,7 @@ authors:
     given-names: Mohammad
 repository-code: "https://github.com/TensorScholar/permitdiff"
 license: Apache-2.0
-version: 0.1.0rc1
+version: 0.1.0rc2
 date-released: 2026-09-02
 keywords:
   - AI agents
