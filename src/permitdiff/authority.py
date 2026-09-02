@@ -344,8 +344,10 @@ def _reorder_finding(
             if after_index[left] < after_index[right]:
                 continue
             if (
-                before_rules[left].effect is before_rules[right].effect
-                is after_rules[left].effect is after_rules[right].effect
+                before_rules[left].effect
+                is before_rules[right].effect
+                is after_rules[left].effect
+                is after_rules[right].effect
             ):
                 continue
             return _finding(
@@ -431,10 +433,18 @@ def _glob_relation(baseline: list[str], candidate: list[str]) -> MatchRelation:
 
     if all(not _glob_meta(item) for item in before):
         if all(any(fnmatchcase(value, pattern) for pattern in after) for value in before):
-            return MatchRelation.BROADER if _glob_has_extra_witness(after, before) else MatchRelation.UNKNOWN
+            return (
+                MatchRelation.BROADER
+                if _glob_has_extra_witness(after, before)
+                else MatchRelation.UNKNOWN
+            )
     if all(not _glob_meta(item) for item in after):
         if all(any(fnmatchcase(value, pattern) for pattern in before) for value in after):
-            return MatchRelation.NARROWER if _glob_has_extra_witness(before, after) else MatchRelation.UNKNOWN
+            return (
+                MatchRelation.NARROWER
+                if _glob_has_extra_witness(before, after)
+                else MatchRelation.UNKNOWN
+            )
     return MatchRelation.UNKNOWN
 
 
@@ -577,13 +587,17 @@ def _numeric_bound_relation(
             return MatchRelation.EQUAL
         candidate_is_broader = inclusive[after.operator]
     else:
-        candidate_is_broader = after.value > before.value if upper_bound else after.value < before.value
+        candidate_is_broader = (
+            after.value > before.value if upper_bound else after.value < before.value
+        )
     return MatchRelation.BROADER if candidate_is_broader else MatchRelation.NARROWER
 
 
 def _number(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(float(value))
-    )
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        numeric = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return False
+    return math.isfinite(numeric)
