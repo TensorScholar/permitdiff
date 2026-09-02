@@ -2,6 +2,20 @@
 
 All notable changes are documented here. Semantic Versioning begins when the `v1` schema stabilizes.
 
+## Unreleased
+
+### Added
+
+- bounded static authority analysis for policy-level scope widening, constraint weakening, deny narrowing, default relaxation, and precedence uncertainty;
+- separate static-authority findings in comparison, Markdown, console, JSON schema, and SARIF outputs;
+- exact expiring authority waivers bound to finding fingerprints and baseline/candidate policy digests.
+
+### Changed
+
+- release evidence now distinguishes observed scenario transitions from conservative policy-level authority findings;
+- strict gates fail closed on unsupported or ambiguous static containment unless the exact finding is explicitly waived;
+- canonical input validation now rejects non-serializable JSON values in action arguments and dynamic action context before evidence hashing.
+
 ## [0.1.0rc1] - 2026-07-27
 
 ### Added
