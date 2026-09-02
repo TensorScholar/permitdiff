@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -13,17 +14,31 @@ from permitdiff.policy import PolicyDocument
 _ROOT = Path(__file__).resolve().parents[1]
 _PILOT = _ROOT / "validation" / "public-claude-permission-widening"
 _BASELINE_COMMIT = "28133b63a9a54621c8d7be879ba671daf8464c1c"
+_BASELINE_BLOB = "87d28d71c3a8b65142e5e090e8deb42130fd3637"
 _CANDIDATE_COMMIT = "d8a47de7f5f96d501432a7f02c6909c667a5f31d"
+_CANDIDATE_BLOB = "2e5f2bb998c7e5ed4d6394b8934144207546472d"
+
+
+def _git_blob_sha(path: Path) -> str:
+    payload = path.read_bytes()
+    header = f"blob {len(payload)}\0".encode()
+    return hashlib.sha1(header + payload, usedforsecurity=False).hexdigest()
 
 
 def test_public_claude_permission_widening_pilot() -> None:
     source = json.loads((_PILOT / "source.json").read_text(encoding="utf-8"))
-    baseline_source = json.loads((_PILOT / "source-baseline.json").read_text(encoding="utf-8"))
-    candidate_source = json.loads((_PILOT / "source-candidate.json").read_text(encoding="utf-8"))
+    baseline_path = _PILOT / "source-baseline.json"
+    candidate_path = _PILOT / "source-candidate.json"
+    baseline_source = json.loads(baseline_path.read_text(encoding="utf-8"))
+    candidate_source = json.loads(candidate_path.read_text(encoding="utf-8"))
 
     assert source["source_repository"] == "SpearIT-LLC/project-framework"
     assert source["baseline_commit"] == _BASELINE_COMMIT
+    assert source["baseline_blob"] == _BASELINE_BLOB
     assert source["candidate_commit"] == _CANDIDATE_COMMIT
+    assert source["candidate_blob"] == _CANDIDATE_BLOB
+    assert _git_blob_sha(baseline_path) == _BASELINE_BLOB
+    assert _git_blob_sha(candidate_path) == _CANDIDATE_BLOB
     assert baseline_source["permissions"]["defaultMode"] == "dontAsk"
     assert candidate_source["permissions"]["defaultMode"] == "dontAsk"
     assert baseline_source["permissions"]["deny"] == candidate_source["permissions"]["deny"]
