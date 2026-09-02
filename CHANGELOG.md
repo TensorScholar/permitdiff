@@ -8,7 +8,8 @@ All notable changes are documented here. Semantic Versioning begins when the `v1
 
 - bounded static authority analysis for policy-level scope widening, constraint weakening, deny narrowing, default relaxation, and precedence uncertainty;
 - separate static-authority findings in comparison, Markdown, console, JSON schema, and SARIF outputs;
-- exact expiring authority waivers bound to finding fingerprints and baseline/candidate policy digests.
+- exact expiring authority waivers bound to finding fingerprints and baseline/candidate policy digests;
+- a reproducible historical AgentGuard approval-exception validation pilot with frozen source revisions, pre-registered ground truth, positive/negative controls, and an executable regression contract.
 
 ### Changed
 
