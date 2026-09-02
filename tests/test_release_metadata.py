@@ -119,6 +119,7 @@ def test_release_workflow_preserves_external_evidence() -> None:
     assert "cp dist/*.whl dist/*.tar.gz pypi-dist/" in release_workflow
     assert "packages-dir: pypi-dist/" in release_workflow
     assert "--expected-date \"$(date -u +%F)\"" in release_workflow
+    assert "needs: [build, github-release]" in release_workflow
 
 
 def test_workflow_actions_are_pinned_to_commits() -> None:
