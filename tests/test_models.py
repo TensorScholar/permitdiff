@@ -52,6 +52,16 @@ def test_non_finite_arguments_are_rejected() -> None:
         ActionRequest(principal="p", agent="a", tool="t", arguments={"x": float("nan")})
 
 
+def test_non_canonicalizable_integer_arguments_are_rejected() -> None:
+    with pytest.raises(ValidationError, match="cannot be canonicalized"):
+        ActionRequest(
+            principal="p",
+            agent="a",
+            tool="t",
+            arguments={"x": 10**10_000},
+        )
+
+
 def test_excessive_argument_depth_is_rejected() -> None:
     nested: dict[str, object] = {}
     cursor = nested
