@@ -36,7 +36,7 @@ jobs:
       - name: Build release-candidate wheel
         working-directory: permitdiff
         run: |
-          python -m pip install build
+          python -m pip install 'build>=1.2,<2'
           python -m build --wheel
 
       - name: Checkout pinned external repository
