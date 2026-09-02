@@ -8,6 +8,7 @@ import hashlib
 import importlib.metadata
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,9 +24,19 @@ _EXPECTED_SUMMARY = {
 }
 
 
+def _resolve_git() -> str:
+    executable = shutil.which("git")
+    if executable is None:
+        raise RuntimeError("git executable is required for external repository validation")
+    return str(Path(executable).resolve())
+
+
+_GIT = _resolve_git()
+
+
 def _run_git(*args: str, text: bool = True) -> subprocess.CompletedProcess[Any]:
     result = subprocess.run(
-        ["git", *args],
+        [_GIT, *args],
         check=False,
         capture_output=True,
         text=text,
