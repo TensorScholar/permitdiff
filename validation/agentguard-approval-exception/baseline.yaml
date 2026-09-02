@@ -1,0 +1,21 @@
+api_version: permitdiff.dev/v1alpha1
+kind: Policy
+metadata:
+  name: agentguard-scoped-approval-exception
+  version: 0b65e4dc
+  description: >-
+    Normalized pre-change projection for the historical AgentGuard scoped
+    approval-exception validation pilot.
+default_effect: deny
+rules:
+  - id: shell-execution-requires-approval
+    description: >-
+      Non-hard-denied calls carrying AgentGuard's shell_execution capability
+      require approval before the scoped exception was introduced.
+    effect: require_approval
+    match:
+      tools: ["*"]
+      arguments:
+        - path: _agentguard.capabilities
+          operator: contains
+          value: shell_execution
