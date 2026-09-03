@@ -42,6 +42,8 @@ def test_public_claude_pilot_normalizes_to_two_preapproval_expansions() -> None:
     pair = normalize_claude_preapproval_pair(
         PILOT / "source-baseline.json",
         PILOT / "source-candidate.json",
+        allow_ignored_root_changes=True,
+        acknowledge_webfetch_sandbox_gap=True,
     )
     report = compare_policies(
         pair.baseline_policy,
@@ -63,6 +65,8 @@ def test_public_claude_pilot_normalizes_to_two_preapproval_expansions() -> None:
     assert pair.evidence.ignored_baseline_root_keys == ["enabledPlugins"]
     assert pair.evidence.ignored_candidate_root_keys == ["enabledPlugins"]
     assert pair.evidence.changed_ignored_root_keys == ["enabledPlugins"]
+    assert pair.evidence.ignored_root_changes_acknowledged is True
+    assert pair.evidence.webfetch_sandbox_gap_acknowledged is True
     assert report.candidate_coverage.uncovered_rules == []
 
 
@@ -129,7 +133,9 @@ def test_changed_allow_shadowed_by_unchanged_restrictive_rule_fails_closed(
         normalize_claude_preapproval_pair(baseline, candidate)
 
 
-def test_webfetch_domain_is_normalized_case_insensitively(tmp_path: Path) -> None:
+def test_webfetch_domain_change_requires_explicit_sandbox_gap_acknowledgement(
+    tmp_path: Path,
+) -> None:
     baseline = _settings(tmp_path, "baseline.json", allow=[])
     candidate = _settings(
         tmp_path,
@@ -137,14 +143,22 @@ def test_webfetch_domain_is_normalized_case_insensitively(tmp_path: Path) -> Non
         allow=["WebFetch(domain:WWW.Anthropic.COM.)"],
     )
 
-    pair = normalize_claude_preapproval_pair(baseline, candidate)
+    with pytest.raises(ClaudeAdapterError, match="explicit WebFetch sandbox-gap acknowledgement"):
+        normalize_claude_preapproval_pair(baseline, candidate)
+
+    pair = normalize_claude_preapproval_pair(
+        baseline,
+        candidate,
+        acknowledge_webfetch_sandbox_gap=True,
+    )
     rule = pair.candidate_policy.rules[0]
 
     assert rule.id == "claude-allow-webfetch-domains"
     assert rule.match.arguments[0].value == ["www.anthropic.com"]
+    assert pair.evidence.webfetch_sandbox_gap_acknowledged is True
 
 
-def test_non_permission_root_changes_are_surfaced_not_modeled(tmp_path: Path) -> None:
+def test_non_permission_root_changes_require_explicit_acknowledgement(tmp_path: Path) -> None:
     baseline = _settings(
         tmp_path,
         "baseline.json",
@@ -161,12 +175,21 @@ def test_non_permission_root_changes_are_surfaced_not_modeled(tmp_path: Path) ->
         },
     )
 
-    pair = normalize_claude_preapproval_pair(baseline, candidate)
+    with pytest.raises(ClaudeAdapterError, match="non-permissions Claude root settings changed"):
+        normalize_claude_preapproval_pair(baseline, candidate)
+
+    pair = normalize_claude_preapproval_pair(
+        baseline,
+        candidate,
+        allow_ignored_root_changes=True,
+    )
 
     assert pair.baseline_policy.rules == pair.candidate_policy.rules
     assert pair.evidence.ignored_baseline_root_keys == ["enabledPlugins", "model"]
     assert pair.evidence.ignored_candidate_root_keys == ["enabledPlugins", "model"]
     assert pair.evidence.changed_ignored_root_keys == ["enabledPlugins"]
+    assert pair.evidence.ignored_root_changes_acknowledged is True
+    assert pair.evidence.webfetch_sandbox_gap_acknowledged is False
 
 
 def test_unsupported_permission_mode_is_rejected(tmp_path: Path) -> None:
