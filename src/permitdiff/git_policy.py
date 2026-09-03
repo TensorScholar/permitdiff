@@ -20,7 +20,7 @@ _MAX_POLICY_BYTES = 1_000_000
 _MAX_GIT_PATH_LENGTH = 1024
 _MAX_GIT_REF_LENGTH = 512
 _OID_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
-_FORBIDDEN_REF_FRAGMENTS = ("..", "@{", "\\", ":", "?", "*", "[", "~", "^")
+_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$")
 
 
 class GitPolicyEvidence(BaseModel):
@@ -121,19 +121,24 @@ def load_policy_from_git(
 
 
 def _validate_ref(value: str) -> str:
-    ref = value.strip()
-    if ref != value or not ref or len(ref) > _MAX_GIT_REF_LENGTH:
-        raise PolicyLoadError("Git baseline ref must be non-empty, canonical, and at most 512 chars")
-    if ref.startswith("-") or any(fragment in ref for fragment in _FORBIDDEN_REF_FRAGMENTS):
-        raise PolicyLoadError(f"unsupported Git baseline ref syntax: {ref!r}")
-    if any(character.isspace() or ord(character) < 32 for character in ref):
-        raise PolicyLoadError(f"unsupported whitespace/control character in Git ref: {ref!r}")
-    return ref
+    if not value or len(value) > _MAX_GIT_REF_LENGTH or _REF_RE.fullmatch(value) is None:
+        raise PolicyLoadError(
+            "Git baseline ref must use only alphanumerics plus '.', '_', '/', and '-'"
+        )
+    if ".." in value or "//" in value or value.endswith(("/", ".", ".lock")):
+        raise PolicyLoadError(f"unsupported Git baseline ref syntax: {value!r}")
+    return value
 
 
 def _validate_git_path(value: str | Path) -> str:
     raw = str(value)
-    if not raw or len(raw) > _MAX_GIT_PATH_LENGTH or "\0" in raw or "\\" in raw:
+    if (
+        not raw
+        or len(raw) > _MAX_GIT_PATH_LENGTH
+        or "\0" in raw
+        or "\\" in raw
+        or any(ord(character) < 32 for character in raw)
+    ):
         raise PolicyLoadError("Git policy path must be a non-empty canonical POSIX path")
     path = PurePosixPath(raw)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
