@@ -35,16 +35,17 @@ def _version_key(version: str) -> tuple[int, int, int, int, int, int, int]:
             "or either form followed by .devN"
         )
 
-    release = tuple(int(match.group(name)) for name in ("major", "minor", "patch"))
+    release = (
+        int(match.group("major")),
+        int(match.group("minor")),
+        int(match.group("patch")),
+    )
     pre = match.group("pre")
     pre_n = int(match.group("pre_n") or 0)
     dev = match.group("dev_n")
     dev_n = int(dev or 0)
 
-    if pre is None:
-        phase_rank = 3 if dev is None else -1
-    else:
-        phase_rank = {"a": 0, "b": 1, "rc": 2}[pre]
+    phase_rank = {"a": 0, "b": 1, "rc": 2}.get(pre, 3 if dev is None else -1)
     dev_final_rank = 0 if dev is not None else 1
     return (*release, phase_rank, pre_n, dev_final_rank, dev_n)
 
@@ -130,7 +131,7 @@ def validate_development_metadata(
     *,
     package_version: str = __version__,
 ) -> str:
-    """Validate that mutable source uses a forward dev identity without rewriting release evidence."""
+    """Validate a forward dev identity without rewriting the latest release evidence."""
 
     package_key = _version_key(package_version)
     if ".dev" not in package_version:
@@ -155,7 +156,8 @@ def validate_development_metadata(
     citation_key = _version_key(citation_version)
     if package_key <= citation_key:
         raise ValueError(
-            f"development version {package_version} must sort after released version {citation_version}"
+            f"development version {package_version} must sort after "
+            f"released version {citation_version}"
         )
 
     dated_entries = _DATED_HEADING_RE.findall(changelog)
