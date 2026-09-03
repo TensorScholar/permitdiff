@@ -1,6 +1,6 @@
-# Public Claude Code permission-widening validation pilot
+# Public Claude Code preapproval-projection validation pilot
 
-This pilot validates PermitDiff against a public historical change to a real Claude Code project permission file.
+This pilot validates PermitDiff against a public historical change to a real Claude Code project settings file. Its claim is deliberately narrower than full Claude effective authority: the executable model covers the checked-in `permissions.allow` preapproval projection under unchanged `dontAsk` and deny context.
 
 ## Frozen public source
 
@@ -12,7 +12,7 @@ This pilot validates PermitDiff against a public historical change to a real Cla
 - Candidate blob: `2e5f2bb998c7e5ed4d6394b8934144207546472d`
 - Candidate commit message: `chore: settings — enable spearit-framework-dev plugin, allow git mv / web research`
 
-The exact public source snapshots are committed as `source-baseline.json` and `source-candidate.json`. `source.json` records their immutable provenance and the pre-registered delta.
+The exact public source snapshots are committed as `source-baseline.json` and `source-candidate.json`. `source.json` records their immutable provenance, the pre-registered permission delta, and the non-permission root-key change that remains outside the normalization claim.
 
 ## External semantics used by the normalization
 
@@ -20,7 +20,8 @@ Claude Code documents that:
 
 - allow rules let the specified tool run without manual approval;
 - `defaultMode: dontAsk` denies tools that are not pre-approved;
-- a bare rule such as `Bash` matches all uses of the Bash tool.
+- a bare rule such as `Bash` matches all uses of the Bash tool;
+- exact `WebFetch(domain:HOST)` rules scope WebFetch preapproval to a hostname.
 
 Official reference: <https://code.claude.com/docs/en/permissions>
 
@@ -32,20 +33,24 @@ WebFetch(domain:www.anthropic.com)
 WebSearch
 ```
 
-Only two increase the project-level permission surface. `Bash(git mv *)` is redundant because the baseline already contains bare `Bash`, which already covers every Bash command. The normalized PermitDiff policies therefore add only WebSearch and the scoped Anthropic WebFetch grant.
+Within the modeled `permissions.allow` preapproval projection, only two additions widen authority. `Bash(git mv *)` is redundant because the baseline already contains bare `Bash`, which covers every Bash command. The normalized PermitDiff policies therefore add only WebSearch and the scoped Anthropic WebFetch preapproval.
 
-This de-noising is deliberate: a textual list diff would report three additions; the permission-semantic projection reports two authority expansions.
+This de-noising is deliberate: a textual list diff reports three additions; the modeled preapproval projection reports two expansions.
+
+The source revision also enables `spearit-framework-dev@dev-marketplace` under the root `enabledPlugins` object. That change is preserved in the frozen source and called out in `source.json`, but the pilot does **not** model capability changes introduced by plugin activation.
+
+Claude Code's current documentation also states that domain-scoped WebFetch rules can affect sandbox network-domain policy. This pilot models the WebFetch **preapproval** effect only. It does not claim to quantify or waive the sandbox/network side effect.
 
 ## Pre-registered outcomes
 
 | Scenario | Baseline | Candidate | Purpose |
 |---|---|---|---|
 | `existing-bash-git-mv` | `allow` | `allow` | Redundancy control for the newly listed scoped Bash rule. |
-| `new-websearch` | `deny` | `allow` | True project-level permission expansion. |
-| `new-anthropic-webfetch` | `deny` | `allow` | True domain-scoped permission expansion. |
+| `new-websearch` | `deny` | `allow` | Modeled project-level preapproval expansion. |
+| `new-anthropic-webfetch` | `deny` | `allow` | Modeled domain-scoped WebFetch preapproval expansion. |
 | `other-domain-webfetch` | `deny` | `deny` | Scope-control for WebFetch. |
 
-Expected PermitDiff evidence:
+Expected PermitDiff evidence for this projection:
 
 - 2 observed privilege expansions;
 - 2 new allows;
@@ -55,7 +60,25 @@ Expected PermitDiff evidence:
 - 0 uncovered candidate rules;
 - strict gate result: BLOCK.
 
-## Reproduce
+## Reproduce from the native source
+
+The native adapter intentionally refuses to analyze this pair without two explicit projection acknowledgements: the source changes `enabledPlugins`, and the exact WebFetch-domain change has a sandbox-network effect outside the preapproval model.
+
+```bash
+permitdiff claude compare \
+  validation/public-claude-permission-widening/source-baseline.json \
+  validation/public-claude-permission-widening/source-candidate.json \
+  validation/public-claude-permission-widening/corpus.jsonl \
+  --allow-ignored-root-changes \
+  --acknowledge-webfetch-sandbox-gap \
+  --gate validation/public-claude-permission-widening/gate.yaml \
+  --format json \
+  --evidence-output claude-normalization-evidence.json
+```
+
+The two acknowledgement flags permit analysis of this bounded projection only. They are not approval or waivers for the `enabledPlugins` change or sandbox/network semantics.
+
+The checked-in normalized-policy oracle can also be reproduced directly:
 
 ```bash
 permitdiff compare \
@@ -66,10 +89,12 @@ permitdiff compare \
   --format json
 ```
 
-The executable contract is `tests/test_validation_pilots.py`.
+The executable contracts are `tests/test_claude_adapter.py`, `tests/test_claude_cli.py`, and `tests/test_validation_pilots.py`.
 
 ## Claim boundary
 
-This pilot models the checked-in project permission layer, not every effective Claude Code control. Managed or user-level overrides, hooks, sandbox policy, version-specific built-in behavior, and unchanged deny rules outside the selected scenarios are not modeled.
+This pilot models only the checked-in `permissions.allow` preapproval projection. It does not model the source's `enabledPlugins` change, plugin-provided capabilities, managed or user-level overrides, hooks, sandbox/network policy, version-specific built-in behavior, or unrelated unchanged deny rules outside the selected scenarios.
 
-It is a repository-local historical retrospective. It strengthens independent semantic validation but does **not** satisfy the separate release-readiness requirement that a PermitDiff release candidate execute successfully inside an external repository.
+A PASS, projection acknowledgement, or waiver in this projection must not be interpreted as approval of those omitted surfaces. The historical pilot currently BLOCKs on the two modeled preapproval expansions.
+
+It is a repository-local historical retrospective. It strengthens independent semantic validation but does **not** replace external-repository execution evidence for a release candidate.

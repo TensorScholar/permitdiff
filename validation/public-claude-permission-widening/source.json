@@ -17,10 +17,16 @@
     "removed_allow_rules": [],
     "deny_rules_changed": false,
     "default_mode_before": "dontAsk",
-    "default_mode_after": "dontAsk"
+    "default_mode_after": "dontAsk",
+    "changed_non_permission_root_keys": [
+      "enabledPlugins"
+    ],
+    "enabled_plugins_added": [
+      "spearit-framework-dev@dev-marketplace"
+    ]
   },
   "normalization": {
-    "effective_expansions": [
+    "modeled_preapproval_expansions": [
       "WebFetch(domain:www.anthropic.com)",
       "WebSearch"
     ],
@@ -30,6 +36,6 @@
     "redundancy_reason": "The baseline already contains bare Bash, which Claude Code documents as matching all Bash commands.",
     "unmatched_effect": "deny",
     "unmatched_reason": "Both source revisions use defaultMode=dontAsk, which Claude Code documents as denying tools that are not pre-approved.",
-    "scope": "This pilot models the checked-in project permission layer only. Managed/user overrides, hooks, sandbox behavior, built-in read-only exceptions, and unrelated unchanged deny rules are outside the claim."
+    "scope": "This pilot models only the checked-in permissions.allow preapproval projection under unchanged deny/default-mode context. The source also changes enabledPlugins. Managed/user overrides, hooks, plugin-provided capability changes, sandbox/network behavior, built-in exceptions, and unrelated unchanged deny rules are outside the claim."
   }
 }

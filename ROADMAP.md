@@ -5,16 +5,21 @@
 - [x] strict first-match policy schema;
 - [x] bounded JSONL scenario corpus;
 - [x] semantic and structural comparison;
+- [x] bounded static authority analysis with fail-closed unknowns;
 - [x] rule-hit coverage;
 - [x] exact expiring waivers;
 - [x] console, JSON, Markdown, and SARIF;
-- [x] starter project and CI workflow.
+- [x] starter project and reusable GitHub Action with Markdown/SARIF output;
+- [x] public historical semantic-validation corpus;
+- [x] read-only external-repository execution evidence;
+- [x] release lifecycle, provenance, SBOM, attestation, and prerelease controls.
 
 ## v0.2 — integration depth
 
+- [x] bounded Claude Code native preapproval projection on the development line;
 - [ ] baseline resolution from Git references;
-- [ ] reusable GitHub Action with PR summary output;
-- [ ] stable external adapter protocol;
+- [ ] stable external adapter protocol with explicit projection/evidence contracts;
+- [ ] PR-native reviewer UX without granting PermitDiff repository-write credentials;
 - [ ] optional corpus sharding with deterministic merge;
 - [ ] richer SARIF fingerprints and source locations.
 

@@ -52,7 +52,20 @@ def test_public_claude_permission_widening_pilot() -> None:
         "WebSearch",
     }
     assert "Bash" in baseline_allow
-    assert source["normalization"]["effective_expansions"] == [
+
+    baseline_plugins = {
+        name for name, enabled in baseline_source["enabledPlugins"].items() if enabled
+    }
+    candidate_plugins = {
+        name for name, enabled in candidate_source["enabledPlugins"].items() if enabled
+    }
+    assert candidate_plugins - baseline_plugins == {"spearit-framework-dev@dev-marketplace"}
+    assert source["source_delta"]["changed_non_permission_root_keys"] == ["enabledPlugins"]
+    assert source["source_delta"]["enabled_plugins_added"] == [
+        "spearit-framework-dev@dev-marketplace"
+    ]
+
+    assert source["normalization"]["modeled_preapproval_expansions"] == [
         "WebFetch(domain:www.anthropic.com)",
         "WebSearch",
     ]

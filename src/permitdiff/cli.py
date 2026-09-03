@@ -12,6 +12,7 @@ from rich.table import Table
 
 from permitdiff._version import __version__
 from permitdiff.analysis import compare_policies
+from permitdiff.claude_cli import app as claude_app
 from permitdiff.corpus import load_corpus
 from permitdiff.errors import CorpusLoadError, GateLoadError, PolicyLoadError
 from permitdiff.gate import GateConfig, evaluate_gate, strict_gate
@@ -28,6 +29,7 @@ policy_app = typer.Typer(no_args_is_help=True, help="Validate and inspect polici
 corpus_app = typer.Typer(no_args_is_help=True, help="Validate scenario corpora.")
 app.add_typer(policy_app, name="policy")
 app.add_typer(corpus_app, name="corpus")
+app.add_typer(claude_app, name="claude")
 console = Console(width=160)
 error_console = Console(stderr=True, width=160)
 
