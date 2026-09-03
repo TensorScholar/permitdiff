@@ -269,9 +269,7 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
         unique_rules.append(rule)
 
     parsed = [(_parse_rule_shape(rule), rule) for rule in unique_rules]
-    bare_tools = {
-        tool for (tool, specifier), _ in parsed if _is_bare_equivalent(tool, specifier)
-    }
+    bare_tools = {tool for (tool, specifier), _ in parsed if _is_bare_equivalent(tool, specifier)}
 
     translated_bare: set[str] = set()
     webfetch_domains: set[str] = set()
