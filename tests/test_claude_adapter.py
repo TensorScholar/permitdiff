@@ -62,6 +62,8 @@ def test_public_claude_pilot_normalizes_to_two_preapproval_expansions() -> None:
     assert set(pair.evidence.candidate_translated_allow_rules) - set(
         pair.evidence.baseline_translated_allow_rules
     ) == {"WebSearch", "WebFetch(domain:www.anthropic.com)"}
+    assert pair.evidence.baseline_declared_webfetch_domains == []
+    assert pair.evidence.candidate_declared_webfetch_domains == ["www.anthropic.com"]
     assert pair.evidence.ignored_baseline_root_keys == ["enabledPlugins"]
     assert pair.evidence.ignored_candidate_root_keys == ["enabledPlugins"]
     assert pair.evidence.changed_ignored_root_keys == ["enabledPlugins"]
@@ -155,6 +157,34 @@ def test_webfetch_domain_change_requires_explicit_sandbox_gap_acknowledgement(
 
     assert rule.id == "claude-allow-webfetch-domains"
     assert rule.match.arguments[0].value == ["www.anthropic.com"]
+    assert pair.evidence.baseline_declared_webfetch_domains == []
+    assert pair.evidence.candidate_declared_webfetch_domains == ["www.anthropic.com"]
+    assert pair.evidence.webfetch_sandbox_gap_acknowledged is True
+
+
+def test_redundant_webfetch_domain_under_bare_tool_still_requires_gap_ack(
+    tmp_path: Path,
+) -> None:
+    baseline = _settings(tmp_path, "baseline.json", allow=["WebFetch"])
+    candidate = _settings(
+        tmp_path,
+        "candidate.json",
+        allow=["WebFetch", "WebFetch(domain:example.com)"],
+    )
+
+    with pytest.raises(ClaudeAdapterError, match="explicit WebFetch sandbox-gap acknowledgement"):
+        normalize_claude_preapproval_pair(baseline, candidate)
+
+    pair = normalize_claude_preapproval_pair(
+        baseline,
+        candidate,
+        acknowledge_webfetch_sandbox_gap=True,
+    )
+
+    assert pair.baseline_policy.rules == pair.candidate_policy.rules
+    assert pair.evidence.candidate_redundant_allow_rules == ["WebFetch(domain:example.com)"]
+    assert pair.evidence.baseline_declared_webfetch_domains == []
+    assert pair.evidence.candidate_declared_webfetch_domains == ["example.com"]
     assert pair.evidence.webfetch_sandbox_gap_acknowledged is True
 
 
