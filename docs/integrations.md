@@ -15,6 +15,22 @@ A robust integration should:
 
 GitHub code scanning supports third-party SARIF 2.1.0. Public repositories can use code scanning; private/internal availability depends on the repository's GitHub Code Security configuration.
 
+### Provenance-bound Git baselines
+
+The development-line `permitdiff compare --baseline-ref REF` mode removes the need to copy a base-branch policy into the PR working tree. The baseline positional path becomes a repository-relative path resolved from an already-fetched Git ref; the candidate remains the ordinary working-tree file.
+
+A CI integration using this mode should:
+
+- checkout read-only with sufficient history/ref coverage (`fetch-depth: 0` is the simple GitHub Actions default for this use case) and `persist-credentials: false`;
+- derive the baseline ref from trusted CI metadata such as the target/base branch, not from arbitrary PR-controlled text;
+- pass a canonical repository-relative policy path without traversal components;
+- preserve `--baseline-evidence-output` alongside the semantic report when provenance is needed downstream;
+- treat the resolved commit and Git blob object ID, not the moving ref name alone, as the immutable source identity.
+
+PermitDiff does not run `git fetch`, checkout the baseline, or execute baseline repository code. It constrains ref syntax, resolves the ref once to a commit, resolves the policy path to a blob, verifies blob type/size, then reads it from the local Git object database. The evidence record contains the requested ref, resolved commit, path, Git object ID, and raw SHA-256. The normal comparison report separately binds the validated policy through its canonical policy digest.
+
+The Composite Action exposes the same capability through optional `baseline-ref` and returns `baseline_commit`, `baseline_object`, and `baseline_evidence`. It also writes the resolved provenance into `$GITHUB_STEP_SUMMARY` before the semantic report. This requires no pull-request write permission.
+
 ## Pull-request comment
 
 Generate Markdown and publish it through your CI platform's authenticated comment mechanism. Do not grant PermitDiff itself repository write credentials; report publication belongs in the CI adapter.
