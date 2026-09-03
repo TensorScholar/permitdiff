@@ -157,7 +157,9 @@ def _git_executable() -> str:
 
 
 def _git_bytes(repository: Path, *args: str) -> bytes:
-    result = subprocess.run(
+    # Git invocation is the feature boundary: argv is explicit, shell=False, and the executable
+    # is resolved to an absolute path. S603 cannot distinguish this constrained subprocess use.
+    result = subprocess.run(  # noqa: S603
         [_git_executable(), "-C", str(repository), *args],
         check=False,
         capture_output=True,
