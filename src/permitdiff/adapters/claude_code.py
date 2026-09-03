@@ -52,6 +52,7 @@ class ClaudePreapprovalEvidence(BaseModel):
     candidate_translated_allow_rules: list[str]
     ignored_baseline_root_keys: list[str]
     ignored_candidate_root_keys: list[str]
+    changed_ignored_root_keys: list[str]
     claim_boundary: list[str]
 
 
@@ -73,7 +74,7 @@ class _LoadedSettings(BaseModel):
     ask: list[str]
     deny: list[str]
     default_mode: str
-    ignored_root_keys: list[str]
+    ignored_root: dict[str, Any]
 
 
 class _AllowSurface(BaseModel):
@@ -95,6 +96,7 @@ def normalize_claude_preapproval_pair(
     The initial adapter deliberately requires deny/ask context to be unchanged. Changed
     unsupported allow semantics are rejected. Unchanged unsupported allow rules may be
     carried as opaque evidence only when no translated change touches the same tool.
+    Non-permission root changes are surfaced as evidence but are outside this projection.
     """
 
     baseline = _load_settings(Path(baseline_path))
@@ -175,11 +177,24 @@ def normalize_claude_preapproval_pair(
         candidate_redundant_allow_rules=candidate_surface.redundant_rules,
         baseline_translated_allow_rules=baseline_surface.translated_rules,
         candidate_translated_allow_rules=candidate_surface.translated_rules,
-        ignored_baseline_root_keys=baseline.ignored_root_keys,
-        ignored_candidate_root_keys=candidate.ignored_root_keys,
+        ignored_baseline_root_keys=sorted(baseline.ignored_root),
+        ignored_candidate_root_keys=sorted(candidate.ignored_root),
+        changed_ignored_root_keys=_changed_root_keys(
+            baseline.ignored_root,
+            candidate.ignored_root,
+        ),
         claim_boundary=[
-            "Models only project settings permissions.allow changes under explicit dontAsk.",
+            "Models only project settings permissions.allow preapproval changes under explicit dontAsk.",
             "Requires permissions.deny and permissions.ask to be unchanged across the pair.",
+            (
+                "Non-permissions root settings are not modeled; changed root key names are "
+                "surfaced separately in this evidence."
+            ),
+            (
+                "Exact WebFetch(domain:HOST) rules are modeled only as WebFetch preapprovals; "
+                "Claude Code can also apply domain rules to sandbox network policy, which is "
+                "outside this projection."
+            ),
             (
                 "Does not model user/managed overrides, hooks, sandbox policy, built-in tool "
                 "exceptions, or other permission modes."
@@ -227,7 +242,7 @@ def _load_settings(path: Path) -> _LoadedSettings:
         ask=_string_list(permissions, "ask"),
         deny=_string_list(permissions, "deny"),
         default_mode=_required_string(permissions, "defaultMode"),
-        ignored_root_keys=sorted(key for key in raw if key != "permissions"),
+        ignored_root={key: value for key, value in raw.items() if key != "permissions"},
     )
 
 
@@ -255,6 +270,18 @@ def _required_string(document: dict[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ClaudeAdapterError(f"permissions.{key} must be a non-empty string")
     return value.strip()
+
+
+def _changed_root_keys(
+    baseline: dict[str, Any],
+    candidate: dict[str, Any],
+) -> list[str]:
+    keys = set(baseline) | set(candidate)
+    return sorted(
+        key
+        for key in keys
+        if key not in baseline or key not in candidate or baseline[key] != candidate[key]
+    )
 
 
 def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
@@ -329,9 +356,7 @@ def _parse_rule_shape(rule: str) -> tuple[str, str | None]:
 def _is_bare_equivalent(tool: str, specifier: str | None) -> bool:
     if specifier is None:
         return True
-    if tool in {"Bash", "PowerShell"} and specifier == "*":
-        return True
-    return tool == "WebFetch" and specifier == "domain:*"
+    return tool in {"Bash", "PowerShell"} and specifier == "*"
 
 
 def _exact_webfetch_domain(tool: str, specifier: str) -> str | None:
