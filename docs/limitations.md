@@ -26,11 +26,13 @@ The development-line Claude Code adapter is intentionally narrower than a full s
 
 The adapter currently translates bare tool preapprovals and exact `WebFetch(domain:HOST)` preapprovals. Unsupported changed allow syntax fails closed. Same-effect scoped rules may be removed as semantic noise only when the broader rule is documented to subsume them, such as `Bash(git mv *)` beneath bare `Bash`.
 
-Non-`permissions` root settings are not evaluated. Their key names are recorded in normalization evidence, and keys whose values differ across baseline/candidate are listed separately. A result therefore must not be interpreted as approval of changes to `enabledPlugins`, hooks, sandbox configuration, model selection, environment configuration, or other ignored root surfaces.
+Non-`permissions` root settings are not evaluated. Their key names are recorded in normalization evidence, and keys whose values differ across baseline/candidate are listed separately. If any ignored root key changes, the adapter fails until the reviewer explicitly passes `--allow-ignored-root-changes`. This is an acknowledgement of projection scope, not approval of the ignored change. A result therefore must not be interpreted as approval of changes to `enabledPlugins`, hooks, sandbox configuration, model selection, environment configuration, or other ignored root surfaces.
 
-Claude Code's current permission documentation states that domain-scoped WebFetch rules can also modify sandbox network-domain policy. PermitDiff models exact `WebFetch(domain:HOST)` rules in this adapter only as WebFetch preapprovals. The sandbox/network effect is outside the projection. A gate PASS or waiver for the normalized preapproval finding is not evidence that the sandbox/network consequence was reviewed or accepted.
+Claude Code's current permission documentation states that domain-scoped WebFetch rules can also modify sandbox network-domain policy. PermitDiff models exact `WebFetch(domain:HOST)` rules in this adapter only as WebFetch preapprovals. If exact WebFetch domain preapprovals change, the adapter fails until the reviewer passes `--acknowledge-webfetch-sandbox-gap`. That acknowledgement permits analysis of the preapproval projection only; it is not evidence that the sandbox/network consequence was reviewed, accepted, or waived.
 
 For the same reason, `WebFetch(domain:*)` is not treated as semantically identical to bare `WebFetch`: both can preapprove all WebFetch calls, but their sandbox behavior differs. A changed wildcard-domain rule is unsupported and causes the adapter to fail closed.
+
+The normalization evidence records `ignored_root_changes_acknowledged` and `webfetch_sandbox_gap_acknowledged` so downstream reviewers can distinguish a projection with known omitted surfaces from a fully modeled input. These booleans record explicit awareness only; they are not risk-acceptance decisions.
 
 The reserved `_claude.permission_domain` field used in review scenarios is normalization metadata. It is not asserted to be the raw Claude Code WebFetch input schema.
 
@@ -44,7 +46,7 @@ Observed-transition waivers bind to an exact scenario transition and action fing
 
 A waiver can still encode a bad human decision. Expiry, exact matching, digest binding, and unused-waiver checks reduce replay and staleness risk; they do not replace accountable review.
 
-For native adapters, a waiver applies only to the normalized PermitDiff finding. It does not waive omitted semantics in the source system. In particular, a Claude WebFetch preapproval waiver does not waive sandbox-network behavior, and a PermitDiff result does not waive non-permission root-key changes surfaced only as adapter evidence.
+For native adapters, a waiver applies only to the normalized PermitDiff finding. It does not waive omitted semantics in the source system. In particular, a Claude WebFetch preapproval waiver does not waive sandbox-network behavior, and a PermitDiff result does not waive non-permission root-key changes surfaced only as adapter evidence. Projection acknowledgement flags are likewise not waivers.
 
 ## No runtime enforcement
 
