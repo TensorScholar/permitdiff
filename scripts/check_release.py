@@ -234,7 +234,9 @@ def main() -> None:
             )
         elif args.prepared:
             release_date = validate_prepared_release_metadata()
-            print(f"prepared release metadata valid for v{__version__} ({release_date.isoformat()})")
+            print(
+                f"prepared release metadata valid for v{__version__} ({release_date.isoformat()})"
+            )
         elif args.source:
             source_state = validate_source_metadata()
             print(f"source metadata valid for {__version__} ({source_state})")
