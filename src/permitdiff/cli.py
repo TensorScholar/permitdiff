@@ -16,6 +16,7 @@ from permitdiff.claude_cli import app as claude_app
 from permitdiff.corpus import load_corpus
 from permitdiff.errors import CorpusLoadError, GateLoadError, PolicyLoadError
 from permitdiff.gate import GateConfig, evaluate_gate, strict_gate
+from permitdiff.git_policy import load_policy_from_git
 from permitdiff.policy import PolicyDocument
 from permitdiff.reporting import ReportBundle
 from permitdiff.resources import write_starter
@@ -148,7 +149,7 @@ def validate_corpus(
 
 @app.command()
 def compare(
-    baseline: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True)],
+    baseline: Annotated[Path, typer.Argument()],
     candidate: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True)],
     corpus: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True)],
     gate: Annotated[
@@ -156,6 +157,24 @@ def compare(
         typer.Option("--gate", exists=True, dir_okay=False, readable=True),
     ] = None,
     strict: Annotated[bool, typer.Option("--strict")] = False,
+    baseline_ref: Annotated[
+        str | None,
+        typer.Option(
+            "--baseline-ref",
+            help=(
+                "Load the baseline argument as a repository-relative policy path from this "
+                "already-fetched Git ref instead of from the working tree."
+            ),
+        ),
+    ] = None,
+    baseline_evidence_output: Annotated[
+        Path | None,
+        typer.Option(
+            "--baseline-evidence-output",
+            dir_okay=False,
+            help="Write immutable Git commit/blob provenance for --baseline-ref as JSON.",
+        ),
+    ] = None,
     output_format: Annotated[
         OutputFormat,
         typer.Option("--format", case_sensitive=False),
@@ -168,9 +187,20 @@ def compare(
         raise typer.BadParameter("--gate and --strict are mutually exclusive")
     if output is not None and output_format is OutputFormat.CONSOLE:
         raise typer.BadParameter("--output requires json, markdown, or sarif format")
+    if baseline_evidence_output is not None and baseline_ref is None:
+        raise typer.BadParameter("--baseline-evidence-output requires --baseline-ref")
 
     try:
-        baseline_policy = PolicyDocument.from_yaml(baseline)
+        resolved_baseline = (
+            load_policy_from_git(baseline_ref, baseline)
+            if baseline_ref is not None
+            else None
+        )
+        baseline_policy = (
+            resolved_baseline.policy
+            if resolved_baseline is not None
+            else PolicyDocument.from_yaml(baseline)
+        )
         candidate_policy = PolicyDocument.from_yaml(candidate)
         scenarios = load_corpus(corpus)
         report = compare_policies(baseline_policy, candidate_policy, scenarios)
@@ -181,6 +211,17 @@ def compare(
     except (PolicyLoadError, CorpusLoadError, GateLoadError, ValueError) as exc:
         error_console.print(f"[red]comparison failed[/red]: {exc}")
         raise typer.Exit(1) from exc
+
+    if baseline_evidence_output is not None and resolved_baseline is not None:
+        try:
+            baseline_evidence_output.parent.mkdir(parents=True, exist_ok=True)
+            baseline_evidence_output.write_text(
+                resolved_baseline.evidence.model_dump_json(indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            error_console.print(f"[red]cannot write baseline Git evidence[/red]: {exc}")
+            raise typer.Exit(1) from exc
 
     bundle = ReportBundle(report, gate_result)
     if output_format is OutputFormat.CONSOLE:
