@@ -42,6 +42,8 @@ An adapter is not allowed to hide information loss. It should:
 - fail closed when a changed construct falls outside that surface and could invalidate the modeled claim;
 - bind evidence to the exact native source artifacts with stable digests;
 - surface ignored source regions and changed ignored regions without leaking unnecessary values;
+- require explicit acknowledgement before continuing across a known projection gap that could otherwise be mistaken for a whole-source PASS;
+- distinguish acknowledgement of projection scope from risk acceptance, waivers, or approval;
 - distinguish normalized review metadata from raw source-system input fields;
 - document source-system side effects that the normalized PermitDiff action model does not represent;
 - keep waivers scoped to normalized findings rather than implying approval of omitted native semantics.
@@ -52,6 +54,8 @@ If the external system depends on state PermitDiff cannot model, materialize rep
 
 `permitdiff claude compare` is the first built-in native projection. It currently supports explicit `permissions.defaultMode = "dontAsk"` pairs with unchanged `deny` and `ask` context, translates bare tool preapprovals plus exact `WebFetch(domain:HOST)` preapprovals, and rejects changed unsupported rules.
 
-The evidence record includes source SHA-256 digests, translated/opaque/redundant allow rules, ignored root-key names, changed ignored root-key names, and the adapter claim boundary. Treat evidence files as review artifacts: native permission-rule text can be sensitive.
+If non-`permissions` root settings differ, the command fails unless the reviewer explicitly supplies `--allow-ignored-root-changes`. If exact WebFetch-domain preapprovals differ, it independently requires `--acknowledge-webfetch-sandbox-gap` because Claude Code domain rules can also affect sandbox network policy. These flags authorize analysis of the bounded projection only; they are not safety approvals and do not waive the omitted source-system semantics.
+
+The evidence record includes source SHA-256 digests, translated/opaque/redundant allow rules, ignored root-key names, changed ignored root-key names, the two acknowledgement booleans, and the adapter claim boundary. Treat evidence files as review artifacts: native permission-rule text can be sensitive.
 
 Current Claude Code documentation gives domain-scoped WebFetch rules sandbox-network effects in addition to WebFetch preapproval. The adapter models only the preapproval projection. It therefore does not treat `WebFetch(domain:*)` as equivalent to bare `WebFetch`, and a changed wildcard-domain rule fails closed.
