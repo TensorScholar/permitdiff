@@ -49,9 +49,9 @@ permitdiff compare policies/baseline.yaml policies/candidate.yaml corpus.jsonl \
 
 Exit `0` = pass · `2` = valid comparison blocked by policy · `1` = invalid input or execution.
 
-## Native Claude Code settings
+## Native Claude Code preapproval projection
 
-The post-`v0.1.0rc2` development line adds a bounded native on-ramp for Claude Code project settings. It normalizes supported `permissions.allow` changes into the same semantic engine used by PermitDiff policies instead of reducing native rules to a text or rank diff.
+The post-`v0.1.0rc2` development line adds a bounded native on-ramp for Claude Code project settings. It projects a documented subset of `permissions.allow` into the same semantic engine used by PermitDiff policies instead of reducing native rules to a text or rank diff.
 
 ```bash
 permitdiff claude compare \
@@ -62,9 +62,13 @@ permitdiff claude compare \
   --format markdown
 ```
 
-The initial adapter deliberately accepts only explicit `permissions.defaultMode = "dontAsk"` pairs whose `deny` and `ask` rules are unchanged. It translates bare tool pre-approvals and exact `WebFetch(domain:HOST)` rules, de-noises documented redundancies such as `Bash(git mv *)` when bare `Bash` is already granted, and fails closed when changed native semantics cannot be represented faithfully.
+The initial adapter accepts only explicit `permissions.defaultMode = "dontAsk"` pairs whose `deny` and `ask` rules are unchanged. It translates bare tool preapprovals and exact `WebFetch(domain:HOST)` preapprovals, de-noises documented same-effect redundancies such as `Bash(git mv *)` when bare `Bash` is already granted, and fails closed when changed native semantics cannot be represented faithfully.
 
-This is **not** a complete Claude effective-authority importer. It does not model managed/user overrides, hooks, sandbox policy, built-in exceptions, other permission modes, or arbitrary Bash/path matching. `WebFetch` domain scenarios use reserved `_claude.permission_domain` review metadata produced for normalization; that field is not claimed to be raw Claude tool input.
+This is a **preapproval projection, not a complete Claude effective-authority importer**. Non-`permissions` root settings are not modeled; the evidence record exposes their key names and identifies which ignored root keys changed. The public regression pilot, for example, also changes `enabledPlugins`, so its two reported expansions are specifically the two modeled `permissions.allow` preapproval expansions—not a claim about the entire settings file.
+
+Claude Code's current documentation states that domain-scoped WebFetch rules can also affect sandbox network-domain policy. PermitDiff models exact `WebFetch(domain:HOST)` rules here only as WebFetch preapprovals. That sandbox/network side effect is outside this projection, and a PermitDiff waiver for the normalized preapproval finding must not be interpreted as a waiver of sandbox-network semantics. `WebFetch(domain:*)` is intentionally **not** collapsed into bare `WebFetch`; a changed wildcard-domain rule is unsupported and fails closed because the two forms have different sandbox effects.
+
+The adapter also does not model managed/user overrides, hooks, plugin-provided capabilities, built-in exceptions, other permission modes, or arbitrary Bash/path matching. `WebFetch` domain scenarios use reserved `_claude.permission_domain` review metadata created for normalization; that field is not claimed to be raw Claude tool input.
 
 Use `--evidence-output <path>` only when you need the adapter's normalization record. That evidence can contain native permission-rule text and should be treated as potentially sensitive review material rather than automatically published CI output.
 
