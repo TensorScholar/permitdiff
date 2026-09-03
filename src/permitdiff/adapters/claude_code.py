@@ -137,8 +137,7 @@ def normalize_claude_preapproval_pair(
     candidate_surface = _normalize_allow_surface(candidate.allow)
 
     webfetch_domains_changed = (
-        baseline_surface.declared_webfetch_domains
-        != candidate_surface.declared_webfetch_domains
+        baseline_surface.declared_webfetch_domains != candidate_surface.declared_webfetch_domains
     )
     if webfetch_domains_changed and not acknowledge_webfetch_sandbox_gap:
         raise ClaudeAdapterError(
@@ -210,8 +209,7 @@ def normalize_claude_preapproval_pair(
         ignored_baseline_root_keys=sorted(baseline.ignored_root),
         ignored_candidate_root_keys=sorted(candidate.ignored_root),
         changed_ignored_root_keys=changed_root_keys,
-        ignored_root_changes_acknowledged=bool(changed_root_keys)
-        and allow_ignored_root_changes,
+        ignored_root_changes_acknowledged=bool(changed_root_keys) and allow_ignored_root_changes,
         webfetch_sandbox_gap_acknowledged=webfetch_domains_changed
         and acknowledge_webfetch_sandbox_gap,
         claim_boundary=[
@@ -367,8 +365,7 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
     bare_tools = {
         tool
         for (tool, specifier), _ in parsed
-        if tool in _SUPPORTED_BARE_PREAPPROVAL_TOOLS
-        and _is_bare_equivalent(tool, specifier)
+        if tool in _SUPPORTED_BARE_PREAPPROVAL_TOOLS and _is_bare_equivalent(tool, specifier)
     }
     declared_webfetch_domains = sorted(
         {
@@ -385,9 +382,8 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
     semantic_seen: set[tuple[str, str]] = set()
 
     for (tool, specifier), source_rule in parsed:
-        is_supported_bare = (
-            tool in _SUPPORTED_BARE_PREAPPROVAL_TOOLS
-            and _is_bare_equivalent(tool, specifier)
+        is_supported_bare = tool in _SUPPORTED_BARE_PREAPPROVAL_TOOLS and _is_bare_equivalent(
+            tool, specifier
         )
         if not is_supported_bare and tool in bare_tools:
             redundant.append(source_rule)
