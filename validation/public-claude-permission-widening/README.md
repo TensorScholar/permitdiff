@@ -60,7 +60,25 @@ Expected PermitDiff evidence for this projection:
 - 0 uncovered candidate rules;
 - strict gate result: BLOCK.
 
-## Reproduce
+## Reproduce from the native source
+
+The native adapter intentionally refuses to analyze this pair without two explicit projection acknowledgements: the source changes `enabledPlugins`, and the exact WebFetch-domain change has a sandbox-network effect outside the preapproval model.
+
+```bash
+permitdiff claude compare \
+  validation/public-claude-permission-widening/source-baseline.json \
+  validation/public-claude-permission-widening/source-candidate.json \
+  validation/public-claude-permission-widening/corpus.jsonl \
+  --allow-ignored-root-changes \
+  --acknowledge-webfetch-sandbox-gap \
+  --gate validation/public-claude-permission-widening/gate.yaml \
+  --format json \
+  --evidence-output claude-normalization-evidence.json
+```
+
+The two acknowledgement flags permit analysis of this bounded projection only. They are not approval or waivers for the `enabledPlugins` change or sandbox/network semantics.
+
+The checked-in normalized-policy oracle can also be reproduced directly:
 
 ```bash
 permitdiff compare \
@@ -71,12 +89,12 @@ permitdiff compare \
   --format json
 ```
 
-The executable contract is `tests/test_validation_pilots.py`.
+The executable contracts are `tests/test_claude_adapter.py`, `tests/test_claude_cli.py`, and `tests/test_validation_pilots.py`.
 
 ## Claim boundary
 
 This pilot models only the checked-in `permissions.allow` preapproval projection. It does not model the source's `enabledPlugins` change, plugin-provided capabilities, managed or user-level overrides, hooks, sandbox/network policy, version-specific built-in behavior, or unrelated unchanged deny rules outside the selected scenarios.
 
-A PASS or waiver in this projection must not be interpreted as approval of those omitted surfaces. The historical pilot currently BLOCKs on the two modeled preapproval expansions.
+A PASS, projection acknowledgement, or waiver in this projection must not be interpreted as approval of those omitted surfaces. The historical pilot currently BLOCKs on the two modeled preapproval expansions.
 
 It is a repository-local historical retrospective. It strengthens independent semantic validation but does **not** replace external-repository execution evidence for a release candidate.
