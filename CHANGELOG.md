@@ -18,7 +18,8 @@ All notable changes are documented here. Semantic Versioning begins when the `v1
 - separated CI development-metadata validation from immutable publish-time tag/changelog/citation validation while keeping `CITATION.cff` bound to the latest actual release;
 - configured future alpha, beta, and release-candidate tags to create GitHub Releases with explicit prerelease metadata;
 - clarified native-adapter governance: omitted source surfaces must be visible in evidence, known projection gaps require explicit acknowledgement before analysis, waivers apply only to normalized findings, and bounded projections must not be described as full effective-authority proofs;
-- changed the example permission scan into an end-to-end Composite Action contract that resolves a Git baseline, asserts the intentional BLOCK, verifies provenance outputs, and uploads the Action-generated SARIF.
+- changed the example permission scan into an end-to-end Composite Action contract that resolves a Git baseline, asserts the intentional BLOCK, verifies provenance outputs, and uploads the Action-generated SARIF;
+- extended the isolated installed-wheel smoke test to exercise normalized policies, provenance-bound Git baselines, and the native Claude preapproval projection so release-facing interfaces are proven from the built distribution rather than only editable source installs.
 
 ### Fixed
 
