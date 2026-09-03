@@ -53,22 +53,57 @@ runs:
         INPUT_GATE: ${{ inputs.gate }}
       run: |
         set +e
-        args=("$INPUT_BASELINE" "$INPUT_CANDIDATE" "$INPUT_CORPUS")
-        baseline_evidence=""
-        if [[ -n "$INPUT_BASELINE_REF" ]]; then
-          baseline_evidence="permitdiff-baseline-source.json"
-          args+=(--baseline-ref "$INPUT_BASELINE_REF")
-          args+=(--baseline-evidence-output "$baseline_evidence")
-        fi
+        common_args=("$INPUT_BASELINE" "$INPUT_CANDIDATE" "$INPUT_CORPUS")
         if [[ -n "$INPUT_GATE" ]]; then
-          args+=(--gate "$INPUT_GATE")
+          common_args+=(--gate "$INPUT_GATE")
         else
-          args+=(--strict)
+          common_args+=(--strict)
         fi
 
-        permitdiff compare "${args[@]}" --format markdown --output permitdiff-report.md
+        baseline_evidence=""
+        markdown_args=("${common_args[@]}")
+        if [[ -n "$INPUT_BASELINE_REF" ]]; then
+          baseline_evidence="permitdiff-baseline-source.json"
+          markdown_args+=(--baseline-ref "$INPUT_BASELINE_REF")
+          markdown_args+=(--baseline-evidence-output "$baseline_evidence")
+        fi
+
+        permitdiff compare "${markdown_args[@]}" --format markdown --output permitdiff-report.md
         status=$?
-        permitdiff compare "${args[@]}" --format sarif --output permitdiff.sarif >/dev/null 2>&1
+
+        sarif_args=("${common_args[@]}")
+        if [[ -n "$INPUT_BASELINE_REF" ]]; then
+          if [[ -s "$baseline_evidence" ]]; then
+            resolved_commit="$(python - "$baseline_evidence" <<'PY'
+        import json
+        import re
+        import sys
+        from pathlib import Path
+
+        evidence = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+        resolved = str(evidence.get("resolved_commit", ""))
+        if re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", resolved) is None:
+            raise SystemExit("invalid resolved_commit in PermitDiff baseline evidence")
+        print(resolved)
+        PY
+            )"
+            pin_status=$?
+            if [[ "$pin_status" -ne 0 ]]; then
+              echo "report=permitdiff-report.md" >> "$GITHUB_OUTPUT"
+              echo "sarif=permitdiff.sarif" >> "$GITHUB_OUTPUT"
+              echo "baseline_evidence=$baseline_evidence" >> "$GITHUB_OUTPUT"
+              echo "outcome=error" >> "$GITHUB_OUTPUT"
+              echo "PermitDiff could not pin the SARIF render to the resolved baseline commit." >&2
+              exit 1
+            fi
+            sarif_args+=(--baseline-ref "$resolved_commit")
+          else
+            # Re-run the same invalid source selection so renderer status consistency is checked.
+            sarif_args+=(--baseline-ref "$INPUT_BASELINE_REF")
+          fi
+        fi
+
+        permitdiff compare "${sarif_args[@]}" --format sarif --output permitdiff.sarif >/dev/null 2>&1
         sarif_status=$?
 
         echo "report=permitdiff-report.md" >> "$GITHUB_OUTPUT"
