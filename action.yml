@@ -24,9 +24,15 @@ outputs:
   sarif:
     description: SARIF 2.1.0 report path.
     value: ${{ steps.run.outputs.sarif }}
-  baseline-evidence:
+  baseline_evidence:
     description: Git baseline provenance JSON path when baseline-ref is used; empty otherwise.
-    value: ${{ steps.run.outputs.baseline-evidence }}
+    value: ${{ steps.run.outputs.baseline_evidence }}
+  baseline_commit:
+    description: Exact resolved baseline commit when baseline-ref is used; empty otherwise.
+    value: ${{ steps.run.outputs.baseline_commit }}
+  baseline_object:
+    description: Exact Git blob object ID for the baseline policy; empty otherwise.
+    value: ${{ steps.run.outputs.baseline_object }}
   outcome:
     description: pass, blocked, or error.
     value: ${{ steps.run.outputs.outcome }}
@@ -67,7 +73,11 @@ runs:
 
         echo "report=permitdiff-report.md" >> "$GITHUB_OUTPUT"
         echo "sarif=permitdiff.sarif" >> "$GITHUB_OUTPUT"
-        echo "baseline-evidence=$baseline_evidence" >> "$GITHUB_OUTPUT"
+        echo "baseline_evidence=$baseline_evidence" >> "$GITHUB_OUTPUT"
+        if [[ -z "$baseline_evidence" ]]; then
+          echo "baseline_commit=" >> "$GITHUB_OUTPUT"
+          echo "baseline_object=" >> "$GITHUB_OUTPUT"
+        fi
 
         if [[ "$status" -ne "$sarif_status" ]]; then
           echo "outcome=error" >> "$GITHUB_OUTPUT"
@@ -83,15 +93,20 @@ runs:
         fi
 
         if [[ -n "$baseline_evidence" && -s "$baseline_evidence" ]]; then
-          python - "$baseline_evidence" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          python - "$baseline_evidence" "$GITHUB_OUTPUT" >> "$GITHUB_STEP_SUMMARY" <<'PY'
         import json
         import sys
         from pathlib import Path
 
         evidence = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+        github_output = Path(sys.argv[2])
 
         def code(value: object) -> str:
             return str(value).replace("`", "\\`").replace("\n", " ").replace("\r", " ")
+
+        with github_output.open("a", encoding="utf-8") as handle:
+            handle.write(f"baseline_commit={evidence['resolved_commit']}\n")
+            handle.write(f"baseline_object={evidence['git_object_id']}\n")
 
         print("## PermitDiff baseline source")
         print()
