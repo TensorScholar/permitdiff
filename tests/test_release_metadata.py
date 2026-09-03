@@ -96,7 +96,9 @@ def test_prepared_release_and_source_state_accept_coherent_final_tree(tmp_path: 
     )
 
     assert release_date.isoformat() == _RELEASE_DATE
-    assert validate_source_metadata(tmp_path, package_version=_RELEASE_VERSION) == "prepared-release"
+    assert (
+        validate_source_metadata(tmp_path, package_version=_RELEASE_VERSION) == "prepared-release"
+    )
 
 
 def test_release_metadata_rejects_noncanonical_tag(tmp_path: Path) -> None:
