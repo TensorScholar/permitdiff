@@ -18,7 +18,7 @@ from permitdiff.reporting import ReportBundle
 
 app = typer.Typer(
     no_args_is_help=True,
-    help="Compare bounded Claude Code project pre-approval changes from native settings.",
+    help="Compare a bounded Claude Code project preapproval projection from native settings.",
 )
 error_console = Console(stderr=True, width=160)
 console = Console(width=160)
@@ -41,6 +41,26 @@ def compare_claude(
         typer.Option("--gate", exists=True, dir_okay=False, readable=True),
     ] = None,
     strict: Annotated[bool, typer.Option("--strict")] = False,
+    allow_ignored_root_changes: Annotated[
+        bool,
+        typer.Option(
+            "--allow-ignored-root-changes",
+            help=(
+                "Acknowledge that non-permissions root settings changed and analyze only the "
+                "bounded permissions.allow preapproval projection."
+            ),
+        ),
+    ] = False,
+    acknowledge_webfetch_sandbox_gap: Annotated[
+        bool,
+        typer.Option(
+            "--acknowledge-webfetch-sandbox-gap",
+            help=(
+                "Acknowledge that changed WebFetch domain rules can also affect Claude sandbox "
+                "network policy, which this projection does not model."
+            ),
+        ),
+    ] = False,
     output_format: Annotated[
         ClaudeOutputFormat,
         typer.Option("--format", case_sensitive=False),
@@ -51,7 +71,7 @@ def compare_claude(
         typer.Option("--evidence-output", dir_okay=False),
     ] = None,
 ) -> None:
-    """Compare native Claude ``dontAsk`` pre-approval changes with fail-closed semantics."""
+    """Compare native Claude ``dontAsk`` preapproval changes with fail-closed semantics."""
 
     if gate is not None and strict:
         raise typer.BadParameter("--gate and --strict are mutually exclusive")
@@ -59,7 +79,12 @@ def compare_claude(
         raise typer.BadParameter("--output requires json, markdown, or sarif format")
 
     try:
-        pair = normalize_claude_preapproval_pair(baseline, candidate)
+        pair = normalize_claude_preapproval_pair(
+            baseline,
+            candidate,
+            allow_ignored_root_changes=allow_ignored_root_changes,
+            acknowledge_webfetch_sandbox_gap=acknowledge_webfetch_sandbox_gap,
+        )
         scenarios = load_corpus(corpus)
         report = compare_policies(pair.baseline_policy, pair.candidate_policy, scenarios)
         gate_config = GateConfig.from_yaml(gate) if gate is not None else None
