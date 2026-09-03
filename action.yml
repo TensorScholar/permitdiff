@@ -3,8 +3,11 @@ description: Compare effective AI-agent tool permissions and block unsafe privil
 author: Mohammad Atashi
 inputs:
   baseline:
-    description: Baseline policy path.
+    description: Baseline policy path. With baseline-ref, this is a repository-relative Git path.
     required: true
+  baseline-ref:
+    description: Optional already-fetched Git ref used to resolve the baseline without checkout.
+    required: false
   candidate:
     description: Candidate policy path.
     required: true
@@ -21,8 +24,11 @@ outputs:
   sarif:
     description: SARIF 2.1.0 report path.
     value: ${{ steps.run.outputs.sarif }}
+  baseline-evidence:
+    description: Git baseline provenance JSON path when baseline-ref is used; empty otherwise.
+    value: ${{ steps.run.outputs.baseline-evidence }}
   outcome:
-    description: pass or blocked.
+    description: pass, blocked, or error.
     value: ${{ steps.run.outputs.outcome }}
 runs:
   using: composite
@@ -35,12 +41,19 @@ runs:
       shell: bash
       env:
         INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_BASELINE_REF: ${{ inputs.baseline-ref }}
         INPUT_CANDIDATE: ${{ inputs.candidate }}
         INPUT_CORPUS: ${{ inputs.corpus }}
         INPUT_GATE: ${{ inputs.gate }}
       run: |
         set +e
         args=("$INPUT_BASELINE" "$INPUT_CANDIDATE" "$INPUT_CORPUS")
+        baseline_evidence=""
+        if [[ -n "$INPUT_BASELINE_REF" ]]; then
+          baseline_evidence="permitdiff-baseline-source.json"
+          args+=(--baseline-ref "$INPUT_BASELINE_REF")
+          args+=(--baseline-evidence-output "$baseline_evidence")
+        fi
         if [[ -n "$INPUT_GATE" ]]; then
           args+=(--gate "$INPUT_GATE")
         else
@@ -50,9 +63,57 @@ runs:
         permitdiff compare "${args[@]}" --format markdown --output permitdiff-report.md
         status=$?
         permitdiff compare "${args[@]}" --format sarif --output permitdiff.sarif >/dev/null 2>&1
+        sarif_status=$?
 
         echo "report=permitdiff-report.md" >> "$GITHUB_OUTPUT"
         echo "sarif=permitdiff.sarif" >> "$GITHUB_OUTPUT"
+        echo "baseline-evidence=$baseline_evidence" >> "$GITHUB_OUTPUT"
+
+        if [[ "$status" -ne "$sarif_status" ]]; then
+          echo "outcome=error" >> "$GITHUB_OUTPUT"
+          echo "PermitDiff renderers returned inconsistent exit statuses: markdown=$status sarif=$sarif_status" >&2
+          exit 1
+        fi
+        if [[ "$status" -eq 0 || "$status" -eq 2 ]]; then
+          if [[ ! -s permitdiff-report.md || ! -s permitdiff.sarif ]]; then
+            echo "outcome=error" >> "$GITHUB_OUTPUT"
+            echo "PermitDiff did not produce both required review artifacts." >&2
+            exit 1
+          fi
+        fi
+
+        if [[ -n "$baseline_evidence" && -s "$baseline_evidence" ]]; then
+          python - "$baseline_evidence" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+        import json
+        import sys
+        from pathlib import Path
+
+        evidence = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+
+        def code(value: object) -> str:
+            return str(value).replace("`", "\\`").replace("\n", " ").replace("\r", " ")
+
+        print("## PermitDiff baseline source")
+        print()
+        print(f"- requested ref: `{code(evidence['requested_ref'])}`")
+        print(f"- resolved commit: `{code(evidence['resolved_commit'])}`")
+        print(f"- policy path: `{code(evidence['path'])}`")
+        print(f"- Git object: `{code(evidence['git_object_id'])}`")
+        print(f"- raw SHA-256: `{code(evidence['raw_sha256'])}`")
+        print()
+        PY
+          summary_status=$?
+          if [[ "$summary_status" -ne 0 ]]; then
+            echo "outcome=error" >> "$GITHUB_OUTPUT"
+            echo "PermitDiff could not render Git baseline provenance." >&2
+            exit 1
+          fi
+        fi
+
+        if [[ -s permitdiff-report.md ]]; then
+          cat permitdiff-report.md >> "$GITHUB_STEP_SUMMARY"
+        fi
+
         if [[ "$status" -eq 0 ]]; then
           echo "outcome=pass" >> "$GITHUB_OUTPUT"
         elif [[ "$status" -eq 2 ]]; then
@@ -60,7 +121,6 @@ runs:
         else
           echo "outcome=error" >> "$GITHUB_OUTPUT"
         fi
-        cat permitdiff-report.md >> "$GITHUB_STEP_SUMMARY"
         exit "$status"
 branding:
   icon: shield
