@@ -224,7 +224,7 @@ def test_development_metadata_rejects_missing_unreleased_section(tmp_path: Path)
         citation_date=_RELEASE_DATE,
     )
 
-    with pytest.raises(ValueError, match="exactly one \[Unreleased\] section"):
+    with pytest.raises(ValueError, match=r"exactly one \[Unreleased\] section"):
         validate_development_metadata(tmp_path, package_version="1.2.3rc5.dev0")
 
 
@@ -361,6 +361,8 @@ def test_workflow_actions_are_pinned_to_commits() -> None:
             stripped = line.strip()
             if stripped.startswith("uses:"):
                 reference = stripped.removeprefix("uses:").strip()
+                if reference == "./":
+                    continue
                 assert _SHA_PIN.fullmatch(reference), f"unpinned action in {workflow}: {reference}"
 
 

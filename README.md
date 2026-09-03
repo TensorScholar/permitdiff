@@ -49,6 +49,24 @@ permitdiff compare policies/baseline.yaml policies/candidate.yaml corpus.jsonl \
 
 Exit `0` = pass · `2` = valid comparison blocked by policy · `1` = invalid input or execution.
 
+## Git-resolved baseline
+
+The post-`v0.1.0rc2` development line can compare the current candidate against a policy stored at an already-fetched Git ref, so a PR workflow does not need to materialize a separate baseline file:
+
+```bash
+permitdiff compare \
+  permissions/policy.yaml \
+  permissions/policy.yaml \
+  permissions/corpus.jsonl \
+  --baseline-ref origin/main \
+  --baseline-evidence-output permitdiff-baseline-source.json \
+  --gate permissions/permitdiff-gate.yaml
+```
+
+With `--baseline-ref`, the first policy path is resolved from the local Git object database. PermitDiff resolves the requested ref to an exact commit, resolves the policy to an exact blob, enforces the normal policy-size/schema bounds, and reads the blob without checking it out or executing repository code. The evidence file records requested ref, resolved commit, repository-relative policy path, Git object ID, and raw SHA-256. PermitDiff does **not** fetch remotes implicitly; the ref must already be available locally.
+
+Ref syntax is deliberately conservative. Arbitrary Git revision expressions and traversal-style paths are rejected rather than interpreted. The normal semantic report still binds the validated policy through its canonical policy digest; Git-source evidence separately binds where the baseline bytes came from.
+
 ## Native Claude Code preapproval projection
 
 The post-`v0.1.0rc2` development line adds a bounded native on-ramp for Claude Code project settings. It projects a documented subset of `permissions.allow` into the same semantic engine used by PermitDiff policies instead of reducing native rules to a text or rank diff.
@@ -99,6 +117,8 @@ flowchart LR
 
 ## GitHub Action
 
+The current `v0.1.0rc2` release supports explicit baseline/candidate files:
+
 ```yaml
 - uses: actions/checkout@v6
 - uses: actions/setup-python@v6
@@ -111,7 +131,9 @@ flowchart LR
     gate: permissions/permitdiff-gate.yaml
 ```
 
-The action writes a Markdown step summary and a SARIF report for code scanning.
+The Action writes a Markdown step summary and a SARIF report for code scanning.
+
+On the post-`v0.1.0rc2` development line, the same Action also accepts `baseline-ref`. A PR integration should use a read-only checkout with full history, resolve the base branch as an already-fetched ref such as `origin/${{ github.base_ref }}`, and use the same repository-relative path for baseline and candidate when the policy is modified in place. The Action surfaces `baseline_commit`, `baseline_object`, and `baseline_evidence` outputs and places resolved provenance ahead of the semantic report in the step summary. Pin a release containing this capability before adopting it in another repository; do not replace a release pin with a moving `main` ref.
 
 ## Scope
 

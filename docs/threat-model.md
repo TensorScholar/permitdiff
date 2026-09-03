@@ -15,6 +15,7 @@
 |---|---|---|
 | Policy/gate YAML committed by maintainers | Untrusted until validated | Safe YAML parsing, strict schemas, size limits. |
 | Scenario JSONL | Untrusted until validated | Streaming parse, line-aware failures, bounded size/count/depth. |
+| Git baseline ref/object database | Untrusted until resolved and validated | Restricted ref/path syntax, exact commit/blob resolution, blob type/size checks, raw source digest, normal policy validation. |
 | Native adapter source files | Untrusted until validated | Format validation, bounded input size, duplicate-key rejection where applicable, source digests, explicit projection evidence. |
 | MCP-style annotations | Untrusted hints | Cannot support an `allow` rule unless trusted metadata is explicitly required. |
 | Waiver metadata | Administrative evidence | Exact evidence binding, mandatory reason, expiry; repository review remains external. |
@@ -27,6 +28,14 @@
 **Threat:** typos, unknown keys, duplicate IDs, implicit defaults, invalid predicates, or values that cannot be canonically serialized.
 
 **Controls:** strict Pydantic schemas, duplicate checks, explicit API/kind fields, safe YAML loader, bounded canonical JSON validation, and validation commands.
+
+### Git baseline ref confusion or source substitution
+
+**Threat:** a CI job compares against a moving, attacker-chosen, ambiguous, or incorrectly materialized baseline and reviewers believe it represents the intended protected base branch.
+
+**Controls:** `--baseline-ref` accepts a deliberately narrow ref-like syntax rather than arbitrary revision expressions; repository-relative paths reject traversal and control characters; PermitDiff resolves the requested ref once to an exact commit, resolves the policy to an exact Git blob, verifies object type and size before reading, and emits requested ref, resolved commit, path, Git object ID, and raw SHA-256 as provenance. The baseline is read with `git cat-file` and is not checked out or executed. CI adapters should derive the requested ref from trusted base-branch metadata and preserve the evidence. The semantic comparison independently binds the validated policy by canonical policy digest.
+
+This does not make an untrusted local Git object database trustworthy. A compromised runner, malicious repository administrator, or workflow that fetches the wrong remote/ref can still provide the wrong source. PermitDiff makes the selected source explicit and immutable after resolution; selecting the correct trusted ref remains an integration responsibility.
 
 ### Native-adapter semantic collapse
 
@@ -68,7 +77,7 @@
 
 **Threat:** reviewers compare the wrong artifacts or machine output is nondeterministic.
 
-**Controls:** policy and corpus digests, native-source digests where applicable, per-action and per-finding fingerprints, stable serialization, deterministic sorting, explicit baseline/candidate metadata, projection acknowledgement evidence, and separate observed/static evidence channels.
+**Controls:** policy and corpus digests, Git commit/blob/raw-source evidence where applicable, native-source digests where applicable, per-action and per-finding fingerprints, stable serialization, deterministic sorting, explicit baseline/candidate metadata, projection acknowledgement evidence, and separate observed/static evidence channels.
 
 ### CI bypass
 
@@ -78,4 +87,4 @@
 
 ## Out of scope
 
-PermitDiff does not provide authentication, runtime authorization, sandboxing, secret isolation, tool-server attestation, policy distribution, approval workflow, or tamper-proof storage. Its static analyzer and native adapters are deliberately bounded and are not proofs of exhaustive authorization safety. It cannot defend against a compromised CI runner or repository administrator.
+PermitDiff does not provide authentication, runtime authorization, sandboxing, secret isolation, tool-server attestation, policy distribution, approval workflow, or tamper-proof storage. Its static analyzer and native adapters are deliberately bounded and are not proofs of exhaustive authorization safety. It cannot defend against a compromised CI runner, local Git object database controlled by an attacker with runner privileges, or repository administrator.
