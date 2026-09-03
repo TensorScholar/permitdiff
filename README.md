@@ -41,7 +41,7 @@ When bounded static analysis cannot prove a changed construct non-expanding, the
 ## Five-minute start
 
 ```bash
-pipx install git+https://github.com/TensorScholar/permitdiff.git
+pipx install git+https://github.com/TensorScholar/permitdiff.git@v0.1.0rc2
 permitdiff init permissions && cd permissions
 permitdiff compare policies/baseline.yaml policies/candidate.yaml corpus.jsonl \
   --gate permitdiff-gate.yaml
@@ -78,7 +78,7 @@ flowchart LR
 - uses: actions/checkout@v6
 - uses: actions/setup-python@v6
   with: { python-version: "3.13" }
-- uses: TensorScholar/permitdiff@v0
+- uses: TensorScholar/permitdiff@v0.1.0rc2
   with:
     baseline: permissions/policies/baseline.yaml
     candidate: permissions/policies/candidate.yaml
@@ -96,10 +96,10 @@ Observed scenario coverage is not proven policy coverage. The built-in static an
 
 ## Trust & delivery
 
-The release pipeline is configured for Python 3.11–3.14 tests, branch-aware coverage, strict typing, linting, dependency audit, CodeQL, OpenSSF Scorecard, clean-wheel smoke tests, CycloneDX SBOMs, Trusted Publishing, checksums, and GitHub build attestations. Configuration is not evidence that every release control has executed successfully; release evidence is evaluated separately.
+The release pipeline is configured for Python 3.11–3.14 tests, branch-aware coverage, strict typing, linting, dependency audit, CodeQL, OpenSSF Scorecard, clean-wheel smoke tests, CycloneDX SBOMs, Trusted Publishing, checksums, and GitHub build attestations. The `v0.1.0rc2` release execution completed artifact build, external-repository validation, checksums, artifact attestation, SBOM attestation, and GitHub Release creation. PyPI publication is not yet claimed.
 
 **Commercial adoption:** permission architecture reviews, scenario-corpus design, CI rollout, policy migration, and private adapters. [Engagement model →](docs/commercial-support.md)
 
-`0.1.0rc1` is a release candidate using the versioned `v1alpha1` schema. Breaking changes remain possible before `v1`.
+`0.1.0rc2` is the latest GitHub release candidate using the versioned `v1alpha1` schema. Mutable `main` advances under a separate development identity after releases; breaking changes remain possible before `v1`.
 
 [Docs](docs/) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Citation](CITATION.cff)
