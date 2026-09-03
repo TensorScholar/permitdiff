@@ -50,6 +50,8 @@ class ClaudePreapprovalEvidence(BaseModel):
     candidate_redundant_allow_rules: list[str]
     baseline_translated_allow_rules: list[str]
     candidate_translated_allow_rules: list[str]
+    baseline_declared_webfetch_domains: list[str]
+    candidate_declared_webfetch_domains: list[str]
     ignored_baseline_root_keys: list[str]
     ignored_candidate_root_keys: list[str]
     changed_ignored_root_keys: list[str]
@@ -84,6 +86,7 @@ class _AllowSurface(BaseModel):
 
     bare_tools: list[str]
     webfetch_domains: list[str]
+    declared_webfetch_domains: list[str]
     opaque_rules: list[str]
     redundant_rules: list[str]
     translated_rules: list[str]
@@ -132,7 +135,10 @@ def normalize_claude_preapproval_pair(
     baseline_surface = _normalize_allow_surface(baseline.allow)
     candidate_surface = _normalize_allow_surface(candidate.allow)
 
-    webfetch_domains_changed = baseline_surface.webfetch_domains != candidate_surface.webfetch_domains
+    webfetch_domains_changed = (
+        baseline_surface.declared_webfetch_domains
+        != candidate_surface.declared_webfetch_domains
+    )
     if webfetch_domains_changed and not acknowledge_webfetch_sandbox_gap:
         raise ClaudeAdapterError(
             "exact WebFetch domain preapprovals changed, but Claude Code domain rules can also "
@@ -198,6 +204,8 @@ def normalize_claude_preapproval_pair(
         candidate_redundant_allow_rules=candidate_surface.redundant_rules,
         baseline_translated_allow_rules=baseline_surface.translated_rules,
         candidate_translated_allow_rules=candidate_surface.translated_rules,
+        baseline_declared_webfetch_domains=baseline_surface.declared_webfetch_domains,
+        candidate_declared_webfetch_domains=candidate_surface.declared_webfetch_domains,
         ignored_baseline_root_keys=sorted(baseline.ignored_root),
         ignored_candidate_root_keys=sorted(candidate.ignored_root),
         changed_ignored_root_keys=changed_root_keys,
@@ -213,9 +221,9 @@ def normalize_claude_preapproval_pair(
                 "explicit acknowledgement and are surfaced separately in this evidence."
             ),
             (
-                "Exact WebFetch(domain:HOST) changes require explicit acknowledgement because "
-                "Claude Code can also apply domain rules to sandbox network policy; only the "
-                "WebFetch preapproval effect is projected here."
+                "Any exact WebFetch(domain:HOST) declaration change requires explicit "
+                "acknowledgement because Claude Code can also apply domain rules to sandbox "
+                "network policy, even when the preapproval is redundant under bare WebFetch."
             ),
             (
                 "Projection acknowledgements authorize analysis of the bounded projection only; "
@@ -323,6 +331,14 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
 
     parsed = [(_parse_rule_shape(rule), rule) for rule in unique_rules]
     bare_tools = {tool for (tool, specifier), _ in parsed if _is_bare_equivalent(tool, specifier)}
+    declared_webfetch_domains = sorted(
+        {
+            domain
+            for (tool, specifier), _ in parsed
+            if specifier is not None
+            and (domain := _exact_webfetch_domain(tool, specifier)) is not None
+        }
+    )
 
     translated_bare: set[str] = set()
     webfetch_domains: set[str] = set()
@@ -360,6 +376,7 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
     return _AllowSurface(
         bare_tools=sorted(translated_bare),
         webfetch_domains=sorted(webfetch_domains),
+        declared_webfetch_domains=declared_webfetch_domains,
         opaque_rules=sorted(opaque),
         redundant_rules=sorted(redundant),
         translated_rules=translated_rules,
