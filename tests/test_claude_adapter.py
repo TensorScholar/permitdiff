@@ -70,11 +70,16 @@ def test_same_effect_bare_tool_eliminates_scoped_redundancy(tmp_path: Path) -> N
 
     pair = normalize_claude_preapproval_pair(baseline, candidate)
 
-    assert pair.baseline_policy.digest() != pair.candidate_policy.digest() or (
-        pair.baseline_policy.rules == pair.candidate_policy.rules
-    )
     assert pair.baseline_policy.rules == pair.candidate_policy.rules
     assert pair.evidence.candidate_redundant_allow_rules == ["Bash(git mv *)"]
+
+
+def test_read_star_is_not_treated_as_bare_read(tmp_path: Path) -> None:
+    baseline = _settings(tmp_path, "baseline.json", allow=[])
+    candidate = _settings(tmp_path, "candidate.json", allow=["Read(*)"])
+
+    with pytest.raises(ClaudeAdapterError, match="unsupported Claude allow rules changed"):
+        normalize_claude_preapproval_pair(baseline, candidate)
 
 
 def test_changed_unsupported_allow_rules_fail_closed(tmp_path: Path) -> None:
