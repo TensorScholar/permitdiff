@@ -22,6 +22,7 @@ from permitdiff.policy import PolicyDocument, PolicyMetadata, PolicyRule, Predic
 
 _MAX_SETTINGS_BYTES = 1_000_000
 _ALLOWED_PERMISSION_KEYS = frozenset({"allow", "ask", "deny", "defaultMode"})
+_SUPPORTED_BARE_PREAPPROVAL_TOOLS = frozenset({"Bash", "PowerShell", "WebFetch", "WebSearch"})
 _RULE_RE = re.compile(r"^(?P<tool>[A-Za-z][A-Za-z0-9_]*)(?:\((?P<specifier>.*)\))?$")
 _DOMAIN_RE = re.compile(r"^[A-Za-z0-9.-]+$")
 
@@ -215,6 +216,10 @@ def normalize_claude_preapproval_pair(
         and acknowledge_webfetch_sandbox_gap,
         claim_boundary=[
             "Models only project settings permissions.allow preapproval changes under explicit dontAsk.",
+            (
+                "Bare-tool translation is limited to Bash, PowerShell, WebFetch, and WebSearch; "
+                "other bare tools remain opaque because their approval semantics can differ."
+            ),
             "Requires permissions.deny and permissions.ask to be unchanged across the pair.",
             (
                 "Non-permissions root settings are not modeled; changed root key names require "
@@ -330,7 +335,12 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
         unique_rules.append(rule)
 
     parsed = [(_parse_rule_shape(rule), rule) for rule in unique_rules]
-    bare_tools = {tool for (tool, specifier), _ in parsed if _is_bare_equivalent(tool, specifier)}
+    bare_tools = {
+        tool
+        for (tool, specifier), _ in parsed
+        if tool in _SUPPORTED_BARE_PREAPPROVAL_TOOLS
+        and _is_bare_equivalent(tool, specifier)
+    }
     declared_webfetch_domains = sorted(
         {
             domain
@@ -346,11 +356,14 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
     semantic_seen: set[tuple[str, str]] = set()
 
     for (tool, specifier), source_rule in parsed:
-        is_bare = _is_bare_equivalent(tool, specifier)
-        if not is_bare and tool in bare_tools:
+        is_supported_bare = (
+            tool in _SUPPORTED_BARE_PREAPPROVAL_TOOLS
+            and _is_bare_equivalent(tool, specifier)
+        )
+        if not is_supported_bare and tool in bare_tools:
             redundant.append(source_rule)
             continue
-        if is_bare:
+        if is_supported_bare:
             semantic = ("bare", tool)
             if semantic in semantic_seen:
                 redundant.append(source_rule)
@@ -358,8 +371,9 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
             semantic_seen.add(semantic)
             translated_bare.add(tool)
             continue
-        if specifier is None:  # pragma: no cover - handled by _is_bare_equivalent
-            raise AssertionError("bare Claude rule was not recognized")
+        if specifier is None:
+            opaque.append(source_rule)
+            continue
         domain = _exact_webfetch_domain(tool, specifier)
         if domain is not None:
             semantic = ("webfetch-domain", domain)
