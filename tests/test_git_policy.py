@@ -39,7 +39,7 @@ def test_git_policy_matches_worktree_policy_and_binds_source() -> None:
     [" HEAD", "HEAD ", "-main", "HEAD~1", "main..candidate", "refs/heads/main@{1}"],
 )
 def test_git_policy_rejects_ambiguous_or_noncanonical_refs(ref: str) -> None:
-    with pytest.raises(PolicyLoadError, match="Git baseline ref|unsupported Git"):
+    with pytest.raises(PolicyLoadError, match=r"Git baseline ref|unsupported Git"):
         load_policy_from_git(ref, EXAMPLE_BASELINE, repository=ROOT)
 
 
