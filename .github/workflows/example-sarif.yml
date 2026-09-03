@@ -71,13 +71,26 @@ jobs:
           PERMITDIFF_OUTCOME: ${{ steps.permitdiff.outputs.outcome }}
           REPORT: ${{ steps.permitdiff.outputs.report }}
           SARIF: ${{ steps.permitdiff.outputs.sarif }}
-          BASELINE_EVIDENCE: ${{ steps.permitdiff.outputs.baseline-evidence }}
+          BASELINE_EVIDENCE: ${{ steps.permitdiff.outputs.baseline_evidence }}
+          BASELINE_COMMIT: ${{ steps.permitdiff.outputs.baseline_commit }}
+          BASELINE_OBJECT: ${{ steps.permitdiff.outputs.baseline_object }}
         run: |
           test "$STEP_OUTCOME" = "failure"
           test "$PERMITDIFF_OUTCOME" = "blocked"
           test -s "$REPORT"
           test -s "$SARIF"
           test -s "$BASELINE_EVIDENCE"
+          test -n "$BASELINE_COMMIT"
+          test -n "$BASELINE_OBJECT"
+          python - "$BASELINE_EVIDENCE" "$BASELINE_COMMIT" "$BASELINE_OBJECT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          evidence = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert evidence["resolved_commit"] == sys.argv[2]
+          assert evidence["git_object_id"] == sys.argv[3]
+          PY
       - uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         if: |
           steps.changes.outputs.relevant == 'true' &&
