@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -21,25 +22,23 @@ def _settings(
     deny: list[str] | None = None,
     ask: list[str] | None = None,
     default_mode: str = "dontAsk",
+    root: dict[str, Any] | None = None,
 ) -> Path:
     path = tmp_path / name
-    path.write_text(
-        json.dumps(
-            {
-                "permissions": {
-                    "allow": allow,
-                    "deny": deny or [],
-                    "ask": ask or [],
-                    "defaultMode": default_mode,
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+    document: dict[str, Any] = {
+        "permissions": {
+            "allow": allow,
+            "deny": deny or [],
+            "ask": ask or [],
+            "defaultMode": default_mode,
+        }
+    }
+    document.update(root or {})
+    path.write_text(json.dumps(document), encoding="utf-8")
     return path
 
 
-def test_public_claude_pilot_normalizes_to_two_real_expansions() -> None:
+def test_public_claude_pilot_normalizes_to_two_preapproval_expansions() -> None:
     pair = normalize_claude_preapproval_pair(
         PILOT / "source-baseline.json",
         PILOT / "source-candidate.json",
@@ -61,6 +60,9 @@ def test_public_claude_pilot_normalizes_to_two_real_expansions() -> None:
     assert set(pair.evidence.candidate_translated_allow_rules) - set(
         pair.evidence.baseline_translated_allow_rules
     ) == {"WebSearch", "WebFetch(domain:www.anthropic.com)"}
+    assert pair.evidence.ignored_baseline_root_keys == ["enabledPlugins"]
+    assert pair.evidence.ignored_candidate_root_keys == ["enabledPlugins"]
+    assert pair.evidence.changed_ignored_root_keys == ["enabledPlugins"]
     assert report.candidate_coverage.uncovered_rules == []
 
 
@@ -80,6 +82,25 @@ def test_read_star_is_not_treated_as_bare_read(tmp_path: Path) -> None:
 
     with pytest.raises(ClaudeAdapterError, match="unsupported Claude allow rules changed"):
         normalize_claude_preapproval_pair(baseline, candidate)
+
+
+def test_webfetch_domain_star_is_not_treated_as_bare_webfetch(tmp_path: Path) -> None:
+    baseline = _settings(tmp_path, "baseline.json", allow=[])
+    candidate = _settings(tmp_path, "candidate.json", allow=["WebFetch(domain:*)"])
+
+    with pytest.raises(ClaudeAdapterError, match="unsupported Claude allow rules changed"):
+        normalize_claude_preapproval_pair(baseline, candidate)
+
+
+def test_unchanged_webfetch_domain_star_is_carried_as_opaque_evidence(tmp_path: Path) -> None:
+    baseline = _settings(tmp_path, "baseline.json", allow=["WebFetch(domain:*)"])
+    candidate = _settings(tmp_path, "candidate.json", allow=["WebFetch(domain:*)"])
+
+    pair = normalize_claude_preapproval_pair(baseline, candidate)
+
+    assert pair.baseline_policy.rules == []
+    assert pair.candidate_policy.rules == []
+    assert pair.evidence.shared_opaque_allow_rules == ["WebFetch(domain:*)"]
 
 
 def test_changed_unsupported_allow_rules_fail_closed(tmp_path: Path) -> None:
@@ -121,6 +142,31 @@ def test_webfetch_domain_is_normalized_case_insensitively(tmp_path: Path) -> Non
 
     assert rule.id == "claude-allow-webfetch-domains"
     assert rule.match.arguments[0].value == ["www.anthropic.com"]
+
+
+def test_non_permission_root_changes_are_surfaced_not_modeled(tmp_path: Path) -> None:
+    baseline = _settings(
+        tmp_path,
+        "baseline.json",
+        allow=["WebSearch"],
+        root={"enabledPlugins": {"one@example": True}, "model": "sonnet"},
+    )
+    candidate = _settings(
+        tmp_path,
+        "candidate.json",
+        allow=["WebSearch"],
+        root={
+            "enabledPlugins": {"one@example": True, "two@example": True},
+            "model": "sonnet",
+        },
+    )
+
+    pair = normalize_claude_preapproval_pair(baseline, candidate)
+
+    assert pair.baseline_policy.rules == pair.candidate_policy.rules
+    assert pair.evidence.ignored_baseline_root_keys == ["enabledPlugins", "model"]
+    assert pair.evidence.ignored_candidate_root_keys == ["enabledPlugins", "model"]
+    assert pair.evidence.changed_ignored_root_keys == ["enabledPlugins"]
 
 
 def test_unsupported_permission_mode_is_rejected(tmp_path: Path) -> None:
