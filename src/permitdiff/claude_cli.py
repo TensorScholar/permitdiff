@@ -73,7 +73,9 @@ def compare_claude(
     if evidence_output is not None:
         try:
             evidence_output.parent.mkdir(parents=True, exist_ok=True)
-            evidence_output.write_text(pair.evidence.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            evidence_output.write_text(
+                pair.evidence.model_dump_json(indent=2) + "\n", encoding="utf-8"
+            )
         except OSError as exc:
             error_console.print(f"[red]cannot write Claude adapter evidence[/red]: {exc}")
             raise typer.Exit(1) from exc
