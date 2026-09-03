@@ -4,11 +4,22 @@ All notable changes are documented here. Semantic Versioning begins when the `v1
 
 ## [Unreleased]
 
+### Added
+
+- added a bounded Claude Code native preapproval adapter and `permitdiff claude compare` command for explicit `dontAsk` project settings, with source digests, translated/opaque/redundant-rule evidence, ignored root-key drift, normal PermitDiff reports, and optional release gates;
+- added executable regression coverage that reproduces the public historical Claude permission pilot directly from its frozen native settings snapshots while preserving the pilot's narrower preapproval-projection claim.
+
 ### Changed
 
 - advanced mutable source to `0.1.0rc3.dev0` after the `0.1.0rc2` release attempt so post-release development cannot rebuild different source under an already published version identity;
 - separated CI development-metadata validation from immutable publish-time tag/changelog/citation validation while keeping `CITATION.cff` bound to the latest actual release;
-- configured future alpha, beta, and release-candidate tags to create GitHub Releases with explicit prerelease metadata.
+- configured future alpha, beta, and release-candidate tags to create GitHub Releases with explicit prerelease metadata;
+- clarified native-adapter governance: omitted source surfaces must be visible in evidence, waivers apply only to normalized findings, and bounded projections must not be described as full effective-authority proofs.
+
+### Fixed
+
+- stopped treating `WebFetch(domain:*)` as semantically identical to bare `WebFetch`; current Claude Code behavior gives the domain form additional sandbox-network effects, so changed wildcard-domain rules now fail closed instead of being collapsed;
+- qualified the public Claude validation evidence as two modeled `permissions.allow` preapproval expansions and explicitly preserved the concurrent `enabledPlugins` change as out-of-projection evidence.
 
 ## [0.1.0rc2] - 2026-09-02
 
