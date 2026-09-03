@@ -8,20 +8,24 @@ All notable changes are documented here. Semantic Versioning begins when the `v1
 
 - added a bounded Claude Code native preapproval adapter and `permitdiff claude compare` command for explicit `dontAsk` project settings, with source digests, translated/opaque/redundant-rule evidence, ignored root-key drift, normal PermitDiff reports, and optional release gates;
 - added explicit projection acknowledgements for changed non-`permissions` root settings and changed exact WebFetch-domain rules; both acknowledgements are recorded in adapter evidence and authorize analysis of the bounded projection only;
-- added executable regression coverage that reproduces the public historical Claude permission pilot directly from its frozen native settings snapshots while preserving the pilot's narrower preapproval-projection claim.
+- added executable regression coverage that reproduces the public historical Claude permission pilot directly from its frozen native settings snapshots while preserving the pilot's narrower preapproval-projection claim;
+- added provenance-bound Git baseline resolution for `permitdiff compare --baseline-ref`, including exact commit/blob identity, raw SHA-256 evidence, traversal-safe repository-relative paths, and no baseline checkout;
+- added Composite Action baseline provenance outputs (`baseline_commit`, `baseline_object`, `baseline_evidence`) and reviewer-visible Git source identity in the Actions step summary.
 
 ### Changed
 
 - advanced mutable source to `0.1.0rc3.dev0` after the `0.1.0rc2` release attempt so post-release development cannot rebuild different source under an already published version identity;
 - separated CI development-metadata validation from immutable publish-time tag/changelog/citation validation while keeping `CITATION.cff` bound to the latest actual release;
 - configured future alpha, beta, and release-candidate tags to create GitHub Releases with explicit prerelease metadata;
-- clarified native-adapter governance: omitted source surfaces must be visible in evidence, known projection gaps require explicit acknowledgement before analysis, waivers apply only to normalized findings, and bounded projections must not be described as full effective-authority proofs.
+- clarified native-adapter governance: omitted source surfaces must be visible in evidence, known projection gaps require explicit acknowledgement before analysis, waivers apply only to normalized findings, and bounded projections must not be described as full effective-authority proofs;
+- changed the example permission scan into an end-to-end Composite Action contract that resolves a Git baseline, asserts the intentional BLOCK, verifies provenance outputs, and uploads the Action-generated SARIF.
 
 ### Fixed
 
 - stopped treating `WebFetch(domain:*)` as semantically identical to bare `WebFetch`; current Claude Code behavior gives the domain form additional sandbox-network effects, so changed wildcard-domain rules now fail closed instead of being collapsed;
 - prevented silent PASS interpretation when Claude settings change outside the modeled projection: ignored root drift and exact WebFetch-domain changes now fail until their distinct projection gaps are explicitly acknowledged;
-- qualified the public Claude validation evidence as two modeled `permissions.allow` preapproval expansions and explicitly preserved the concurrent `enabledPlugins` change as out-of-projection evidence.
+- qualified the public Claude validation evidence as two modeled `permissions.allow` preapproval expansions and explicitly preserved the concurrent `enabledPlugins` change as out-of-projection evidence;
+- made the Composite Action fail if Markdown and SARIF renderers disagree on exit semantics or if a valid comparison fails to produce both required review artifacts.
 
 ## [0.1.0rc2] - 2026-09-02
 
