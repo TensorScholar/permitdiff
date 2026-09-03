@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
-from click.utils import strip_ansi
 from typer.testing import CliRunner
 
 from permitdiff.cli import app
@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_BASELINE = Path("examples/baseline.yaml")
 EXAMPLE_CANDIDATE = Path("examples/candidate.yaml")
 EXAMPLE_CORPUS = Path("examples/corpus.jsonl")
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 runner = CliRunner()
 
 
@@ -109,4 +110,5 @@ def test_baseline_evidence_output_requires_git_ref(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 2
-    assert "--baseline-evidence-output requires --baseline-ref" in strip_ansi(result.output)
+    output = _ANSI_ESCAPE.sub("", result.output)
+    assert "--baseline-evidence-output requires --baseline-ref" in output
