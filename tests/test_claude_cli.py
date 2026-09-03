@@ -37,8 +37,8 @@ def test_claude_compare_writes_report_and_normalization_evidence(tmp_path: Path)
     assert result.exit_code == 2
     report = json.loads(report_path.read_text(encoding="utf-8"))
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-    assert report["report"]["summary"]["privilege_expansions"] == 2
-    assert report["report"]["summary"]["static_authority_unknowns"] == 0
+    assert report["comparison"]["summary"]["privilege_expansions"] == 2
+    assert report["comparison"]["summary"]["static_authority_unknowns"] == 0
     assert report["gate"]["passed"] is False
     assert evidence["adapter"] == "claude-code-project-preapprovals"
     assert evidence["candidate_redundant_allow_rules"] == ["Bash(git mv *)"]
@@ -60,7 +60,7 @@ def test_claude_compare_json_stdout_is_machine_parseable() -> None:
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["report"]["summary"]["changed_effects"] == 2
+    assert payload["comparison"]["summary"]["changed_effects"] == 2
 
 
 def test_claude_compare_rejects_non_dontask_mode(tmp_path: Path) -> None:
