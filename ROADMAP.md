@@ -17,9 +17,9 @@
 ## v0.2 — integration depth
 
 - [x] bounded Claude Code native preapproval projection on the development line;
-- [ ] baseline resolution from Git references;
+- [x] provenance-bound baseline resolution from already-fetched Git references;
 - [ ] stable external adapter protocol with explicit projection/evidence contracts;
-- [ ] PR-native reviewer UX without granting PermitDiff repository-write credentials;
+- [ ] compact PR-native reviewer UX beyond the existing zero-write Actions step summary;
 - [ ] optional corpus sharding with deterministic merge;
 - [ ] richer SARIF fingerprints and source locations.
 
