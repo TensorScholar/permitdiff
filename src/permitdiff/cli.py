@@ -192,9 +192,7 @@ def compare(
 
     try:
         resolved_baseline = (
-            load_policy_from_git(baseline_ref, baseline)
-            if baseline_ref is not None
-            else None
+            load_policy_from_git(baseline_ref, baseline) if baseline_ref is not None else None
         )
         baseline_policy = (
             resolved_baseline.policy
