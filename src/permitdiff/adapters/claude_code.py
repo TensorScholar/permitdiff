@@ -180,8 +180,14 @@ def normalize_claude_preapproval_pair(
         claim_boundary=[
             "Models only project settings permissions.allow changes under explicit dontAsk.",
             "Requires permissions.deny and permissions.ask to be unchanged across the pair.",
-            "Does not model user/managed overrides, hooks, sandbox policy, built-in tool exceptions, or other permission modes.",
-            "WebFetch domain rules require normalized _claude.permission_domain metadata in review scenarios.",
+            (
+                "Does not model user/managed overrides, hooks, sandbox policy, built-in tool "
+                "exceptions, or other permission modes."
+            ),
+            (
+                "WebFetch domain rules require normalized _claude.permission_domain metadata "
+                "in review scenarios."
+            ),
             "Unsupported changed native semantics fail closed instead of being approximated.",
         ],
     )
@@ -264,9 +270,7 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
 
     parsed = [(_parse_rule_shape(rule), rule) for rule in unique_rules]
     bare_tools = {
-        tool
-        for (tool, specifier), _ in parsed
-        if specifier is None or specifier == "*"
+        tool for (tool, specifier), _ in parsed if _is_bare_equivalent(tool, specifier)
     }
 
     translated_bare: set[str] = set()
@@ -275,10 +279,11 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
     semantic_seen: set[tuple[str, str]] = set()
 
     for (tool, specifier), source_rule in parsed:
-        if specifier is not None and specifier != "*" and tool in bare_tools:
+        is_bare = _is_bare_equivalent(tool, specifier)
+        if not is_bare and tool in bare_tools:
             redundant.append(source_rule)
             continue
-        if specifier is None or specifier == "*":
+        if is_bare:
             semantic = ("bare", tool)
             if semantic in semantic_seen:
                 redundant.append(source_rule)
@@ -286,16 +291,10 @@ def _normalize_allow_surface(rules: list[str]) -> _AllowSurface:
             semantic_seen.add(semantic)
             translated_bare.add(tool)
             continue
+        if specifier is None:  # pragma: no cover - handled by _is_bare_equivalent
+            raise AssertionError("bare Claude rule was not recognized")
         domain = _exact_webfetch_domain(tool, specifier)
         if domain is not None:
-            if domain == "*":
-                semantic = ("bare", "WebFetch")
-                if semantic in semantic_seen:
-                    redundant.append(source_rule)
-                    continue
-                semantic_seen.add(semantic)
-                translated_bare.add("WebFetch")
-                continue
             semantic = ("webfetch-domain", domain)
             if semantic in semantic_seen:
                 redundant.append(source_rule)
@@ -329,15 +328,22 @@ def _parse_rule_shape(rule: str) -> tuple[str, str | None]:
     return tool, specifier
 
 
+def _is_bare_equivalent(tool: str, specifier: str | None) -> bool:
+    if specifier is None:
+        return True
+    if tool in {"Bash", "PowerShell"} and specifier == "*":
+        return True
+    return tool == "WebFetch" and specifier == "domain:*"
+
+
 def _exact_webfetch_domain(tool: str, specifier: str) -> str | None:
     if tool != "WebFetch" or not specifier.startswith("domain:"):
         return None
     domain = specifier.removeprefix("domain:").strip()
-    if domain == "*":
-        return "*"
     if not domain or "*" in domain or not _DOMAIN_RE.fullmatch(domain):
         return None
-    return domain.lower().rstrip(".")
+    normalized = domain.lower().rstrip(".")
+    return normalized or None
 
 
 def _tool_name(rule: str) -> str:
