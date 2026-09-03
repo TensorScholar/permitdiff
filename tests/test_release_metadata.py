@@ -205,8 +205,7 @@ def test_development_metadata_rejects_missing_unreleased_section(tmp_path: Path)
 
 def test_development_metadata_rejects_non_forward_version(tmp_path: Path) -> None:
     changelog = (
-        "# Changelog\n\n## [Unreleased]\n\n- next\n\n"
-        "## [1.2.3rc4] - 2026-09-02\n\n- release\n"
+        "# Changelog\n\n## [Unreleased]\n\n- next\n\n## [1.2.3rc4] - 2026-09-02\n\n- release\n"
     )
     _write_metadata(
         tmp_path,
