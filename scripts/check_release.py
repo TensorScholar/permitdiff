@@ -1,4 +1,4 @@
-"""Validate development and immutable release metadata contracts."""
+"""Validate development, prepared-release, and immutable release metadata contracts."""
 
 from __future__ import annotations
 
@@ -111,6 +111,20 @@ def validate_release_metadata(
     return release_date
 
 
+def validate_prepared_release_metadata(
+    root: Path = Path("."),
+    *,
+    package_version: str = __version__,
+) -> date:
+    """Validate a release-preparation tree before its immutable tag exists."""
+
+    return validate_release_metadata(
+        f"v{package_version}",
+        root,
+        package_version=package_version,
+    )
+
+
 def validate_development_metadata(
     root: Path = Path("."),
     *,
@@ -163,6 +177,20 @@ def validate_development_metadata(
     return citation_version
 
 
+def validate_source_metadata(
+    root: Path = Path("."),
+    *,
+    package_version: str = __version__,
+) -> str:
+    """Validate either the normal dev state or the short-lived prepared-release state."""
+
+    if ".dev" in package_version:
+        validate_development_metadata(root, package_version=package_version)
+        return "development"
+    validate_prepared_release_metadata(root, package_version=package_version)
+    return "prepared-release"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -170,7 +198,17 @@ def main() -> None:
     mode.add_argument(
         "--development",
         action="store_true",
-        help="Validate mutable source-tree identity after a release.",
+        help="Validate normal mutable source-tree identity after a release.",
+    )
+    mode.add_argument(
+        "--prepared",
+        action="store_true",
+        help="Validate a final-version release-preparation tree before tagging.",
+    )
+    mode.add_argument(
+        "--source",
+        action="store_true",
+        help="Validate either development or prepared-release source state.",
     )
     parser.add_argument(
         "--expected-date",
@@ -178,7 +216,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.development and args.expected_date is not None:
+    if (args.development or args.prepared or args.source) and args.expected_date is not None:
         raise SystemExit("--expected-date is valid only with --tag")
 
     expected_date: date | None = None
@@ -194,6 +232,12 @@ def main() -> None:
             print(
                 f"development metadata valid for {__version__} (latest release {released_version})"
             )
+        elif args.prepared:
+            release_date = validate_prepared_release_metadata()
+            print(f"prepared release metadata valid for v{__version__} ({release_date.isoformat()})")
+        elif args.source:
+            source_state = validate_source_metadata()
+            print(f"source metadata valid for {__version__} ({source_state})")
         else:
             release_date = validate_release_metadata(args.tag, expected_date=expected_date)
             print(f"release metadata valid for {args.tag} ({release_date.isoformat()})")
