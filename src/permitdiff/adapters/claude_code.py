@@ -79,7 +79,7 @@ class _LoadedSettings(BaseModel):
     ask: list[str]
     deny: list[str]
     default_mode: str
-    ignored_root: dict[str, Any]
+    ignored_root: dict[str, str]
 
 
 class _AllowSurface(BaseModel):
@@ -261,8 +261,12 @@ def _load_settings(path: Path) -> _LoadedSettings:
         raise ClaudeAdapterError(f"Claude settings exceed {_MAX_SETTINGS_BYTES} bytes")
     try:
         text = raw_bytes.decode("utf-8")
-        raw = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
-    except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raw = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_non_json_constant,
+        )
+    except (UnicodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
         raise ClaudeAdapterError(f"invalid Claude settings {path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise ClaudeAdapterError("Claude settings root must be a JSON object")
@@ -281,7 +285,7 @@ def _load_settings(path: Path) -> _LoadedSettings:
         ask=_string_list(permissions, "ask"),
         deny=_string_list(permissions, "deny"),
         default_mode=_required_string(permissions, "defaultMode"),
-        ignored_root={key: value for key, value in raw.items() if key != "permissions"},
+        ignored_root=_root_value_digests(raw),
     )
 
 
@@ -292,6 +296,31 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError(f"duplicate JSON key {key!r}")
         result[key] = value
     return result
+
+
+def _reject_non_json_constant(value: str) -> Any:
+    raise ValueError(f"non-standard JSON constant {value!r} is not allowed")
+
+
+def _root_value_digests(document: dict[str, Any]) -> dict[str, str]:
+    digests: dict[str, str] = {}
+    for key, value in document.items():
+        if key == "permissions":
+            continue
+        try:
+            canonical = json.dumps(
+                value,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            ).encode("utf-8")
+        except (TypeError, ValueError, RecursionError) as exc:
+            raise ClaudeAdapterError(
+                f"cannot canonicalize ignored Claude root setting {key!r}: {exc}"
+            ) from exc
+        digests[key] = hashlib.sha256(canonical).hexdigest()
+    return digests
 
 
 def _string_list(document: dict[str, Any], key: str) -> list[str]:
@@ -312,8 +341,8 @@ def _required_string(document: dict[str, Any], key: str) -> str:
 
 
 def _changed_root_keys(
-    baseline: dict[str, Any],
-    candidate: dict[str, Any],
+    baseline: dict[str, str],
+    candidate: dict[str, str],
 ) -> list[str]:
     keys = set(baseline) | set(candidate)
     return sorted(
@@ -457,7 +486,7 @@ def _policy_from_surface(
         rules.append(
             PolicyRule(
                 id="claude-allow-tools",
-                description="Claude Code project-level bare-tool pre-approvals.",
+                description="Claude Code project-level supported bare-tool pre-approvals.",
                 effect=DecisionEffect.ALLOW,
                 match=RuleMatch(tools=surface.bare_tools, agents=["claude-code"]),
             )
