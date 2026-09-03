@@ -213,7 +213,10 @@ def normalize_claude_preapproval_pair(
         webfetch_sandbox_gap_acknowledged=webfetch_domains_changed
         and acknowledge_webfetch_sandbox_gap,
         claim_boundary=[
-            "Models only project settings permissions.allow preapproval changes under explicit dontAsk.",
+            (
+                "Models only project settings permissions.allow preapproval changes "
+                "under explicit dontAsk."
+            ),
             (
                 "Bare-tool translation is limited to Bash, PowerShell, WebFetch, and WebSearch; "
                 "other bare tools remain opaque because their approval semantics can differ."
