@@ -20,6 +20,20 @@ A `potential_expansion` is conservative policy-level evidence that authority can
 
 The built-in language is deterministic and intentionally small. It does not model external state, relationship-based access control, distributed identity, time windows, quotas, arbitrary functions, runtime credential possession, or side effects outside the normalized action model. Normalize those systems into stable scenarios or build a narrow adapter that preserves their semantics.
 
+## Claude Code native preapproval projection
+
+The development-line Claude Code adapter is intentionally narrower than a full settings importer. It accepts only explicit `permissions.defaultMode = "dontAsk"` pairs with unchanged `permissions.deny` and `permissions.ask`, then projects a documented subset of `permissions.allow` into PermitDiff policies.
+
+The adapter currently translates bare tool preapprovals and exact `WebFetch(domain:HOST)` preapprovals. Unsupported changed allow syntax fails closed. Same-effect scoped rules may be removed as semantic noise only when the broader rule is documented to subsume them, such as `Bash(git mv *)` beneath bare `Bash`.
+
+Non-`permissions` root settings are not evaluated. Their key names are recorded in normalization evidence, and keys whose values differ across baseline/candidate are listed separately. A result therefore must not be interpreted as approval of changes to `enabledPlugins`, hooks, sandbox configuration, model selection, environment configuration, or other ignored root surfaces.
+
+Claude Code's current permission documentation states that domain-scoped WebFetch rules can also modify sandbox network-domain policy. PermitDiff models exact `WebFetch(domain:HOST)` rules in this adapter only as WebFetch preapprovals. The sandbox/network effect is outside the projection. A gate PASS or waiver for the normalized preapproval finding is not evidence that the sandbox/network consequence was reviewed or accepted.
+
+For the same reason, `WebFetch(domain:*)` is not treated as semantically identical to bare `WebFetch`: both can preapprove all WebFetch calls, but their sandbox behavior differs. A changed wildcard-domain rule is unsupported and causes the adapter to fail closed.
+
+The reserved `_claude.permission_domain` field used in review scenarios is normalization metadata. It is not asserted to be the raw Claude Code WebFetch input schema.
+
 ## Annotation trust
 
 `security_metadata_trusted` records a corpus/policy assertion; PermitDiff does not attest the tool server. Establish trust through deployment identity, signed metadata, allowlisted registries, or another control outside this tool.
@@ -29,6 +43,8 @@ The built-in language is deterministic and intentionally small. It does not mode
 Observed-transition waivers bind to an exact scenario transition and action fingerprint. Static-authority waivers additionally bind to the exact finding plus baseline and candidate policy digests. They are release-review evidence, not runtime authorization.
 
 A waiver can still encode a bad human decision. Expiry, exact matching, digest binding, and unused-waiver checks reduce replay and staleness risk; they do not replace accountable review.
+
+For native adapters, a waiver applies only to the normalized PermitDiff finding. It does not waive omitted semantics in the source system. In particular, a Claude WebFetch preapproval waiver does not waive sandbox-network behavior, and a PermitDiff result does not waive non-permission root-key changes surfaced only as adapter evidence.
 
 ## No runtime enforcement
 
