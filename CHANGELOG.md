@@ -2,6 +2,14 @@
 
 All notable changes are documented here. Semantic Versioning begins when the `v1` schema stabilizes.
 
+## [Unreleased]
+
+### Changed
+
+- advanced mutable source to `0.1.0rc3.dev0` after the `0.1.0rc2` release attempt so post-release development cannot rebuild different source under an already published version identity;
+- separated CI development-metadata validation from immutable publish-time tag/changelog/citation validation while keeping `CITATION.cff` bound to the latest actual release;
+- configured future alpha, beta, and release-candidate tags to create GitHub Releases with explicit prerelease metadata.
+
 ## [0.1.0rc2] - 2026-09-02
 
 ### Fixed

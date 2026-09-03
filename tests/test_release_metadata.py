@@ -9,23 +9,36 @@ from pathlib import Path
 
 import pytest
 import yaml
-from scripts.check_release import validate_release_metadata
+from scripts.check_release import (
+    validate_development_metadata,
+    validate_prepared_release_metadata,
+    validate_release_metadata,
+    validate_source_metadata,
+)
 from scripts.finalize_cyclonedx_sbom import finalize_cyclonedx_sbom
 
 from permitdiff import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
 _SHA_PIN = re.compile(r"^[^@\s]+@[0-9a-f]{40}(?:\s+#.*)?$")
+_RELEASE_VERSION = "1.2.3rc4"
+_RELEASE_DATE = "2026-09-02"
 
 
-def _write_metadata(root: Path, *, changelog: str, citation_date: str) -> None:
+def _write_metadata(
+    root: Path,
+    *,
+    changelog: str,
+    citation_version: str,
+    citation_date: str,
+) -> None:
     (root / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
     (root / "CITATION.cff").write_text(
         "\n".join(
             [
                 "cff-version: 1.2.0",
                 'title: "PermitDiff"',
-                f"version: {__version__}",
+                f"version: {citation_version}",
                 f"date-released: {citation_date}",
                 "",
             ]
@@ -34,24 +47,91 @@ def _write_metadata(root: Path, *, changelog: str, citation_date: str) -> None:
     )
 
 
-def test_release_metadata_uses_one_version() -> None:
+def _release_changelog(version: str = _RELEASE_VERSION, released: str = _RELEASE_DATE) -> str:
+    return f"# Changelog\n\n## [{version}] - {released}\n\n- release\n"
+
+
+def test_current_development_metadata_is_coherent() -> None:
     citation = yaml.safe_load((ROOT / "CITATION.cff").read_text(encoding="utf-8"))
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert citation["version"] == __version__
-    assert f"## [{__version__}]" in changelog
+    released_version = validate_development_metadata(ROOT)
+
+    assert ".dev" in __version__
+    assert released_version == str(citation["version"])
+    assert "## [Unreleased]" in changelog
+    assert f"## [{__version__}] - " not in changelog
+    assert released_version != __version__
+    assert validate_source_metadata(ROOT) == "development"
 
 
-def test_current_release_metadata_is_coherent() -> None:
-    citation = yaml.safe_load((ROOT / "CITATION.cff").read_text(encoding="utf-8"))
-    release_date = validate_release_metadata(f"v{__version__}", ROOT)
+def test_release_metadata_accepts_coherent_release(tmp_path: Path) -> None:
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog(),
+        citation_version=_RELEASE_VERSION,
+        citation_date=_RELEASE_DATE,
+    )
 
-    assert release_date.isoformat() == str(citation["date-released"])
+    release_date = validate_release_metadata(
+        f"v{_RELEASE_VERSION}",
+        tmp_path,
+        package_version=_RELEASE_VERSION,
+    )
+
+    assert release_date.isoformat() == _RELEASE_DATE
 
 
-def test_release_metadata_rejects_noncanonical_tag() -> None:
+def test_prepared_release_and_source_state_accept_coherent_final_tree(tmp_path: Path) -> None:
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog(),
+        citation_version=_RELEASE_VERSION,
+        citation_date=_RELEASE_DATE,
+    )
+
+    release_date = validate_prepared_release_metadata(
+        tmp_path,
+        package_version=_RELEASE_VERSION,
+    )
+
+    assert release_date.isoformat() == _RELEASE_DATE
+    assert (
+        validate_source_metadata(tmp_path, package_version=_RELEASE_VERSION) == "prepared-release"
+    )
+
+
+def test_release_metadata_rejects_noncanonical_tag(tmp_path: Path) -> None:
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog(),
+        citation_version=_RELEASE_VERSION,
+        citation_date=_RELEASE_DATE,
+    )
+
     with pytest.raises(ValueError, match="expected release tag"):
-        validate_release_metadata(__version__, ROOT)
+        validate_release_metadata(
+            _RELEASE_VERSION,
+            tmp_path,
+            package_version=_RELEASE_VERSION,
+        )
+
+
+def test_release_metadata_rejects_development_identity(tmp_path: Path) -> None:
+    development_version = "1.2.3rc5.dev0"
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog(development_version),
+        citation_version=development_version,
+        citation_date=_RELEASE_DATE,
+    )
+
+    with pytest.raises(ValueError, match="development package versions cannot be published"):
+        validate_release_metadata(
+            f"v{development_version}",
+            tmp_path,
+            package_version=development_version,
+        )
 
 
 def test_release_metadata_rejects_duplicate_changelog_entries(tmp_path: Path) -> None:
@@ -59,52 +139,142 @@ def test_release_metadata_rejects_duplicate_changelog_entries(tmp_path: Path) ->
         [
             "# Changelog",
             "",
-            f"## [{__version__}] - 2026-09-02",
+            f"## [{_RELEASE_VERSION}] - {_RELEASE_DATE}",
             "",
             "- first",
             "",
-            f"## [{__version__}] - 2026-09-02",
+            f"## [{_RELEASE_VERSION}] - {_RELEASE_DATE}",
             "",
             "- duplicate",
             "",
         ]
     )
-    _write_metadata(tmp_path, changelog=changelog, citation_date="2026-09-02")
+    _write_metadata(
+        tmp_path,
+        changelog=changelog,
+        citation_version=_RELEASE_VERSION,
+        citation_date=_RELEASE_DATE,
+    )
 
     with pytest.raises(ValueError, match="exactly one dated entry"):
-        validate_release_metadata(f"v{__version__}", tmp_path)
+        validate_release_metadata(
+            f"v{_RELEASE_VERSION}",
+            tmp_path,
+            package_version=_RELEASE_VERSION,
+        )
 
 
 def test_release_metadata_rejects_citation_date_drift(tmp_path: Path) -> None:
-    changelog = f"# Changelog\n\n## [{__version__}] - 2026-09-02\n\n- release\n"
-    _write_metadata(tmp_path, changelog=changelog, citation_date="2026-09-01")
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog(),
+        citation_version=_RELEASE_VERSION,
+        citation_date="2026-09-01",
+    )
 
     with pytest.raises(ValueError, match="date-released does not match"):
-        validate_release_metadata(f"v{__version__}", tmp_path)
+        validate_release_metadata(
+            f"v{_RELEASE_VERSION}",
+            tmp_path,
+            package_version=_RELEASE_VERSION,
+        )
 
 
 def test_release_metadata_rejects_future_release_date(tmp_path: Path) -> None:
-    future_date = date.today() + timedelta(days=1)
-    release_date = future_date.isoformat()
-    changelog = f"# Changelog\n\n## [{__version__}] - {release_date}\n\n- release\n"
-    _write_metadata(tmp_path, changelog=changelog, citation_date=release_date)
+    release_date = (date.today() + timedelta(days=1)).isoformat()
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog(released=release_date),
+        citation_version=_RELEASE_VERSION,
+        citation_date=release_date,
+    )
 
     with pytest.raises(ValueError, match="in the future"):
-        validate_release_metadata(f"v{__version__}", tmp_path)
+        validate_release_metadata(
+            f"v{_RELEASE_VERSION}",
+            tmp_path,
+            package_version=_RELEASE_VERSION,
+        )
 
 
 def test_release_metadata_rejects_publish_day_drift(tmp_path: Path) -> None:
     metadata_date = date.today()
     release_date = metadata_date.isoformat()
-    changelog = f"# Changelog\n\n## [{__version__}] - {release_date}\n\n- release\n"
-    _write_metadata(tmp_path, changelog=changelog, citation_date=release_date)
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog(released=release_date),
+        citation_version=_RELEASE_VERSION,
+        citation_date=release_date,
+    )
 
     with pytest.raises(ValueError, match="does not match expected release date"):
         validate_release_metadata(
-            f"v{__version__}",
+            f"v{_RELEASE_VERSION}",
             tmp_path,
+            package_version=_RELEASE_VERSION,
             expected_date=metadata_date - timedelta(days=1),
         )
+
+
+def test_development_metadata_rejects_missing_unreleased_section(tmp_path: Path) -> None:
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog("1.2.3rc4"),
+        citation_version="1.2.3rc4",
+        citation_date=_RELEASE_DATE,
+    )
+
+    with pytest.raises(ValueError, match="exactly one \[Unreleased\] section"):
+        validate_development_metadata(tmp_path, package_version="1.2.3rc5.dev0")
+
+
+def test_development_metadata_rejects_non_forward_version(tmp_path: Path) -> None:
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n- next\n\n## [1.2.3rc4] - 2026-09-02\n\n- release\n"
+    )
+    _write_metadata(
+        tmp_path,
+        changelog=changelog,
+        citation_version="1.2.3rc4",
+        citation_date=_RELEASE_DATE,
+    )
+
+    with pytest.raises(ValueError, match="must sort after released version"):
+        validate_development_metadata(tmp_path, package_version="1.2.3rc3.dev0")
+
+
+def test_development_metadata_rejects_stale_citation(tmp_path: Path) -> None:
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n- next\n\n"
+        "## [1.2.3rc5] - 2026-09-03\n\n- newer\n\n"
+        "## [1.2.3rc4] - 2026-09-02\n\n- older\n"
+    )
+    _write_metadata(
+        tmp_path,
+        changelog=changelog,
+        citation_version="1.2.3rc4",
+        citation_date=_RELEASE_DATE,
+    )
+
+    with pytest.raises(ValueError, match="latest dated release"):
+        validate_development_metadata(tmp_path, package_version="1.2.3rc6.dev0")
+
+
+def test_development_metadata_rejects_dated_dev_version(tmp_path: Path) -> None:
+    changelog = (
+        "# Changelog\n\n## [Unreleased]\n\n- next\n\n"
+        "## [1.2.3rc5.dev0] - 2026-09-03\n\n- invalid dev release\n\n"
+        "## [1.2.3rc4] - 2026-09-02\n\n- release\n"
+    )
+    _write_metadata(
+        tmp_path,
+        changelog=changelog,
+        citation_version="1.2.3rc4",
+        citation_date=_RELEASE_DATE,
+    )
+
+    with pytest.raises(ValueError, match="must not have a dated changelog entry"):
+        validate_development_metadata(tmp_path, package_version="1.2.3rc5.dev0")
 
 
 def test_cyclonedx_finalizer_is_deterministic_and_subject_bound(tmp_path: Path) -> None:
@@ -153,6 +323,25 @@ def test_release_workflow_preserves_external_evidence() -> None:
     assert "packages-dir: pypi-dist/" in release_workflow
     assert '--expected-date "$(date -u +%F)"' in release_workflow
     assert "needs: [build, github-release]" in release_workflow
+
+
+def test_prerelease_tags_are_marked_as_github_prereleases() -> None:
+    release_workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert "release_args=(--generate-notes --verify-tag)" in release_workflow
+    assert '[[ "$GITHUB_REF_NAME" =~ (a|b|rc)[0-9]+$ ]]' in release_workflow
+    assert "release_args+=(--prerelease)" in release_workflow
+    assert 'gh release create "$GITHUB_REF_NAME" dist/* "${release_args[@]}"' in release_workflow
+
+
+def test_ci_enforces_branch_aware_source_lifecycle() -> None:
+    ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    assert '"$HEAD_REF" == release/prepare-*' in ci_workflow
+    assert "python scripts/check_release.py --prepared" in ci_workflow
+    assert "python scripts/check_release.py --source" in ci_workflow
+    assert "python scripts/check_release.py --development" in ci_workflow
+    assert "Rehearse release metadata contract" not in ci_workflow
 
 
 def test_release_workflow_finalizes_reproducible_cyclonedx_before_attestation() -> None:
