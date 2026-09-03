@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from click.utils import strip_ansi
 from typer.testing import CliRunner
 
 from permitdiff.cli import app
@@ -107,5 +108,5 @@ def test_baseline_evidence_output_requires_git_ref(tmp_path: Path) -> None:
         ],
     )
 
-    assert result.exit_code != 0
-    assert "--baseline-evidence-output requires --baseline-ref" in result.output
+    assert result.exit_code == 2
+    assert "--baseline-evidence-output requires --baseline-ref" in strip_ansi(result.output)
