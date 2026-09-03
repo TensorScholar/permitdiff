@@ -9,7 +9,12 @@ from pathlib import Path
 
 import pytest
 import yaml
-from scripts.check_release import validate_development_metadata, validate_release_metadata
+from scripts.check_release import (
+    validate_development_metadata,
+    validate_prepared_release_metadata,
+    validate_release_metadata,
+    validate_source_metadata,
+)
 from scripts.finalize_cyclonedx_sbom import finalize_cyclonedx_sbom
 
 from permitdiff import __version__
@@ -57,6 +62,7 @@ def test_current_development_metadata_is_coherent() -> None:
     assert "## [Unreleased]" in changelog
     assert f"## [{__version__}] - " not in changelog
     assert released_version != __version__
+    assert validate_source_metadata(ROOT) == "development"
 
 
 def test_release_metadata_accepts_coherent_release(tmp_path: Path) -> None:
@@ -74,6 +80,23 @@ def test_release_metadata_accepts_coherent_release(tmp_path: Path) -> None:
     )
 
     assert release_date.isoformat() == _RELEASE_DATE
+
+
+def test_prepared_release_and_source_state_accept_coherent_final_tree(tmp_path: Path) -> None:
+    _write_metadata(
+        tmp_path,
+        changelog=_release_changelog(),
+        citation_version=_RELEASE_VERSION,
+        citation_date=_RELEASE_DATE,
+    )
+
+    release_date = validate_prepared_release_metadata(
+        tmp_path,
+        package_version=_RELEASE_VERSION,
+    )
+
+    assert release_date.isoformat() == _RELEASE_DATE
+    assert validate_source_metadata(tmp_path, package_version=_RELEASE_VERSION) == "prepared-release"
 
 
 def test_release_metadata_rejects_noncanonical_tag(tmp_path: Path) -> None:
@@ -309,9 +332,12 @@ def test_prerelease_tags_are_marked_as_github_prereleases() -> None:
     assert 'gh release create "$GITHUB_REF_NAME" dist/* "${release_args[@]}"' in release_workflow
 
 
-def test_ci_validates_development_identity_instead_of_rehearsing_current_release() -> None:
+def test_ci_enforces_branch_aware_source_lifecycle() -> None:
     ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
+    assert '"$HEAD_REF" == release/prepare-*' in ci_workflow
+    assert "python scripts/check_release.py --prepared" in ci_workflow
+    assert "python scripts/check_release.py --source" in ci_workflow
     assert "python scripts/check_release.py --development" in ci_workflow
     assert "Rehearse release metadata contract" not in ci_workflow
 
