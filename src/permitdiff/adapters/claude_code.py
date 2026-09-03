@@ -53,6 +53,8 @@ class ClaudePreapprovalEvidence(BaseModel):
     ignored_baseline_root_keys: list[str]
     ignored_candidate_root_keys: list[str]
     changed_ignored_root_keys: list[str]
+    ignored_root_changes_acknowledged: bool
+    webfetch_sandbox_gap_acknowledged: bool
     claim_boundary: list[str]
 
 
@@ -90,13 +92,16 @@ class _AllowSurface(BaseModel):
 def normalize_claude_preapproval_pair(
     baseline_path: str | Path,
     candidate_path: str | Path,
+    *,
+    allow_ignored_root_changes: bool = False,
+    acknowledge_webfetch_sandbox_gap: bool = False,
 ) -> ClaudePreapprovalPair:
     """Normalize a bounded Claude ``dontAsk`` pre-approval delta into PermitDiff policies.
 
     The initial adapter deliberately requires deny/ask context to be unchanged. Changed
     unsupported allow semantics are rejected. Unchanged unsupported allow rules may be
     carried as opaque evidence only when no translated change touches the same tool.
-    Non-permission root changes are surfaced as evidence but are outside this projection.
+    Known omitted source surfaces require explicit acknowledgement before projection.
     """
 
     baseline = _load_settings(Path(baseline_path))
@@ -105,6 +110,14 @@ def normalize_claude_preapproval_pair(
     if baseline.default_mode != "dontAsk" or candidate.default_mode != "dontAsk":
         raise ClaudeAdapterError(
             "Claude native adapter currently supports only explicit defaultMode='dontAsk'"
+        )
+
+    changed_root_keys = _changed_root_keys(baseline.ignored_root, candidate.ignored_root)
+    if changed_root_keys and not allow_ignored_root_changes:
+        raise ClaudeAdapterError(
+            "non-permissions Claude root settings changed outside the preapproval projection: "
+            + ", ".join(changed_root_keys)
+            + "; rerun only with explicit ignored-root-change acknowledgement"
         )
 
     baseline_ask = sorted(set(baseline.ask))
@@ -118,6 +131,14 @@ def normalize_claude_preapproval_pair(
 
     baseline_surface = _normalize_allow_surface(baseline.allow)
     candidate_surface = _normalize_allow_surface(candidate.allow)
+
+    webfetch_domains_changed = baseline_surface.webfetch_domains != candidate_surface.webfetch_domains
+    if webfetch_domains_changed and not acknowledge_webfetch_sandbox_gap:
+        raise ClaudeAdapterError(
+            "exact WebFetch domain preapprovals changed, but Claude Code domain rules can also "
+            "affect sandbox network policy; rerun only with explicit WebFetch sandbox-gap "
+            "acknowledgement to analyze the preapproval projection"
+        )
 
     if baseline_surface.opaque_rules != candidate_surface.opaque_rules:
         raise ClaudeAdapterError(
@@ -179,25 +200,30 @@ def normalize_claude_preapproval_pair(
         candidate_translated_allow_rules=candidate_surface.translated_rules,
         ignored_baseline_root_keys=sorted(baseline.ignored_root),
         ignored_candidate_root_keys=sorted(candidate.ignored_root),
-        changed_ignored_root_keys=_changed_root_keys(
-            baseline.ignored_root,
-            candidate.ignored_root,
-        ),
+        changed_ignored_root_keys=changed_root_keys,
+        ignored_root_changes_acknowledged=bool(changed_root_keys)
+        and allow_ignored_root_changes,
+        webfetch_sandbox_gap_acknowledged=webfetch_domains_changed
+        and acknowledge_webfetch_sandbox_gap,
         claim_boundary=[
             "Models only project settings permissions.allow preapproval changes under explicit dontAsk.",
             "Requires permissions.deny and permissions.ask to be unchanged across the pair.",
             (
-                "Non-permissions root settings are not modeled; changed root key names are "
-                "surfaced separately in this evidence."
+                "Non-permissions root settings are not modeled; changed root key names require "
+                "explicit acknowledgement and are surfaced separately in this evidence."
             ),
             (
-                "Exact WebFetch(domain:HOST) rules are modeled only as WebFetch preapprovals; "
-                "Claude Code can also apply domain rules to sandbox network policy, which is "
-                "outside this projection."
+                "Exact WebFetch(domain:HOST) changes require explicit acknowledgement because "
+                "Claude Code can also apply domain rules to sandbox network policy; only the "
+                "WebFetch preapproval effect is projected here."
+            ),
+            (
+                "Projection acknowledgements authorize analysis of the bounded projection only; "
+                "they do not approve, waive, or model omitted source-system semantics."
             ),
             (
                 "Does not model user/managed overrides, hooks, sandbox policy, built-in tool "
-                "exceptions, or other permission modes."
+                "exceptions, plugin-provided capabilities, or other permission modes."
             ),
             (
                 "WebFetch domain rules require normalized _claude.permission_domain metadata "
