@@ -237,6 +237,39 @@ def test_non_permission_root_changes_require_explicit_acknowledgement(tmp_path: 
     assert pair.evidence.webfetch_sandbox_gap_acknowledged is False
 
 
+def test_ignored_root_comparison_is_canonical_across_key_order(tmp_path: Path) -> None:
+    baseline = _settings(
+        tmp_path,
+        "baseline.json",
+        allow=["WebSearch"],
+        root={"feature": {"b": 2, "a": 1}},
+    )
+    candidate = _settings(
+        tmp_path,
+        "candidate.json",
+        allow=["WebSearch"],
+        root={"feature": {"a": 1, "b": 2}},
+    )
+
+    pair = normalize_claude_preapproval_pair(baseline, candidate)
+
+    assert pair.evidence.changed_ignored_root_keys == []
+    assert pair.evidence.ignored_root_changes_acknowledged is False
+    assert pair.evidence.baseline_source_sha256 != pair.evidence.candidate_source_sha256
+
+
+def test_non_standard_json_constants_are_rejected(tmp_path: Path) -> None:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(
+        '{"permissions":{"allow":[],"defaultMode":"dontAsk"},"model":NaN}',
+        encoding="utf-8",
+    )
+    candidate = _settings(tmp_path, "candidate.json", allow=[])
+
+    with pytest.raises(ClaudeAdapterError, match="non-standard JSON constant"):
+        normalize_claude_preapproval_pair(baseline, candidate)
+
+
 def test_unsupported_permission_mode_is_rejected(tmp_path: Path) -> None:
     baseline = _settings(tmp_path, "baseline.json", allow=[], default_mode="default")
     candidate = _settings(tmp_path, "candidate.json", allow=[], default_mode="default")
