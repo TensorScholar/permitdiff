@@ -54,8 +54,7 @@ def _release_date_from_changelog(changelog: str, version: str) -> date:
     matches = re.findall(pattern, changelog, flags=re.MULTILINE)
     if len(matches) != 1:
         raise ValueError(
-            f"CHANGELOG.md must contain exactly one dated entry for {version}; "
-            f"found {len(matches)}"
+            f"CHANGELOG.md must contain exactly one dated entry for {version}; found {len(matches)}"
         )
     try:
         release_date = date.fromisoformat(matches[0])
@@ -193,8 +192,7 @@ def main() -> None:
         if args.development:
             released_version = validate_development_metadata()
             print(
-                f"development metadata valid for {__version__} "
-                f"(latest release {released_version})"
+                f"development metadata valid for {__version__} (latest release {released_version})"
             )
         else:
             release_date = validate_release_metadata(args.tag, expected_date=expected_date)
