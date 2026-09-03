@@ -32,13 +32,13 @@
 
 **Threat:** an external syntax is normalized into a PermitDiff rule that looks equivalent but has additional source-system semantics, producing a misleading PASS or waiver scope.
 
-**Controls:** adapters must document a bounded projection, reject changed unsupported semantics, expose omitted/ignored source surfaces in evidence, and avoid equivalence rules unless source semantics support them. For the Claude Code adapter, `WebFetch(domain:*)` is not collapsed into bare `WebFetch` because current Claude Code semantics differ at the sandbox-network layer. Exact domain rules are modeled only as WebFetch preapprovals, with the sandbox/network side effect explicitly outside the projection.
+**Controls:** adapters must document a bounded projection, reject changed unsupported semantics, expose omitted/ignored source surfaces in evidence, and avoid equivalence rules unless source semantics support them. For the Claude Code adapter, `WebFetch(domain:*)` is not collapsed into bare `WebFetch` because current Claude Code semantics differ at the sandbox-network layer. Exact domain-rule changes require explicit sandbox-gap acknowledgement before the preapproval projection can run; the acknowledgement is recorded as evidence and does not waive the omitted sandbox semantics.
 
 ### Omitted native-source changes
 
 **Threat:** a settings file changes outside the modeled projection while reviewers interpret PermitDiff output as a verdict on the whole source artifact.
 
-**Controls:** source digests bind the exact inputs; adapter evidence records ignored root-key names and which ignored keys changed; documentation and report language define the projection. The Claude adapter surfaces non-`permissions` changes such as `enabledPlugins` but does not claim to assess plugin-provided capability changes. A waiver applies only to the normalized PermitDiff finding, never to omitted source-system semantics.
+**Controls:** source digests bind the exact inputs; adapter evidence records ignored root-key names and which ignored keys changed; documentation and report language define the projection. The Claude adapter fails on changed non-`permissions` root surfaces unless the reviewer explicitly acknowledges the ignored-root drift. That acknowledgement is recorded but does not approve the ignored change. The adapter surfaces changes such as `enabledPlugins` without claiming to assess plugin-provided capability changes. A waiver applies only to the normalized PermitDiff finding, never to omitted source-system semantics.
 
 ### Untrusted annotation escalation
 
@@ -62,13 +62,13 @@
 
 **Threat:** a broad, stale, or replayed waiver masks unrelated future permission expansions.
 
-**Controls:** no wildcard waivers. Observed-transition waivers bind to scenario ID, exact effect transition, and action fingerprint. Static-authority waivers bind to finding kind and fingerprint plus exact baseline/candidate policy digests. Both require expiry and substantive reason; unused-waiver failures can detect stale approvals. A waiver for one evidence channel cannot suppress the other channel, and an adapter waiver cannot approve source semantics omitted by the adapter projection.
+**Controls:** no wildcard waivers. Observed-transition waivers bind to scenario ID, exact effect transition, and action fingerprint. Static-authority waivers bind to finding kind and fingerprint plus exact baseline/candidate policy digests. Both require expiry and substantive reason; unused-waiver failures can detect stale approvals. A waiver for one evidence channel cannot suppress the other channel, and an adapter waiver cannot approve source semantics omitted by the adapter projection. Projection acknowledgement flags are not waivers.
 
 ### Report tampering or confusion
 
 **Threat:** reviewers compare the wrong artifacts or machine output is nondeterministic.
 
-**Controls:** policy and corpus digests, native-source digests where applicable, per-action and per-finding fingerprints, stable serialization, deterministic sorting, explicit baseline/candidate metadata, and separate observed/static evidence channels.
+**Controls:** policy and corpus digests, native-source digests where applicable, per-action and per-finding fingerprints, stable serialization, deterministic sorting, explicit baseline/candidate metadata, projection acknowledgement evidence, and separate observed/static evidence channels.
 
 ### CI bypass
 
