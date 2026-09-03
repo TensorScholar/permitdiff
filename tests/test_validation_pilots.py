@@ -54,14 +54,10 @@ def test_public_claude_permission_widening_pilot() -> None:
     assert "Bash" in baseline_allow
 
     baseline_plugins = {
-        name
-        for name, enabled in baseline_source["enabledPlugins"].items()
-        if enabled
+        name for name, enabled in baseline_source["enabledPlugins"].items() if enabled
     }
     candidate_plugins = {
-        name
-        for name, enabled in candidate_source["enabledPlugins"].items()
-        if enabled
+        name for name, enabled in candidate_source["enabledPlugins"].items() if enabled
     }
     assert candidate_plugins - baseline_plugins == {"spearit-framework-dev@dev-marketplace"}
     assert source["source_delta"]["changed_non_permission_root_keys"] == ["enabledPlugins"]
