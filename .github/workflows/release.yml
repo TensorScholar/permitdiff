@@ -102,7 +102,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  github-release:
+  github-release-draft:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -113,18 +113,20 @@ jobs:
         with:
           name: distributions
           path: dist
-      - env:
+      - name: Create draft GitHub Release with verified assets
+        env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          release_args=(--generate-notes --verify-tag)
+          release_args=(--draft --generate-notes --verify-tag)
           if [[ "$GITHUB_REF_NAME" =~ (a|b|rc)[0-9]+$ ]]; then
             release_args+=(--prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" dist/* "${release_args[@]}"
+          test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft')" = "true"
 
   publish-pypi:
-    needs: [build, github-release]
+    needs: [build, github-release-draft]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -145,3 +147,24 @@ jobs:
         with:
           packages-dir: pypi-dist/
           print-hash: true
+
+  github-release:
+    needs: [github-release-draft, publish-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Publish GitHub Release after PyPI succeeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          release_is_draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft')"
+          if [[ "$release_is_draft" == "true" ]]; then
+            gh release edit "$GITHUB_REF_NAME" --draft=false --verify-tag
+          elif [[ "$release_is_draft" != "false" ]]; then
+            echo "unexpected GitHub Release draft state: $release_is_draft" >&2
+            exit 1
+          fi
+          test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft')" = "false"
