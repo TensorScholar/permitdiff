@@ -112,6 +112,10 @@ A transition waiver cannot waive a policy-level authority finding. Both waiver t
 
 Waivers do not remove evidence from the comparison report. They only remove the exact matching item from gate enforcement and remain visible in gate metadata.
 
+## Differential evidence integrity
+
+Rule-hit coverage proves a rule was exercised, not that the changed authority slice was demonstrated. When `forbid_missing_differential_evidence` is enabled (always on under `strict_gate()`), each unwaived static expansion must be demonstrated by an observed privilege expansion routed through the changed rule: the candidate rule for added or broadened authority, the baseline rule for removed or narrowed authority, or the default decision for a relaxed default. An unrelated expansion elsewhere in the corpus does not satisfy linkage. Undemonstrated findings fail as `missing_differential_evidence`, an evidence-integrity violation rather than a new authority finding.
+
 ## Reproducibility
 
 The report includes SHA-256 digests for both policy documents and the corpus. Each scenario transition includes a fingerprint of the normalized action. Static findings also have deterministic fingerprints over their bounded semantic evidence. Serialization uses canonical JSON with sorted keys, compact separators, UTF-8, and invalid numeric values rejected before hashing.

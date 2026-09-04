@@ -61,6 +61,13 @@
       "title": "Expired Waivers",
       "type": "array"
     },
+    "missing_differential_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Differential Evidence",
+      "type": "array"
+    },
     "passed": {
       "title": "Passed",
       "type": "boolean"

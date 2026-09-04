@@ -9,6 +9,7 @@
 | `max_approval_bypasses` | `0` | Maximum unwaived `require_approval → allow` transitions. |
 | `max_uncovered_candidate_rules` | `0` | Maximum candidate rules with no observed first-match hit; `null` disables. |
 | `forbid_default_effect_relaxation` | `true` | Fail whenever the candidate default is more permissive, even if the current corpus has no default hit. |
+| `forbid_missing_differential_evidence` | `false` (`true` under `strict_gate()`) | Fail when an unwaived static expansion has no observed privilege expansion routed through the changed rule (candidate rule, baseline rule, or default decision). Waived findings are excluded; waivers never remove report evidence. |
 | `fail_on_removed_rules` | `false` | Fail on any removed rule ID. |
 | `fail_on_unused_waivers` | `false` | Fail when an active waiver matches no observed expansion. |
 

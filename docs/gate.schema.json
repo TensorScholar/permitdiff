@@ -210,6 +210,11 @@
       "title": "Forbid Default Effect Relaxation",
       "type": "boolean"
     },
+    "forbid_missing_differential_evidence": {
+      "default": false,
+      "title": "Forbid Missing Differential Evidence",
+      "type": "boolean"
+    },
     "kind": {
       "const": "Gate",
       "default": "Gate",

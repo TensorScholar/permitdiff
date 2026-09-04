@@ -25,6 +25,7 @@ All notable changes are documented here. Semantic Versioning begins when the `v1
 ### Fixed
 
 - bound observed-transition waivers to exact baseline/candidate policy digests so a reviewed scenario approval cannot replay after either policy drifts; waivers without digests now fail validation instead of matching silently;
+- added an opt-in `forbid_missing_differential_evidence` gate (enabled under `strict_gate()`) that fails as `missing_differential_evidence` when an unwaived static expansion has no observed privilege expansion routed through the changed rule, so covered-but-undemonstrated authority slices cannot pass silently;
 - stopped treating `WebFetch(domain:*)` as semantically identical to bare `WebFetch`; current Claude Code behavior gives the domain form additional sandbox-network effects, so changed wildcard-domain rules now fail closed instead of being collapsed;
 - prevented silent PASS interpretation when Claude settings change outside the modeled projection: ignored root drift and exact WebFetch-domain changes now fail until their distinct projection gaps are explicitly acknowledged;
 - qualified the public Claude validation evidence as two modeled `permissions.allow` preapproval expansions and explicitly preserved the concurrent `enabledPlugins` change as out-of-projection evidence;
