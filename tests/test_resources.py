@@ -6,6 +6,12 @@ import pytest
 
 from permitdiff.resources import starter_files, write_starter
 
+_RELEASE_WHEEL = (
+    "https://github.com/TensorScholar/permitdiff/releases/download/v0.1.0rc2/"
+    "permitdiff-0.1.0rc2-py3-none-any.whl"
+)
+_RELEASE_WHEEL_SHA256 = "12092aa0f6428dfac27fc6070224a7b06fb315e6a19be13974d0c1ac5edf16fb"
+
 
 def test_starter_inventory_is_stable() -> None:
     assert starter_files() == (
@@ -21,9 +27,10 @@ def test_write_starter_materializes_runnable_project(tmp_path: Path) -> None:
     written = write_starter(tmp_path)
     assert {path.relative_to(tmp_path).as_posix() for path in written} == set(starter_files())
     assert (tmp_path / "policies/baseline.yaml").is_file()
-    assert "permitdiff compare" in (tmp_path / ".github/workflows/permitdiff.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (tmp_path / ".github/workflows/permitdiff.yml").read_text(encoding="utf-8")
+    assert "permitdiff compare" in workflow
+    assert f"{_RELEASE_WHEEL}#sha256={_RELEASE_WHEEL_SHA256}" in workflow
+    assert "python -m pip install permitdiff\n" not in workflow
 
 
 def test_write_starter_refuses_overwrite_without_force(tmp_path: Path) -> None:

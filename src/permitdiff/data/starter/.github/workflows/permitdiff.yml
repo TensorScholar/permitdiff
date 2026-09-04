@@ -23,7 +23,10 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - run: python -m pip install permitdiff
+      - name: Install released PermitDiff wheel
+        run: >-
+          python -m pip install
+          "permitdiff @ https://github.com/TensorScholar/permitdiff/releases/download/v0.1.0rc2/permitdiff-0.1.0rc2-py3-none-any.whl#sha256=12092aa0f6428dfac27fc6070224a7b06fb315e6a19be13974d0c1ac5edf16fb"
       - name: Review effective permissions
         run: |
           set +e
@@ -34,7 +37,7 @@ jobs:
             --gate permitdiff-gate.yaml --format sarif --output permitdiff.sarif >/dev/null 2>&1
           cat permitdiff-report.md >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
-      - uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+      - uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         if: always()
         with:
           sarif_file: permitdiff.sarif

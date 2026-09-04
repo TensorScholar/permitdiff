@@ -26,7 +26,8 @@ All notable changes are documented here. Semantic Versioning begins when the `v1
 - stopped treating `WebFetch(domain:*)` as semantically identical to bare `WebFetch`; current Claude Code behavior gives the domain form additional sandbox-network effects, so changed wildcard-domain rules now fail closed instead of being collapsed;
 - prevented silent PASS interpretation when Claude settings change outside the modeled projection: ignored root drift and exact WebFetch-domain changes now fail until their distinct projection gaps are explicitly acknowledged;
 - qualified the public Claude validation evidence as two modeled `permissions.allow` preapproval expansions and explicitly preserved the concurrent `enabledPlugins` change as out-of-projection evidence;
-- made the Composite Action fail if Markdown and SARIF renderers disagree on exit semantics or if a valid comparison fails to produce both required review artifacts.
+- made the Composite Action fail if Markdown and SARIF renderers disagree on exit semantics or if a valid comparison fails to produce both required review artifacts;
+- replaced the generated starter's unavailable PyPI install with the actual `v0.1.0rc2` GitHub Release wheel pinned by its published SHA-256, so first-run CI remains reproducible while PyPI Trusted Publishing is not yet configured.
 
 ## [0.1.0rc2] - 2026-09-02
 
@@ -48,7 +49,7 @@ All notable changes are documented here. Semantic Versioning begins when the `v1
 - configurable release gates, console/JSON/Markdown/SARIF 2.1.0 outputs, CLI, Python API, starter project, and composite GitHub Action;
 - strict trust handling for MCP-style annotations;
 - a reproducible public historical Claude Code permission-widening validation pilot with frozen source blobs, semantic de-noising, negative controls, and an executable regression contract;
-- a read-only external-repository execution workflow that builds and installs the wheel under test, verifies pinned external source commits/blobs, executes PermitDiff from the external repository root, and publishes machine-readable evidence;
+- a read-only external-repository execution workflow that builds and installs the wheel under test, verifies pinned external source commits/blobs, executes PermitDiff from that repository root, and publishes machine-readable evidence;
 - CodeQL, OpenSSF Scorecard, SBOM, Trusted Publishing, checksums, and build-provenance release workflows;
 - concise visual README, citation metadata, responsible disclosure guidance, and commercial adoption path.
 
