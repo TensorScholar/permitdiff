@@ -102,7 +102,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  github-release-draft:
+  github-release:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -118,7 +118,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          release_args=(--draft --generate-notes --verify-tag)
+          release_args=(--generate-notes --verify-tag)
+          release_args+=(--draft)
           if [[ "$GITHUB_REF_NAME" =~ (a|b|rc)[0-9]+$ ]]; then
             release_args+=(--prerelease)
           fi
@@ -126,7 +127,7 @@ jobs:
           test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft')" = "true"
 
   publish-pypi:
-    needs: [build, github-release-draft]
+    needs: [build, github-release]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -148,8 +149,8 @@ jobs:
           packages-dir: pypi-dist/
           print-hash: true
 
-  github-release:
-    needs: [github-release-draft, publish-pypi]
+  github-release-publish:
+    needs: [github-release, publish-pypi]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
