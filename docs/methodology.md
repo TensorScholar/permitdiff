@@ -94,6 +94,8 @@ An observed-transition waiver requires an exact match on:
 - baseline effect;
 - candidate effect;
 - action fingerprint;
+- baseline policy digest;
+- candidate policy digest;
 - non-expired date.
 
 A static-authority waiver requires an exact match on:
@@ -106,7 +108,7 @@ A static-authority waiver requires an exact match on:
 
 Both require a meaningful reason. An issue URL is optional but recommended. Waiver IDs are unique across both classes, and the gate can fail on unused active waivers so stale authorization does not accumulate.
 
-A transition waiver cannot waive a policy-level authority finding. Static waivers are candidate-digest-bound so a reviewed exception does not silently replay after candidate policy drift.
+A transition waiver cannot waive a policy-level authority finding. Both waiver types are baseline- and candidate-digest-bound so a reviewed exception does not silently replay after either policy drifts, even when the scenario outcome is unchanged.
 
 Waivers do not remove evidence from the comparison report. They only remove the exact matching item from gate enforcement and remain visible in gate metadata.
 

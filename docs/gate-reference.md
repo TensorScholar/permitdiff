@@ -14,6 +14,6 @@
 
 ## Waivers
 
-A waiver requires a unique ID, scenario ID, baseline effect, candidate effect, meaningful reason, and expiry date. `issue` accepts an HTTP(S) URL.
+An observed-transition waiver requires a unique ID, scenario ID, baseline effect, candidate effect, action fingerprint, baseline policy digest, candidate policy digest, meaningful reason, and expiry date. A static-authority waiver requires a unique ID, finding kind, finding fingerprint, baseline policy digest, candidate policy digest, meaningful reason, and expiry date. `issue` accepts an HTTP(S) URL. Transition waivers without both policy digests fail validation and never match.
 
 Expiry uses UTC calendar dates. A waiver is active through its `expires_on` date and expired the following day.

@@ -113,7 +113,7 @@ flowchart LR
 - **Two evidence channels** — observed scenario transitions remain distinct from bounded static authority findings.
 - **Fail-closed** — invalid inputs and unresolved static semantics do not become `allow` or `pass`.
 - **Evidence-first** — policy/corpus digests, action/finding fingerprints, JSON, Markdown, SARIF.
-- **Bounded waivers** — observed transitions and policy-level findings require exact, expiring review evidence; static waivers are bound to baseline/candidate digests.
+- **Bounded waivers** — observed transitions and policy-level findings require exact, expiring review evidence; all waivers are bound to baseline/candidate digests.
 
 ## GitHub Action
 

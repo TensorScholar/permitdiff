@@ -11,7 +11,7 @@ Release gates need controlled exceptions, but broad suppressions become permanen
 
 Use separate, exact waiver types for each evidence channel. Never support wildcard waivers.
 
-Observed-transition waivers bind to one scenario ID, exact baseline/candidate effects, and the normalized action fingerprint.
+Observed-transition waivers bind to one scenario ID, exact baseline/candidate effects, the normalized action fingerprint, and the exact baseline and candidate policy digests. This prevents an observed approval from replaying after either compared policy changes, even when the scenario outcome is unchanged.
 
 Static-authority waivers bind to one finding kind and finding fingerprint **and** to the exact baseline and candidate policy digests. This prevents a policy-level approval from replaying after either compared policy changes, even if a syntactically similar finding would otherwise receive the same fingerprint.
 
