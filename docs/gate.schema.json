@@ -104,6 +104,20 @@
           "title": "Action Fingerprint",
           "type": "string"
         },
+        "baseline_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Baseline Digest",
+          "type": "string"
+        },
+        "candidate_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Candidate Digest",
+          "type": "string"
+        },
         "expires_on": {
           "format": "date",
           "title": "Expires On",
@@ -156,6 +170,8 @@
         "from_effect",
         "to_effect",
         "action_fingerprint",
+        "baseline_digest",
+        "candidate_digest",
         "reason",
         "expires_on"
       ],

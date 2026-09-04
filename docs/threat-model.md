@@ -71,7 +71,7 @@ This does not make an untrusted local Git object database trustworthy. A comprom
 
 **Threat:** a broad, stale, or replayed waiver masks unrelated future permission expansions.
 
-**Controls:** no wildcard waivers. Observed-transition waivers bind to scenario ID, exact effect transition, and action fingerprint. Static-authority waivers bind to finding kind and fingerprint plus exact baseline/candidate policy digests. Both require expiry and substantive reason; unused-waiver failures can detect stale approvals. A waiver for one evidence channel cannot suppress the other channel, and an adapter waiver cannot approve source semantics omitted by the adapter projection. Projection acknowledgement flags are not waivers.
+**Controls:** no wildcard waivers. Observed-transition waivers bind to scenario ID, exact effect transition, action fingerprint, and exact baseline/candidate policy digests. Static-authority waivers bind to finding kind and fingerprint plus exact baseline/candidate policy digests. Both require expiry and substantive reason; unused-waiver failures can detect stale approvals. A waiver for one evidence channel cannot suppress the other channel, and an adapter waiver cannot approve source semantics omitted by the adapter projection. Projection acknowledgement flags are not waivers.
 
 ### Report tampering or confusion
 

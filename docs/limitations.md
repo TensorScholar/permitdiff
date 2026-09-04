@@ -42,7 +42,7 @@ The reserved `_claude.permission_domain` field used in review scenarios is norma
 
 ## Waiver scope
 
-Observed-transition waivers bind to an exact scenario transition and action fingerprint. Static-authority waivers additionally bind to the exact finding plus baseline and candidate policy digests. They are release-review evidence, not runtime authorization.
+Observed-transition waivers bind to an exact scenario transition, action fingerprint, and baseline/candidate policy digests. Static-authority waivers bind to the exact finding kind and fingerprint plus baseline and candidate policy digests. They are release-review evidence, not runtime authorization.
 
 A waiver can still encode a bad human decision. Expiry, exact matching, digest binding, and unused-waiver checks reduce replay and staleness risk; they do not replace accountable review.
 

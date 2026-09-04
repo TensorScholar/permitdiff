@@ -28,6 +28,8 @@ def _waiver(
     expires_on: date,
     *,
     action_fingerprint: str = "0" * 64,
+    baseline_digest: str = "0" * 64,
+    candidate_digest: str = "1" * 64,
 ) -> TransitionWaiver:
     return TransitionWaiver(
         id="approved-refund",
@@ -35,6 +37,28 @@ def _waiver(
         from_effect=DecisionEffect.REQUIRE_APPROVAL,
         to_effect=DecisionEffect.ALLOW,
         action_fingerprint=action_fingerprint,
+        baseline_digest=baseline_digest,
+        candidate_digest=candidate_digest,
+        reason="Payments Risk approved this exact staged permission change.",
+        expires_on=expires_on,
+    )
+
+
+def _transition_waiver_for_report(
+    report: ComparisonReport,
+    expires_on: date,
+    *,
+    waiver_id: str = "approved-refund",
+) -> TransitionWaiver:
+    transition = next(item for item in report.transitions if item.scenario_id == "refund-50")
+    return TransitionWaiver(
+        id=waiver_id,
+        scenario_id=transition.scenario_id,
+        from_effect=transition.baseline_effect,
+        to_effect=transition.candidate_effect,
+        action_fingerprint=transition.action_fingerprint,
+        baseline_digest=report.baseline_digest,
+        candidate_digest=report.candidate_digest,
         reason="Payments Risk approved this exact staged permission change.",
         expires_on=expires_on,
     )
@@ -81,13 +105,9 @@ def test_exact_active_waivers_allow_observed_and_static_expansion(
 ) -> None:
     today = date(2026, 7, 27)
     report = _report(baseline, candidate, scenarios)
-    transition = next(item for item in report.transitions if item.scenario_id == "refund-50")
     config = GateConfig(
         waivers=[
-            _waiver(
-                today + timedelta(days=7),
-                action_fingerprint=transition.action_fingerprint,
-            )
+            _transition_waiver_for_report(report, today + timedelta(days=7)),
         ],
         authority_waivers=[_authority_waiver(report, today + timedelta(days=7))],
     )
@@ -104,15 +124,11 @@ def test_transition_waiver_does_not_waive_policy_level_authority_expansion(
 ) -> None:
     today = date(2026, 7, 27)
     report = _report(baseline, candidate, scenarios)
-    transition = next(item for item in report.transitions if item.scenario_id == "refund-50")
     result = evaluate_gate(
         report,
         GateConfig(
             waivers=[
-                _waiver(
-                    today + timedelta(days=7),
-                    action_fingerprint=transition.action_fingerprint,
-                )
+                _transition_waiver_for_report(report, today + timedelta(days=7)),
             ]
         ),
         today=today,
@@ -128,9 +144,6 @@ def test_waiver_does_not_apply_after_action_fingerprint_changes(
 ) -> None:
     today = date(2026, 7, 27)
     original_report = _report(baseline, candidate, scenarios)
-    original_transition = next(
-        item for item in original_report.transitions if item.scenario_id == "refund-50"
-    )
     original = next(item for item in scenarios if item.id == "refund-50")
     changed = original.model_copy(
         update={
@@ -148,10 +161,7 @@ def test_waiver_does_not_apply_after_action_fingerprint_changes(
 
     config = GateConfig(
         waivers=[
-            _waiver(
-                today + timedelta(days=7),
-                action_fingerprint=original_transition.action_fingerprint,
-            )
+            _transition_waiver_for_report(original_report, today + timedelta(days=7)),
         ],
         authority_waivers=[_authority_waiver(original_report, today + timedelta(days=7))],
     )
@@ -194,6 +204,154 @@ def test_authority_waiver_does_not_replay_after_candidate_digest_changes(
     assert result.unused_waivers == ["approved-static-refund-rule"]
 
 
+def test_transition_waiver_does_not_replay_after_candidate_digest_changes(
+    baseline: PolicyDocument,
+    candidate: PolicyDocument,
+    scenarios: list[Scenario],
+) -> None:
+    today = date(2026, 7, 27)
+    original_report = _report(baseline, candidate, scenarios)
+    drifted_metadata = candidate.metadata.model_copy(update={"version": "1.1.1"})
+    drifted_candidate = candidate.model_copy(update={"metadata": drifted_metadata})
+    drifted_report = _report(baseline, drifted_candidate, scenarios)
+    original_transition = next(
+        item for item in original_report.transitions if item.scenario_id == "refund-50"
+    )
+    drifted_transition = next(
+        item for item in drifted_report.transitions if item.scenario_id == "refund-50"
+    )
+    assert drifted_transition.baseline_effect is original_transition.baseline_effect
+    assert drifted_transition.candidate_effect is original_transition.candidate_effect
+    assert drifted_transition.action_fingerprint == original_transition.action_fingerprint
+    assert drifted_report.candidate_digest != original_report.candidate_digest
+    result = evaluate_gate(
+        drifted_report,
+        GateConfig(
+            max_static_authority_expansions=10,
+            authority_waivers=[_authority_waiver(drifted_report, today + timedelta(days=7))],
+            waivers=[
+                _transition_waiver_for_report(original_report, today + timedelta(days=7)),
+            ],
+        ),
+        today=today,
+    )
+    assert not result.passed
+    assert "privilege_expansions" in {item.code for item in result.violations}
+    assert result.unused_waivers == ["approved-refund"]
+
+
+def test_transition_waiver_does_not_replay_after_baseline_digest_changes(
+    baseline: PolicyDocument,
+    candidate: PolicyDocument,
+    scenarios: list[Scenario],
+) -> None:
+    today = date(2026, 7, 27)
+    original_report = _report(baseline, candidate, scenarios)
+    drifted_metadata = baseline.metadata.model_copy(update={"version": "9.9.9"})
+    drifted_baseline = baseline.model_copy(update={"metadata": drifted_metadata})
+    drifted_report = _report(drifted_baseline, candidate, scenarios)
+    original_transition = next(
+        item for item in original_report.transitions if item.scenario_id == "refund-50"
+    )
+    drifted_transition = next(
+        item for item in drifted_report.transitions if item.scenario_id == "refund-50"
+    )
+    assert drifted_transition.baseline_effect is original_transition.baseline_effect
+    assert drifted_transition.candidate_effect is original_transition.candidate_effect
+    assert drifted_transition.action_fingerprint == original_transition.action_fingerprint
+    assert drifted_report.baseline_digest != original_report.baseline_digest
+    result = evaluate_gate(
+        drifted_report,
+        GateConfig(
+            max_static_authority_expansions=10,
+            authority_waivers=[_authority_waiver(drifted_report, today + timedelta(days=7))],
+            waivers=[
+                _transition_waiver_for_report(original_report, today + timedelta(days=7)),
+            ],
+        ),
+        today=today,
+    )
+    assert not result.passed
+    assert "privilege_expansions" in {item.code for item in result.violations}
+    assert result.unused_waivers == ["approved-refund"]
+
+
+def test_same_transition_outcome_under_different_digests_cannot_reuse_waiver(
+    baseline: PolicyDocument,
+    candidate: PolicyDocument,
+    scenarios: list[Scenario],
+) -> None:
+    today = date(2026, 7, 27)
+    original_report = _report(baseline, candidate, scenarios)
+    relabeled_rules = [
+        rule.model_copy(update={"description": f"{rule.description} (rev B)."})
+        for rule in candidate.rules
+    ]
+    relabeled_candidate = candidate.model_copy(update={"rules": relabeled_rules})
+    relabeled_report = _report(baseline, relabeled_candidate, scenarios)
+    original_transition = next(
+        item for item in original_report.transitions if item.scenario_id == "refund-50"
+    )
+    relabeled_transition = next(
+        item for item in relabeled_report.transitions if item.scenario_id == "refund-50"
+    )
+    assert relabeled_transition.baseline_effect is original_transition.baseline_effect
+    assert relabeled_transition.candidate_effect is original_transition.candidate_effect
+    assert relabeled_transition.action_fingerprint == original_transition.action_fingerprint
+    assert relabeled_report.candidate_digest != original_report.candidate_digest
+    assert len(relabeled_report.authority_findings) == len(original_report.authority_findings) == 1
+    assert (
+        relabeled_report.authority_findings[0].fingerprint
+        == original_report.authority_findings[0].fingerprint
+    )
+    result = evaluate_gate(
+        relabeled_report,
+        GateConfig(
+            authority_waivers=[_authority_waiver(relabeled_report, today + timedelta(days=7))],
+            waivers=[
+                _transition_waiver_for_report(original_report, today + timedelta(days=7)),
+            ],
+        ),
+        today=today,
+    )
+    assert not result.passed
+    assert "privilege_expansions" in {item.code for item in result.violations}
+    assert result.unused_waivers == ["approved-refund"]
+
+
+def test_transition_waiver_without_digests_fails_validation() -> None:
+    with pytest.raises(ValidationError, match="baseline_digest"):
+        TransitionWaiver(
+            id="legacy-waiver",
+            scenario_id="refund-50",
+            from_effect=DecisionEffect.REQUIRE_APPROVAL,
+            to_effect=DecisionEffect.ALLOW,
+            action_fingerprint="0" * 64,
+            reason="Legacy waiver without digest binding must not validate.",
+            expires_on=date(2026, 8, 1),
+        )
+
+
+def test_legacy_gate_yaml_without_transition_digests_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "gate.yaml"
+    path.write_text(
+        """api_version: permitdiff.dev/v1alpha1
+kind: Gate
+waivers:
+  - id: legacy-waiver
+    scenario_id: refund-50
+    from_effect: require_approval
+    to_effect: allow
+    action_fingerprint: '0000000000000000000000000000000000000000000000000000000000000000'
+    reason: Legacy waiver without digest binding must not validate.
+    expires_on: 2026-08-01
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(GateLoadError, match="baseline_digest"):
+        GateConfig.from_yaml(path)
+
+
 def test_expired_waiver_does_not_apply(
     baseline: PolicyDocument,
     candidate: PolicyDocument,
@@ -212,7 +370,8 @@ def test_waiver_must_match_exact_transition(
     scenarios: list[Scenario],
 ) -> None:
     today = date(2026, 7, 27)
-    wrong = _waiver(today + timedelta(days=7)).model_copy(
+    report = _report(baseline, candidate, scenarios)
+    wrong = _transition_waiver_for_report(report, today + timedelta(days=7)).model_copy(
         update={"to_effect": DecisionEffect.REQUIRE_APPROVAL}
     )
     result = evaluate_gate(
@@ -367,6 +526,15 @@ def test_duplicate_transition_waivers_are_rejected() -> None:
     second = first.model_copy(update={"id": "second-approval"})
     with pytest.raises(ValidationError, match="unique scenario transitions"):
         GateConfig(waivers=[first, second])
+
+
+def test_same_transition_with_different_digests_is_distinct() -> None:
+    first = _waiver(date(2026, 8, 1))
+    second = first.model_copy(
+        update={"id": "second-approval", "candidate_digest": "2" * 64},
+    )
+    config = GateConfig(waivers=[first, second])
+    assert {item.id for item in config.waivers} == {"approved-refund", "second-approval"}
 
 
 def test_duplicate_authority_waivers_are_rejected(

@@ -9,12 +9,18 @@ fail_on_removed_rules: false
 fail_on_unused_waivers: true
 waivers: []
 
-# An intentional exception must be exact, justified, and temporary:
+# An intentional exception must be exact, justified, and temporary.
+# Copy action_fingerprint, baseline_digest, and candidate_digest from the
+# comparison JSON for the exact reviewed policies; the waiver never applies
+# after either policy digest changes:
 # waivers:
 #   - id: approve-low-refund-rollout
 #     scenario_id: refund-50
 #     from_effect: require_approval
 #     to_effect: allow
+#     action_fingerprint: '0000000000000000000000000000000000000000000000000000000000000000'
+#     baseline_digest: '0000000000000000000000000000000000000000000000000000000000000000'
+#     candidate_digest: '1111111111111111111111111111111111111111111111111111111111111111'
 #     reason: Approved by Payments Risk for the staged low-value refund rollout.
 #     expires_on: 2026-09-30
 #     issue: https://github.com/example/repository/issues/123

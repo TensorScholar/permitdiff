@@ -29,6 +29,8 @@ class TransitionWaiver(BaseModel):
     from_effect: DecisionEffect
     to_effect: DecisionEffect
     action_fingerprint: str = Field(min_length=64, max_length=64, pattern=_SHA256_PATTERN)
+    baseline_digest: str = Field(min_length=64, max_length=64, pattern=_SHA256_PATTERN)
+    candidate_digest: str = Field(min_length=64, max_length=64, pattern=_SHA256_PATTERN)
     reason: str = Field(min_length=10, max_length=2000)
     expires_on: date
     issue: HttpUrl | None = None
@@ -78,6 +80,8 @@ class GateConfig(BaseModel):
                 item.from_effect,
                 item.to_effect,
                 item.action_fingerprint,
+                item.baseline_digest,
+                item.candidate_digest,
             )
             for item in self.waivers
         ]
@@ -168,6 +172,8 @@ def evaluate_gate(
                 and waiver.from_effect is transition.baseline_effect
                 and waiver.to_effect is transition.candidate_effect
                 and waiver.action_fingerprint == transition.action_fingerprint
+                and waiver.baseline_digest == report.baseline_digest
+                and waiver.candidate_digest == report.candidate_digest
             ),
             None,
         )
