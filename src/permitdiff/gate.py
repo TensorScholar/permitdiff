@@ -10,7 +10,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from permitdiff.analysis import ComparisonReport
-from permitdiff.authority import AuthorityFindingKind
+from permitdiff.authority import AuthorityFinding, AuthorityFindingKind
 from permitdiff.errors import GateLoadError
 from permitdiff.models import DecisionEffect
 from permitdiff.yaml_utils import safe_load_yaml
@@ -64,6 +64,7 @@ class GateConfig(BaseModel):
     max_static_authority_expansions: int = Field(default=0, ge=0)
     max_uncovered_candidate_rules: int | None = Field(default=0, ge=0)
     forbid_default_effect_relaxation: bool = True
+    forbid_missing_differential_evidence: bool = False
     fail_on_removed_rules: bool = False
     fail_on_unused_waivers: bool = False
     waivers: list[TransitionWaiver] = Field(default_factory=list)
@@ -135,6 +136,7 @@ class GateResult(BaseModel):
     violations: list[GateViolation]
     waived_scenarios: list[str]
     waived_authority_findings: list[str] = Field(default_factory=list)
+    missing_differential_evidence: list[str] = Field(default_factory=list)
     expired_waivers: list[str]
     unused_waivers: list[str]
 
@@ -253,6 +255,20 @@ def evaluate_gate(
             )
         )
 
+    missing_evidence = _missing_differential_evidence(report, unwaived_authority_findings)
+    if config.forbid_missing_differential_evidence and missing_evidence:
+        violations.append(
+            GateViolation(
+                code="missing_differential_evidence",
+                message=(
+                    "static authority expansions without observed differential "
+                    "corpus evidence exceed the gate"
+                ),
+                actual=len(missing_evidence),
+                limit=0,
+            )
+        )
+
     uncovered = len(report.candidate_coverage.uncovered_rules)
     if (
         config.max_uncovered_candidate_rules is not None
@@ -315,6 +331,7 @@ def evaluate_gate(
         violations=violations,
         waived_scenarios=sorted(waived_scenarios),
         waived_authority_findings=sorted(waived_authority_findings),
+        missing_differential_evidence=missing_evidence,
         expired_waivers=expired,
         unused_waivers=unused,
     )
@@ -323,7 +340,54 @@ def evaluate_gate(
 def strict_gate() -> GateConfig:
     """Return a zero-expansion, fail-closed, full-candidate-coverage release gate."""
 
-    return GateConfig()
+    return GateConfig(forbid_missing_differential_evidence=True)
+
+
+def _missing_differential_evidence(
+    report: ComparisonReport,
+    unwaived_authority_findings: list[AuthorityFinding],
+) -> list[str]:
+    """Return fingerprints of unwaived expansions without observed differential evidence.
+
+    A static potential expansion is demonstrated only by an observed privilege
+    expansion routed through the changed rule: via the candidate rule for added
+    or broadened authority, via the baseline rule for removed or narrowed
+    authority, or via the default decision for a relaxed default effect.
+    Waivers never remove report evidence, so demonstration is read from all
+    report transitions rather than only unwaived ones.
+    """
+
+    candidate_demonstrated = {
+        transition.candidate_rule_id
+        for transition in report.transitions
+        if transition.privilege_expansion and transition.candidate_rule_id is not None
+    }
+    baseline_demonstrated = {
+        transition.baseline_rule_id
+        for transition in report.transitions
+        if transition.privilege_expansion and transition.baseline_rule_id is not None
+    }
+    default_demonstrated = any(
+        transition.privilege_expansion and transition.candidate_rule_id is None
+        for transition in report.transitions
+    )
+    missing: list[str] = []
+    for finding in unwaived_authority_findings:
+        if finding.kind is not AuthorityFindingKind.POTENTIAL_EXPANSION:
+            continue
+        if finding.candidate_rule_id is None and finding.baseline_rule_id is None:
+            demonstrated = default_demonstrated
+        else:
+            demonstrated = (
+                finding.candidate_rule_id is not None
+                and finding.candidate_rule_id in candidate_demonstrated
+            ) or (
+                finding.baseline_rule_id is not None
+                and finding.baseline_rule_id in baseline_demonstrated
+            )
+        if not demonstrated:
+            missing.append(finding.fingerprint)
+    return sorted(missing)
 
 
 def _append_threshold(

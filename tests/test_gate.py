@@ -16,8 +16,8 @@ from permitdiff.gate import (
     evaluate_gate,
     strict_gate,
 )
-from permitdiff.models import DecisionEffect, Scenario
-from permitdiff.policy import PolicyDocument, RuleMatch
+from permitdiff.models import ActionRequest, DecisionEffect, RiskLevel, Scenario
+from permitdiff.policy import PolicyDocument, PolicyMetadata, PolicyRule, RuleMatch
 
 
 def _report(baseline: PolicyDocument, candidate: PolicyDocument, scenarios: list[Scenario]):
@@ -547,3 +547,211 @@ def test_duplicate_authority_waivers_are_rejected(
     second = first.model_copy(update={"id": "second-static-approval"})
     with pytest.raises(ValidationError, match="unique static findings"):
         GateConfig(authority_waivers=[first, second])
+
+
+def _allow_policy(*tools: str, rule_id: str = "target") -> PolicyDocument:
+    return PolicyDocument(
+        metadata=PolicyMetadata(name="evidence-policy", version="1"),
+        default_effect=DecisionEffect.DENY,
+        rules=[
+            PolicyRule(
+                id=rule_id,
+                description="Evidence integrity probe rule.",
+                effect=DecisionEffect.ALLOW,
+                match=RuleMatch(tools=list(tools)),
+            )
+        ],
+    )
+
+
+def _tool_scenario(scenario_id: str, tool: str) -> Scenario:
+    return Scenario(
+        id=scenario_id,
+        risk=RiskLevel.MEDIUM,
+        action=ActionRequest(
+            principal="role:test",
+            agent="agent:test",
+            tool=tool,
+        ),
+    )
+
+
+def test_broadened_rule_hit_only_on_old_slice_fails_missing_evidence() -> None:
+    baseline = _allow_policy("tool.a")
+    candidate = _allow_policy("tool.a", "tool.b")
+    report = _report(baseline, candidate, [_tool_scenario("old-slice", "tool.a")])
+    assert len(report.authority_findings) == 1
+    assert report.candidate_coverage.uncovered_rules == []
+    assert report.summary.privilege_expansions == 0
+    result = evaluate_gate(
+        report,
+        GateConfig(
+            max_static_authority_expansions=10,
+            forbid_missing_differential_evidence=True,
+        ),
+    )
+    assert not result.passed
+    assert "missing_differential_evidence" in {item.code for item in result.violations}
+    assert result.missing_differential_evidence == [report.authority_findings[0].fingerprint]
+
+
+def test_unrelated_transition_does_not_satisfy_evidence_linkage() -> None:
+    baseline = PolicyDocument(
+        metadata=PolicyMetadata(name="evidence-policy", version="1"),
+        default_effect=DecisionEffect.DENY,
+        rules=[
+            PolicyRule(
+                id="target",
+                description="Broadened rule under review.",
+                effect=DecisionEffect.ALLOW,
+                match=RuleMatch(tools=["tool.a"]),
+            )
+        ],
+    )
+    candidate = PolicyDocument(
+        metadata=PolicyMetadata(name="evidence-policy", version="2"),
+        default_effect=DecisionEffect.DENY,
+        rules=[
+            PolicyRule(
+                id="target",
+                description="Broadened rule under review.",
+                effect=DecisionEffect.ALLOW,
+                match=RuleMatch(tools=["tool.a", "tool.b"]),
+            ),
+            PolicyRule(
+                id="unrelated-allow",
+                description="Unrelated added rule.",
+                effect=DecisionEffect.ALLOW,
+                match=RuleMatch(tools=["tool.extra"]),
+            ),
+        ],
+    )
+    report = _report(
+        baseline,
+        candidate,
+        [
+            _tool_scenario("old-slice", "tool.a"),
+            _tool_scenario("unrelated-expansion", "tool.extra"),
+        ],
+    )
+    assert report.summary.privilege_expansions == 1
+    assert len(report.authority_findings) == 2
+    target = next(item for item in report.authority_findings if item.candidate_rule_id == "target")
+    extra = next(
+        item for item in report.authority_findings if item.candidate_rule_id == "unrelated-allow"
+    )
+    result = evaluate_gate(
+        report,
+        GateConfig(
+            max_privilege_expansions=10,
+            max_new_allows=10,
+            max_approval_bypasses=10,
+            max_static_authority_expansions=10,
+            forbid_missing_differential_evidence=True,
+        ),
+    )
+    assert not result.passed
+    assert "missing_differential_evidence" in {item.code for item in result.violations}
+    assert result.missing_differential_evidence == [target.fingerprint]
+    assert extra.fingerprint not in result.missing_differential_evidence
+
+
+def test_differential_expansion_satisfies_evidence_integrity() -> None:
+    baseline = _allow_policy("tool.a")
+    candidate = _allow_policy("tool.a", "tool.b")
+    report = _report(
+        baseline,
+        candidate,
+        [
+            _tool_scenario("old-slice", "tool.a"),
+            _tool_scenario("new-slice", "tool.b"),
+        ],
+    )
+    assert report.summary.privilege_expansions == 1
+    result = evaluate_gate(
+        report,
+        GateConfig(
+            max_privilege_expansions=10,
+            max_new_allows=10,
+            max_approval_bypasses=10,
+            max_static_authority_expansions=10,
+            forbid_missing_differential_evidence=True,
+        ),
+    )
+    assert result.passed
+    assert result.missing_differential_evidence == []
+
+
+def test_missing_evidence_check_is_opt_in_for_legacy_gates() -> None:
+    baseline = _allow_policy("tool.a")
+    candidate = _allow_policy("tool.a", "tool.b")
+    report = _report(baseline, candidate, [_tool_scenario("old-slice", "tool.a")])
+    result = evaluate_gate(
+        report,
+        GateConfig(max_static_authority_expansions=10),
+    )
+    assert "missing_differential_evidence" not in {item.code for item in result.violations}
+    assert result.missing_differential_evidence == [report.authority_findings[0].fingerprint]
+
+
+def test_waived_static_finding_needs_no_differential_evidence() -> None:
+    baseline = _allow_policy("tool.a")
+    candidate = _allow_policy("tool.a", "tool.b")
+    report = _report(baseline, candidate, [_tool_scenario("old-slice", "tool.a")])
+    finding = report.authority_findings[0]
+    today = date(2026, 7, 27)
+    result = evaluate_gate(
+        report,
+        GateConfig(
+            max_static_authority_expansions=10,
+            forbid_missing_differential_evidence=True,
+            authority_waivers=[
+                AuthorityWaiver(
+                    id="approved-static-target",
+                    finding_kind=finding.kind,
+                    finding_fingerprint=finding.fingerprint,
+                    baseline_digest=report.baseline_digest,
+                    candidate_digest=report.candidate_digest,
+                    reason="Security review approved this exact broadened rule.",
+                    expires_on=today + timedelta(days=7),
+                )
+            ],
+        ),
+        today=today,
+    )
+    assert result.passed
+    assert result.missing_differential_evidence == []
+
+
+def test_transition_waiver_does_not_satisfy_static_differential_evidence() -> None:
+    baseline = _allow_policy("tool.a")
+    candidate = _allow_policy("tool.a", "tool.b")
+    report = _report(baseline, candidate, [_tool_scenario("old-slice", "tool.a")])
+    assert len(report.authority_findings) == 1
+    assert report.summary.privilege_expansions == 0
+    transition = next(item for item in report.transitions if item.scenario_id == "old-slice")
+    today = date(2026, 7, 27)
+    result = evaluate_gate(
+        report,
+        GateConfig(
+            max_static_authority_expansions=10,
+            forbid_missing_differential_evidence=True,
+            waivers=[
+                TransitionWaiver(
+                    id="approved-old-slice",
+                    scenario_id=transition.scenario_id,
+                    from_effect=transition.baseline_effect,
+                    to_effect=transition.candidate_effect,
+                    action_fingerprint=transition.action_fingerprint,
+                    baseline_digest=report.baseline_digest,
+                    candidate_digest=report.candidate_digest,
+                    reason="Reviewed the observed old-slice transition only.",
+                    expires_on=today + timedelta(days=7),
+                )
+            ],
+        ),
+        today=today,
+    )
+    assert not result.passed
+    assert "missing_differential_evidence" in {item.code for item in result.violations}
+    assert result.missing_differential_evidence == [report.authority_findings[0].fingerprint]
