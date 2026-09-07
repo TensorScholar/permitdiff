@@ -63,11 +63,10 @@ def test_sarif_emits_observed_and_static_authority_results(
     assert "permitdiff/privilege-expansion" in rule_ids
     assert "permitdiff/static-authority-expansion" in rule_ids
     assert all(item["locations"] for item in results)
-    assert run["properties"]["analysisModel"] == (
-        "corpus-bounded-effective-plus-bounded-static"
-    )
-    assert "not an exhaustive proof of global effective authority" in (
-        run["properties"]["analysisBoundary"]
+    assert run["properties"]["analysisModel"] == ("corpus-bounded-effective-plus-bounded-static")
+    assert (
+        "not an exhaustive proof of global effective authority"
+        in (run["properties"]["analysisBoundary"])
     )
     driver = run["tool"]["driver"]
     assert driver["properties"]["analysisModel"] == run["properties"]["analysisModel"]
