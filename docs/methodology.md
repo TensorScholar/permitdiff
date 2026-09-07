@@ -2,10 +2,10 @@
 
 PermitDiff combines two deterministic evidence channels:
 
-1. **observed scenario transitions** — concrete baseline/candidate decisions for the supplied review corpus;
-2. **bounded static authority findings** — conservative analysis of policy changes that can expand authority outside the observed corpus.
+1. **observed corpus evidence** — effective baseline/candidate decisions for the supplied review corpus;
+2. **bounded static declared-authority over-approximation** — conservative analysis of policy changes that can expand declared authority outside the observed corpus.
 
-Neither channel is presented as exhaustive authorization verification.
+Neither channel is an exhaustive effective-authority proof, and neither establishes runtime authorization safety.
 
 ## Effect ordering
 

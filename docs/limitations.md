@@ -1,12 +1,12 @@
 # Limitations
 
-PermitDiff optimizes for credible, bounded release evidence. It intentionally does not claim complete authorization verification.
+PermitDiff optimizes for credible, bounded release evidence. It intentionally does not claim an exhaustive effective-authority proof or runtime authorization safety.
 
 ## Corpus completeness
 
-Only supplied scenarios are evaluated dynamically. A missing scenario can hide an effective permission change. Use production-derived traces after redaction, boundary cases, abuse cases, incident reproductions, and explicit ownership to improve corpus quality.
+Only supplied review-corpus scenarios are evaluated dynamically. A missing scenario can hide an effective permission change. Use production-derived traces after redaction, boundary cases, abuse cases, incident reproductions, and explicit ownership to improve corpus quality.
 
-PermitDiff also performs bounded static authority analysis over policy changes, but that is not a proof that the scenario corpus is exhaustive.
+PermitDiff also performs a bounded static declared-authority over-approximation over policy changes, but that is not a proof that the scenario corpus is exhaustive or that all globally reachable authority has been computed.
 
 ## Static-analysis boundary
 

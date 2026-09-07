@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>Know exactly when an AI agent gains more power.</strong><br>
+  <strong>Detect when an AI-agent permission change can grant more power.</strong><br>
   Deterministic permission plans and CI gates for tool-calling agents.
 </p>
 
@@ -21,7 +21,7 @@
 
 ## Why PermitDiff
 
-A text diff shows that policy YAML changed. It does **not** tell a reviewer what new authority became reachable.
+A text diff shows that policy YAML changed. It does **not** tell a reviewer whether the proposed change can materially widen reviewed authority.
 
 PermitDiff evaluates the same review corpus against baseline and candidate policies **and** performs bounded static authority analysis over the policy change. The result separates observed scenario evidence from conservative policy-level findings.
 
@@ -139,7 +139,7 @@ On the post-`v0.1.0rc2` development line, the same Action also accepts `baseline
 
 PermitDiff is a **release-time semantic permission regression gate**. It is not a runtime authorizer, credential broker, sandbox, identity provider, generic behavioral evaluator, or proof of exhaustive authorization safety.
 
-Observed scenario coverage is not proven policy coverage. The built-in static analyzer deliberately handles a bounded semantic subset and reports unsupported or ambiguous containment as `unknown`. Review the [methodology](docs/methodology.md), [threat model](docs/threat-model.md), and [limitations](docs/limitations.md) before sensitive use.
+Its observed corpus evidence is effective only for the supplied review scenarios. Its built-in static analyzer is a bounded static declared-authority over-approximation that fails closed on unsupported or ambiguous containment. Neither channel is an exhaustive effective-authority proof, and a clean report does not establish runtime authorization safety. Review the [methodology](docs/methodology.md), [threat model](docs/threat-model.md), and [limitations](docs/limitations.md) before sensitive use.
 
 ## Trust & delivery
 

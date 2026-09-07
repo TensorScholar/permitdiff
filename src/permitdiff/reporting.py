@@ -16,6 +16,14 @@ from permitdiff.analysis import ComparisonReport, ScenarioTransition
 from permitdiff.authority import AuthorityFinding, AuthorityFindingKind
 from permitdiff.gate import GateResult
 
+_ANALYSIS_BOUNDARY = (
+    "Observed transitions are effective only for the supplied review corpus; "
+    "static findings are bounded declared-authority over-approximations. "
+    "A clean report is not an exhaustive proof of global effective authority "
+    "or runtime authorization safety."
+)
+_ANALYSIS_MODEL = "corpus-bounded-effective-plus-bounded-static"
+
 
 class ReportEnvelope(BaseModel):
     """Versioned JSON envelope for one comparison and optional gate result."""
@@ -53,6 +61,8 @@ class ReportBundle:
             "# PermitDiff report",
             "",
             f"**Verdict:** {verdict}",
+            "",
+            f"> **Analysis boundary:** {_ANALYSIS_BOUNDARY}",
             "",
             f"- Baseline: `{report.baseline_name}` `{report.baseline_version}`",
             f"- Candidate: `{report.candidate_name}` `{report.candidate_version}`",
@@ -194,6 +204,11 @@ class ReportBundle:
                             "name": "PermitDiff",
                             "informationUri": "https://github.com/TensorScholar/permitdiff",
                             "version": __version__,
+                            "fullDescription": {"text": _ANALYSIS_BOUNDARY},
+                            "properties": {
+                                "analysisBoundary": _ANALYSIS_BOUNDARY,
+                                "analysisModel": _ANALYSIS_MODEL,
+                            },
                             "rules": [
                                 {
                                     "id": "permitdiff/privilege-expansion",
@@ -230,6 +245,10 @@ class ReportBundle:
                             ],
                         }
                     },
+                    "properties": {
+                        "analysisBoundary": _ANALYSIS_BOUNDARY,
+                        "analysisModel": _ANALYSIS_MODEL,
+                    },
                     "results": results,
                 }
             ],
@@ -249,6 +268,7 @@ class ReportBundle:
         console.print(
             f"PermitDiff: {report.baseline_version} → {report.candidate_version} [{verdict}]"
         )
+        console.print(f"Analysis boundary: {_ANALYSIS_BOUNDARY}")
         summary = Table(show_header=False, box=None)
         summary.add_row("Scenarios", str(report.summary.scenarios))
         summary.add_row("Observed privilege expansions", str(report.summary.privilege_expansions))
