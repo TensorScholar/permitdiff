@@ -39,6 +39,9 @@ def test_markdown_contains_review_sections(
 ) -> None:
     markdown = _bundle(baseline, candidate, scenarios).markdown()
     assert "# PermitDiff report" in markdown
+    assert "**Analysis boundary:**" in markdown
+    assert "effective only for the supplied review corpus" in markdown
+    assert "not an exhaustive proof of global effective authority" in markdown
     assert "## Permission changes" in markdown
     assert "refund-50" in markdown
     assert "## Static authority analysis" in markdown
@@ -54,11 +57,22 @@ def test_sarif_emits_observed_and_static_authority_results(
     tmp_path: Path,
 ) -> None:
     payload = json.loads(_bundle(baseline, candidate, scenarios).sarif(tmp_path / "candidate.yaml"))
-    results = payload["runs"][0]["results"]
+    run = payload["runs"][0]
+    results = run["results"]
     rule_ids = {item["ruleId"] for item in results}
     assert "permitdiff/privilege-expansion" in rule_ids
     assert "permitdiff/static-authority-expansion" in rule_ids
     assert all(item["locations"] for item in results)
+    assert run["properties"]["analysisModel"] == (
+        "corpus-bounded-effective-plus-bounded-static"
+    )
+    assert "not an exhaustive proof of global effective authority" in (
+        run["properties"]["analysisBoundary"]
+    )
+    driver = run["tool"]["driver"]
+    assert driver["properties"]["analysisModel"] == run["properties"]["analysisModel"]
+    assert driver["properties"]["analysisBoundary"] == run["properties"]["analysisBoundary"]
+    assert driver["fullDescription"]["text"] == run["properties"]["analysisBoundary"]
 
 
 def test_console_returns_text_without_writing_stdout(
@@ -70,7 +84,11 @@ def test_console_returns_text_without_writing_stdout(
     rendered = _bundle(baseline, candidate, scenarios).console()
     captured = capsys.readouterr()
     assert captured.out == ""
+    normalized = " ".join(rendered.split())
     assert "PermitDiff:" in rendered
+    assert "Analysis boundary:" in rendered
+    assert "effective only for the supplied review corpus" in normalized
+    assert "not an exhaustive proof of global effective authority" in normalized
     assert "refund-50" in rendered
     assert "Static authority findings" in rendered
 
