@@ -68,7 +68,14 @@ def compare_claude(
     output: Annotated[Path | None, typer.Option("--output", "-o", dir_okay=False)] = None,
     evidence_output: Annotated[
         Path | None,
-        typer.Option("--evidence-output", dir_okay=False),
+        typer.Option(
+            "--evidence-output",
+            dir_okay=False,
+            help=(
+                "Write native projection evidence. Required when a projection-gap "
+                "acknowledgement is active."
+            ),
+        ),
     ] = None,
 ) -> None:
     """Compare native Claude ``dontAsk`` preapproval changes with fail-closed semantics."""
@@ -85,6 +92,15 @@ def compare_claude(
             allow_ignored_root_changes=allow_ignored_root_changes,
             acknowledge_webfetch_sandbox_gap=acknowledge_webfetch_sandbox_gap,
         )
+        acknowledgement_active = (
+            pair.evidence.ignored_root_changes_acknowledged
+            or pair.evidence.webfetch_sandbox_gap_acknowledged
+        )
+        if acknowledgement_active and evidence_output is None:
+            raise ClaudeAdapterError(
+                "active Claude projection-gap acknowledgements require --evidence-output so "
+                "the omitted-semantics evidence remains bound to the review"
+            )
         scenarios = load_corpus(corpus)
         report = compare_policies(pair.baseline_policy, pair.candidate_policy, scenarios)
         gate_config = GateConfig.from_yaml(gate) if gate is not None else None
@@ -104,7 +120,7 @@ def compare_claude(
         except OSError as exc:
             error_console.print(f"[red]cannot write Claude adapter evidence[/red]: {exc}")
             raise typer.Exit(1) from exc
-        console.print(f"wrote Claude adapter evidence to {evidence_output}")
+        error_console.print(f"wrote Claude adapter evidence to {evidence_output}")
 
     bundle = ReportBundle(report, gate_result)
     if output_format is ClaudeOutputFormat.CONSOLE:
