@@ -69,11 +69,11 @@ class RuleMatch(BaseModel):
     environments: list[str] = Field(default_factory=lambda: ["*"])
     sources: list[str] = Field(default_factory=lambda: ["*"])
     risks: list[RiskLevel] = Field(default_factory=list)
-    security_metadata_trusted: bool | None = None
-    read_only: bool | None = None
-    destructive: bool | None = None
-    idempotent: bool | None = None
-    open_world: bool | None = None
+    security_metadata_trusted: bool | None = Field(default=None, strict=True)
+    read_only: bool | None = Field(default=None, strict=True)
+    destructive: bool | None = Field(default=None, strict=True)
+    idempotent: bool | None = Field(default=None, strict=True)
+    open_world: bool | None = Field(default=None, strict=True)
     arguments: list[Predicate] = Field(default_factory=list)
 
     @field_validator("tools", "principals", "agents", "environments", "sources")
