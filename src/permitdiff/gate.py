@@ -338,9 +338,21 @@ def evaluate_gate(
 
 
 def strict_gate() -> GateConfig:
-    """Return a zero-expansion, fail-closed, full-candidate-coverage release gate."""
+    """Return the explicit fail-closed strict release profile."""
 
-    return GateConfig(forbid_missing_differential_evidence=True)
+    return GateConfig(
+        max_privilege_expansions=0,
+        max_new_allows=0,
+        max_approval_bypasses=0,
+        max_static_authority_expansions=0,
+        max_uncovered_candidate_rules=0,
+        forbid_default_effect_relaxation=True,
+        forbid_missing_differential_evidence=True,
+        fail_on_removed_rules=False,
+        fail_on_unused_waivers=False,
+        waivers=[],
+        authority_waivers=[],
+    )
 
 
 def _missing_differential_evidence(
