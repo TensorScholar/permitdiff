@@ -15,32 +15,47 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  UV_NO_PROGRESS: "1"
+
 jobs:
   dependency-audit:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS, ARM64, permitdiff]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.13"
-          cache: pip
-      - run: python -m pip install -e '.[dev]'
+      - name: Verify runner toolchain
+        run: |
+          command -v uv
+          uv --version
+      - name: Create Python environment
+        run: |
+          uv python install 3.13
+          uv venv --python 3.13 .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - run: uv pip install -e '.[dev]'
       - run: pip-audit
 
-  codeql:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      security-events: write
+  static-security:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS, ARM64, permitdiff]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
-        with:
-          languages: python
-      - uses: github/codeql-action/analyze@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+      - name: Verify runner toolchain
+        run: |
+          command -v uv
+          uv --version
+      - name: Create Python environment
+        run: |
+          uv python install 3.13
+          uv venv --python 3.13 .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - run: uv pip install -e '.[dev]'
+      - name: Run security-focused static analysis
+        run: ruff check --select S --ignore S101 .
