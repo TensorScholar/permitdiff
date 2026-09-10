@@ -33,18 +33,18 @@ jobs:
           command -v uv
           uv --version
 
-      - name: Create Python environment
-        working-directory: permitdiff
+      - name: Create isolated Python environment
         run: |
           uv python install 3.13
-          uv venv --python 3.13 --seed .venv
-          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          rm -rf "$RUNNER_TEMP/permitdiff-external-venv"
+          uv venv --python 3.13 --seed "$RUNNER_TEMP/permitdiff-external-venv"
+          echo "$RUNNER_TEMP/permitdiff-external-venv/bin" >> "$GITHUB_PATH"
 
       - name: Build release-candidate wheel
         working-directory: permitdiff
         run: |
-          uv pip install --python "$PWD/.venv/bin/python" 'build>=1.2,<2'
-          python -m build --wheel
+          uv pip install --python "$RUNNER_TEMP/permitdiff-external-venv/bin/python" 'build>=1.2,<2'
+          "$RUNNER_TEMP/permitdiff-external-venv/bin/python" -m build --wheel
 
       - name: Checkout pinned external repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -56,12 +56,12 @@ jobs:
           path: external/project-framework
 
       - name: Install release-candidate wheel
-        run: python -m pip install --disable-pip-version-check --force-reinstall permitdiff/dist/*.whl
+        run: "$RUNNER_TEMP/permitdiff-external-venv/bin/python" -m pip install --disable-pip-version-check --force-reinstall permitdiff/dist/*.whl
 
       - name: Execute PermitDiff from external repository root
         working-directory: external/project-framework
         run: |
-          python ../../permitdiff/scripts/validate_external_repository.py \
+          "$RUNNER_TEMP/permitdiff-external-venv/bin/python" ../../permitdiff/scripts/validate_external_repository.py \
             --expected-origin https://github.com/SpearIT-LLC/project-framework \
             --baseline-commit 28133b63a9a54621c8d7be879ba671daf8464c1c \
             --candidate-commit d8a47de7f5f96d501432a7f02c6909c667a5f31d \
