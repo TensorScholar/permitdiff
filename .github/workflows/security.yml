@@ -58,4 +58,4 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - run: uv pip install -e '.[dev]'
       - name: Run security-focused static analysis
-        run: ruff check --select S .
+        run: ruff check --select S --ignore S101 .

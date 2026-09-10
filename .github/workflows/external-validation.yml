@@ -34,9 +34,10 @@ jobs:
           uv --version
 
       - name: Create Python environment
+        working-directory: permitdiff
         run: |
           uv python install 3.13
-          uv venv --python 3.13 .venv
+          uv venv --python 3.13 --seed .venv
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Build release-candidate wheel
@@ -55,7 +56,7 @@ jobs:
           path: external/project-framework
 
       - name: Install release-candidate wheel
-        run: uv pip install --python "$GITHUB_WORKSPACE/.venv/bin/python" permitdiff/dist/*.whl
+        run: python -m pip install --disable-pip-version-check --force-reinstall permitdiff/dist/*.whl
 
       - name: Execute PermitDiff from external repository root
         working-directory: external/project-framework

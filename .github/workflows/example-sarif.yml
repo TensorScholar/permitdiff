@@ -39,11 +39,12 @@ jobs:
             echo "relevant=false" >> "$GITHUB_OUTPUT"
             echo "No action.yml, examples/, or src/permitdiff/ changes; example scan skipped."
           fi
-      - name: Verify runner toolchain
+      - name: Set up uv
         if: steps.changes.outputs.relevant == 'true'
-        run: |
-          command -v uv
-          uv --version
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.12"
+          python-version: "3.13"
       - name: Create Python environment
         if: steps.changes.outputs.relevant == 'true'
         run: |
