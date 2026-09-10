@@ -43,7 +43,7 @@ jobs:
       - name: Build release-candidate wheel
         working-directory: permitdiff
         run: |
-          uv pip install --python "$GITHUB_WORKSPACE/.venv/bin/python" 'build>=1.2,<2'
+          uv pip install --python "$PWD/.venv/bin/python" 'build>=1.2,<2'
           python -m build --wheel
 
       - name: Checkout pinned external repository
