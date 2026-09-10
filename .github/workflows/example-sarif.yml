@@ -7,17 +7,19 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  UV_NO_PROGRESS: "1"
+
 jobs:
   scan:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, macOS, ARM64, permitdiff]
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -37,11 +39,18 @@ jobs:
             echo "relevant=false" >> "$GITHUB_OUTPUT"
             echo "No action.yml, examples/, or src/permitdiff/ changes; example scan skipped."
           fi
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Set up uv
         if: steps.changes.outputs.relevant == 'true'
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.12"
           python-version: "3.13"
-          cache: pip
+      - name: Create Python environment
+        if: steps.changes.outputs.relevant == 'true'
+        run: |
+          uv python install 3.13
+          uv venv --python 3.13 --seed .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Select immutable baseline ref
         if: steps.changes.outputs.relevant == 'true'
         id: baseline
@@ -92,10 +101,13 @@ jobs:
           assert evidence["resolved_commit"] == sys.argv[2]
           assert evidence["git_object_id"] == sys.argv[3]
           PY
-      - uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
-        if: |
-          steps.changes.outputs.relevant == 'true' &&
-          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: steps.changes.outputs.relevant == 'true'
         with:
-          sarif_file: ${{ steps.permitdiff.outputs.sarif }}
-          category: permitdiff-example
+          name: permitdiff-example-permission-scan
+          path: |
+            ${{ steps.permitdiff.outputs.report }}
+            ${{ steps.permitdiff.outputs.sarif }}
+            ${{ steps.permitdiff.outputs.baseline_evidence }}
+          if-no-files-found: error
+          retention-days: 14
