@@ -28,15 +28,12 @@ jobs:
           persist-credentials: false
           path: permitdiff
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          version: "0.12.12"
-          python-version: "3.13"
-          working-directory: permitdiff
+      - name: Verify runner toolchain
+        run: |
+          command -v uv
+          uv --version
 
       - name: Create Python environment
-        working-directory: permitdiff
         run: |
           uv python install 3.13
           uv venv --python 3.13 .venv
@@ -45,7 +42,7 @@ jobs:
       - name: Build release-candidate wheel
         working-directory: permitdiff
         run: |
-          uv pip install 'build>=1.2,<2'
+          uv pip install --python "$GITHUB_WORKSPACE/.venv/bin/python" 'build>=1.2,<2'
           python -m build --wheel
 
       - name: Checkout pinned external repository
@@ -58,7 +55,7 @@ jobs:
           path: external/project-framework
 
       - name: Install release-candidate wheel
-        run: uv pip install permitdiff/dist/*.whl
+        run: uv pip install --python "$GITHUB_WORKSPACE/.venv/bin/python" permitdiff/dist/*.whl
 
       - name: Execute PermitDiff from external repository root
         working-directory: external/project-framework
