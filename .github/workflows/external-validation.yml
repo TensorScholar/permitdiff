@@ -56,7 +56,8 @@ jobs:
           path: external/project-framework
 
       - name: Install release-candidate wheel
-        run: "$RUNNER_TEMP/permitdiff-external-venv/bin/python" -m pip install --disable-pip-version-check --force-reinstall permitdiff/dist/*.whl
+        run: |
+          "$RUNNER_TEMP/permitdiff-external-venv/bin/python" -m pip install --disable-pip-version-check --force-reinstall permitdiff/dist/*.whl
 
       - name: Execute PermitDiff from external repository root
         working-directory: external/project-framework
