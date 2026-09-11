@@ -91,8 +91,7 @@ def _resolve_artifact(root: Path, relative_path: str, *, case_id: str, role: str
         cursor = cursor / part
         if cursor.is_symlink():
             raise IntegrityError(
-                f"case {case_id!r} {role} artifact must not traverse a symlink: "
-                f"{relative_path!r}"
+                f"case {case_id!r} {role} artifact must not traverse a symlink: {relative_path!r}"
             )
 
     try:
@@ -137,9 +136,7 @@ def _validate_source_metadata(
                 f"case {case_id!r} {role} source_url must be an absolute HTTP(S) URL"
             )
         if parsed.username is not None or parsed.password is not None:
-            raise IntegrityError(
-                f"case {case_id!r} {role} source_url must not contain credentials"
-            )
+            raise IntegrityError(f"case {case_id!r} {role} source_url must not contain credentials")
 
     if source_kind in _PUBLIC_SOURCE_KINDS and role in {"baseline", "candidate"}:
         if source_url is None or (source_commit is None and source_blob is None):
@@ -257,7 +254,9 @@ def validate_manifest(manifest_path: Path, schema_path: Path) -> dict[str, Any]:
     }
 
 
-def _protected_paths(manifest_path: Path, schema_path: Path, evidence: Mapping[str, Any]) -> set[Path]:
+def _protected_paths(
+    manifest_path: Path, schema_path: Path, evidence: Mapping[str, Any]
+) -> set[Path]:
     root = manifest_path.parent.resolve()
     protected = {manifest_path.resolve(), schema_path.resolve()}
     cases = evidence.get("cases")
@@ -298,7 +297,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             output = args.output.resolve()
             if output in _protected_paths(args.manifest, args.schema, evidence):
-                raise IntegrityError("output path must not overwrite the manifest, schema, or artifact")
+                raise IntegrityError(
+                    "output path must not overwrite the manifest, schema, or artifact"
+                )
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(encoded, encoding="utf-8")
     except IntegrityError as exc:
