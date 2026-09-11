@@ -83,7 +83,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_json(args.output, ledger)
             if ledger["discovery_complete"] is not True:
                 print(
-                    "R3 public discovery completed with an incomplete frame; do not select cases from it.",
+                    "R3 public discovery completed with an incomplete frame; "
+                    "do not select cases from it.",
                     file=sys.stderr,
                 )
                 return 2
