@@ -29,7 +29,7 @@ def test_public_only_client_excludes_private_results(monkeypatch) -> None:
         lambda self, query: (raw_items, len(raw_items), False),
     )
 
-    items, total_count, incomplete = PublicOnlyGitHubClient("token").search_code("query")
+    items, total_count, incomplete = PublicOnlyGitHubClient(None).search_code("query")
 
     assert total_count == 2
     assert incomplete is False
@@ -48,7 +48,7 @@ def test_public_only_client_fails_closed_when_visibility_is_missing(monkeypatch)
         lambda self, query: (raw_items, len(raw_items), False),
     )
 
-    items, total_count, incomplete = PublicOnlyGitHubClient("token").search_code("query")
+    items, total_count, incomplete = PublicOnlyGitHubClient(None).search_code("query")
 
     assert total_count == 2
     assert incomplete is True
@@ -64,7 +64,7 @@ def test_existing_incomplete_search_state_is_preserved(monkeypatch) -> None:
         lambda self, query: (raw_items, 1, True),
     )
 
-    items, _, incomplete = PublicOnlyGitHubClient("token").search_code("query")
+    items, _, incomplete = PublicOnlyGitHubClient(None).search_code("query")
 
     assert len(items) == 1
     assert incomplete is True
