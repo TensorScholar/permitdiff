@@ -138,12 +138,15 @@ def _validate_source_metadata(
         if parsed.username is not None or parsed.password is not None:
             raise IntegrityError(f"case {case_id!r} {role} source_url must not contain credentials")
 
-    if source_kind in _PUBLIC_SOURCE_KINDS and role in {"baseline", "candidate"}:
-        if source_url is None or (source_commit is None and source_blob is None):
-            raise IntegrityError(
-                f"case {case_id!r} {role} public source requires source_url plus "
-                "source_commit or source_blob"
-            )
+    if (
+        source_kind in _PUBLIC_SOURCE_KINDS
+        and role in {"baseline", "candidate"}
+        and (source_url is None or (source_commit is None and source_blob is None))
+    ):
+        raise IntegrityError(
+            f"case {case_id!r} {role} public source requires source_url plus "
+            "source_commit or source_blob"
+        )
 
 
 def _verify_artifact(
