@@ -165,7 +165,7 @@ class GitHubClient:
         }
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
-        request = Request(url, headers=headers)
+        request = Request(url, headers=headers)  # noqa: S310 - fixed HTTPS API base
         try:
             with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed HTTPS API base
                 return _json_object(response.read(), context=url)
@@ -231,7 +231,7 @@ class GitHubClient:
         }
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
-        request = Request(url, headers=headers)
+        request = Request(url, headers=headers)  # noqa: S310 - fixed HTTPS API base
         try:
             with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed HTTPS API base
                 raw = json.loads(response.read())
@@ -456,9 +456,7 @@ def enumerate_transitions(
                 else:
                     permissions_changed = _permissions_changed(baseline_json, candidate_json)
 
-            contamination = _control_status(
-                repository_url, baseline_commit, candidate_commit, path
-            )
+            contamination = _control_status(repository_url, baseline_commit, candidate_commit, path)
             if contamination == "pre_exposed_engineering_control":
                 screening_status = "excluded"
                 if "pre_exposed_engineering_control" not in exclusion_reasons:
@@ -504,9 +502,7 @@ def enumerate_transitions(
     return transitions, complete
 
 
-def build_ledger(
-    client: GitHubClient, *, max_history_commits: int | None = None
-) -> dict[str, Any]:
+def build_ledger(client: GitHubClient, *, max_history_commits: int | None = None) -> dict[str, Any]:
     """Collect a discovery ledger without executing PermitDiff."""
 
     started_at = utc_now()
