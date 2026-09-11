@@ -6,12 +6,18 @@ The R3 protocol admits only public historical sources, so this entrypoint filter
 results to repositories that explicitly report ``private: false`` before any location or
 transition enters the discovery ledger. Missing visibility metadata fails the discovery
 frame closed by marking the corresponding search incomplete.
+
+Live collection also paces GitHub code-search requests and retries explicit HTTP 429
+responses. Those transport controls do not alter the frozen query text, result ordering,
+or screening rules; they only prevent a transient API throttle from truncating the frame.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import sys
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -26,9 +32,72 @@ from scripts.discover_r3_benchmark_candidates import (
     select_public_historical,
 )
 
+_CODE_SEARCH_INTERVAL_SECONDS = 7.0
+_RATE_LIMIT_RETRIES = 8
+_RATE_LIMIT_FALLBACK_SECONDS = 10.0
+_RATE_LIMIT_DELAY = re.compile(r"try again in ([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
+
+
+def _retry_delay_seconds(error: DiscoveryError) -> float | None:
+    """Return a bounded retry delay only for explicit GitHub HTTP 429 responses."""
+
+    message = str(error)
+    if "GitHub API HTTP 429" not in message and "HTTP Error 429" not in message:
+        return None
+    match = _RATE_LIMIT_DELAY.search(message)
+    if match is None:
+        return _RATE_LIMIT_FALLBACK_SECONDS
+    return min(max(float(match.group(1)) + 1.0, 1.0), 60.0)
+
 
 class PublicOnlyGitHubClient(GitHubClient):
     """GitHub client that admits only explicitly public code-search results."""
+
+    def __init__(self, token: str | None) -> None:
+        super().__init__(token)
+        self._last_code_search_request_at: float | None = None
+
+    def _pace_code_search(self) -> None:
+        now = time.monotonic()
+        previous = self._last_code_search_request_at
+        if previous is not None:
+            remaining = _CODE_SEARCH_INTERVAL_SECONDS - (now - previous)
+            if remaining > 0:
+                time.sleep(remaining)
+                now += remaining
+        self._last_code_search_request_at = now
+
+    def get_json(
+        self, endpoint: str, params: Mapping[str, str | int] | None = None
+    ) -> dict[str, Any]:
+        """Retry explicit throttles while preserving the exact requested endpoint/params."""
+
+        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+            if endpoint == "/search/code":
+                self._pace_code_search()
+            try:
+                return super().get_json(endpoint, params)
+            except DiscoveryError as exc:
+                delay = _retry_delay_seconds(exc)
+                if delay is None or attempt == _RATE_LIMIT_RETRIES:
+                    raise
+                time.sleep(delay)
+        raise AssertionError("unreachable retry loop")
+
+    def _get_json_array(
+        self, endpoint: str, params: Mapping[str, str | int] | None = None
+    ) -> list[dict[str, Any]]:
+        """Retry throttled paginated array endpoints without changing request semantics."""
+
+        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+            try:
+                return super()._get_json_array(endpoint, params)
+            except DiscoveryError as exc:
+                delay = _retry_delay_seconds(exc)
+                if delay is None or attempt == _RATE_LIMIT_RETRIES:
+                    raise
+                time.sleep(delay)
+        raise AssertionError("unreachable retry loop")
 
     def search_code(self, query: str) -> tuple[list[dict[str, Any]], int, bool]:
         items, total_count, incomplete = super().search_code(query)
