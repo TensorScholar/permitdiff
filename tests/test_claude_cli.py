@@ -52,7 +52,33 @@ def test_claude_compare_writes_report_and_normalization_evidence(tmp_path: Path)
     assert evidence["webfetch_sandbox_gap_acknowledged"] is True
 
 
-def test_claude_compare_json_stdout_is_machine_parseable() -> None:
+def test_claude_compare_json_stdout_is_machine_parseable(tmp_path: Path) -> None:
+    evidence_path = tmp_path / "claude-evidence.json"
+    result = runner.invoke(
+        app,
+        [
+            "claude",
+            "compare",
+            str(PILOT / "source-baseline.json"),
+            str(PILOT / "source-candidate.json"),
+            str(PILOT / "corpus.jsonl"),
+            *_ACK_FLAGS,
+            "--format",
+            "json",
+            "--evidence-output",
+            str(evidence_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert payload["comparison"]["summary"]["changed_effects"] == 2
+    assert evidence["ignored_root_changes_acknowledged"] is True
+    assert evidence["webfetch_sandbox_gap_acknowledged"] is True
+
+
+def test_claude_compare_requires_evidence_for_active_acknowledgements() -> None:
     result = runner.invoke(
         app,
         [
@@ -67,9 +93,33 @@ def test_claude_compare_json_stdout_is_machine_parseable() -> None:
         ],
     )
 
+    assert result.exit_code == 1
+    assert "require --evidence-output" in result.output
+
+
+def test_inert_acknowledgement_flags_do_not_require_evidence(tmp_path: Path) -> None:
+    baseline = tmp_path / "baseline.json"
+    candidate = tmp_path / "candidate.json"
+    settings = {"permissions": {"allow": [], "defaultMode": "dontAsk"}}
+    baseline.write_text(json.dumps(settings), encoding="utf-8")
+    candidate.write_text(json.dumps(settings), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "claude",
+            "compare",
+            str(baseline),
+            str(candidate),
+            str(PILOT / "corpus.jsonl"),
+            *_ACK_FLAGS,
+            "--format",
+            "json",
+        ],
+    )
+
     assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["comparison"]["summary"]["changed_effects"] == 2
+    json.loads(result.stdout)
 
 
 def test_claude_compare_rejects_unacknowledged_root_drift() -> None:

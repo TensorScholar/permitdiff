@@ -58,15 +58,15 @@ class GateConfig(BaseModel):
 
     api_version: Literal["permitdiff.dev/v1alpha1"] = "permitdiff.dev/v1alpha1"
     kind: Literal["Gate"] = "Gate"
-    max_privilege_expansions: int = Field(default=0, ge=0)
-    max_new_allows: int = Field(default=0, ge=0)
-    max_approval_bypasses: int = Field(default=0, ge=0)
-    max_static_authority_expansions: int = Field(default=0, ge=0)
-    max_uncovered_candidate_rules: int | None = Field(default=0, ge=0)
-    forbid_default_effect_relaxation: bool = True
-    forbid_missing_differential_evidence: bool = False
-    fail_on_removed_rules: bool = False
-    fail_on_unused_waivers: bool = False
+    max_privilege_expansions: int = Field(default=0, ge=0, strict=True)
+    max_new_allows: int = Field(default=0, ge=0, strict=True)
+    max_approval_bypasses: int = Field(default=0, ge=0, strict=True)
+    max_static_authority_expansions: int = Field(default=0, ge=0, strict=True)
+    max_uncovered_candidate_rules: int | None = Field(default=0, ge=0, strict=True)
+    forbid_default_effect_relaxation: bool = Field(default=True, strict=True)
+    forbid_missing_differential_evidence: bool = Field(default=False, strict=True)
+    fail_on_removed_rules: bool = Field(default=False, strict=True)
+    fail_on_unused_waivers: bool = Field(default=False, strict=True)
     waivers: list[TransitionWaiver] = Field(default_factory=list)
     authority_waivers: list[AuthorityWaiver] = Field(default_factory=list)
 
@@ -338,9 +338,21 @@ def evaluate_gate(
 
 
 def strict_gate() -> GateConfig:
-    """Return a zero-expansion, fail-closed, full-candidate-coverage release gate."""
+    """Return the explicit fail-closed strict release profile."""
 
-    return GateConfig(forbid_missing_differential_evidence=True)
+    return GateConfig(
+        max_privilege_expansions=0,
+        max_new_allows=0,
+        max_approval_bypasses=0,
+        max_static_authority_expansions=0,
+        max_uncovered_candidate_rules=0,
+        forbid_default_effect_relaxation=True,
+        forbid_missing_differential_evidence=True,
+        fail_on_removed_rules=False,
+        fail_on_unused_waivers=False,
+        waivers=[],
+        authority_waivers=[],
+    )
 
 
 def _missing_differential_evidence(

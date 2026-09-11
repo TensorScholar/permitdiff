@@ -41,10 +41,10 @@ class ToolAnnotations(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    read_only: bool | None = None
-    destructive: bool | None = None
-    idempotent: bool | None = None
-    open_world: bool | None = None
+    read_only: bool | None = Field(default=None, strict=True)
+    destructive: bool | None = Field(default=None, strict=True)
+    idempotent: bool | None = Field(default=None, strict=True)
+    open_world: bool | None = Field(default=None, strict=True)
 
 
 class ActionContext(BaseModel):
@@ -57,7 +57,7 @@ class ActionContext(BaseModel):
     trace_id: str | None = Field(default=None, max_length=256)
     source: str = Field(default="corpus", min_length=1, max_length=128)
     risk: RiskLevel | None = None
-    security_metadata_trusted: bool = False
+    security_metadata_trusted: bool = Field(default=False, strict=True)
 
     @model_validator(mode="after")
     def extra_context_must_be_json_compatible(self) -> ActionContext:
