@@ -150,6 +150,7 @@ def test_incomplete_read_is_retried_without_changing_request(monkeypatch) -> Non
 def test_remote_disconnect_is_retried_without_changing_request(monkeypatch) -> None:
     calls: list[tuple[str, object]] = []
     sleeps: list[float] = []
+    clock = iter([100.0, 101.0])
 
     def fake_get_json(self, endpoint, params=None):
         calls.append((endpoint, params))
@@ -158,6 +159,7 @@ def test_remote_disconnect_is_retried_without_changing_request(monkeypatch) -> N
         return {"ok": True}
 
     monkeypatch.setattr(GitHubClient, "get_json", fake_get_json)
+    monkeypatch.setattr(public_discovery.time, "monotonic", lambda: next(clock))
     monkeypatch.setattr(public_discovery.time, "sleep", sleeps.append)
 
     client = PublicOnlyGitHubClient(None)
