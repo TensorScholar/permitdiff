@@ -54,9 +54,17 @@ jobs:
 
       - name: Validate discovery harness before collection
         run: |
-          python -m pytest -q tests/test_r3_discovery.py tests/test_r3_public_discovery.py
-          ruff format --check scripts/discover_r3_public_benchmark_candidates.py tests/test_r3_public_discovery.py
-          ruff check scripts/discover_r3_public_benchmark_candidates.py tests/test_r3_public_discovery.py
+          python -m pytest -q --no-cov tests/test_r3_discovery.py tests/test_r3_public_discovery.py
+          ruff format --check \
+            scripts/discover_r3_benchmark_candidates.py \
+            scripts/discover_r3_public_benchmark_candidates.py \
+            tests/test_r3_discovery.py \
+            tests/test_r3_public_discovery.py
+          ruff check \
+            scripts/discover_r3_benchmark_candidates.py \
+            scripts/discover_r3_public_benchmark_candidates.py \
+            tests/test_r3_discovery.py \
+            tests/test_r3_public_discovery.py
 
       - name: Capture public-only discovery ledger
         env:
