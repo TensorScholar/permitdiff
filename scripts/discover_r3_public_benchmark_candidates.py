@@ -8,8 +8,8 @@ transition enters the discovery ledger. Missing visibility metadata fails the di
 frame closed by marking the corresponding search incomplete.
 
 Live collection also paces GitHub code-search requests and retries explicit HTTP 429
-responses. Those transport controls do not alter the frozen query text, result ordering,
-or screening rules; they only prevent a transient API throttle from truncating the frame.
+responses plus narrowly identified transient read/disconnect failures. Those transport
+controls do not alter the frozen query text, result ordering, or screening rules.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import re
 import sys
 import time
 from collections.abc import Mapping, Sequence
-from http.client import IncompleteRead
+from http.client import IncompleteRead, RemoteDisconnected
 from pathlib import Path
 from typing import Any
 
@@ -90,7 +90,7 @@ class PublicOnlyGitHubClient(GitHubClient):
                 self._pace_code_search()
             try:
                 return super().get_json(endpoint, params)
-            except IncompleteRead:
+            except (IncompleteRead, RemoteDisconnected):
                 if read_attempts == _TRANSIENT_READ_RETRIES:
                     raise
                 read_attempts += 1
@@ -112,7 +112,7 @@ class PublicOnlyGitHubClient(GitHubClient):
         while True:
             try:
                 return super()._get_json_array(endpoint, params)
-            except IncompleteRead:
+            except (IncompleteRead, RemoteDisconnected):
                 if read_attempts == _TRANSIENT_READ_RETRIES:
                     raise
                 read_attempts += 1
