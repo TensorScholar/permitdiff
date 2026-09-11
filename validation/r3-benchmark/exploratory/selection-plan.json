@@ -1,0 +1,151 @@
+{
+  "plan_version": "r3-exploratory-corpus-plan-v1",
+  "protocol_version": "r3-benchmark-protocol-v1",
+  "created_against_main_sha": "b3177baa187a6397851dada72b9ff37e7b766f80",
+  "phase": "exploratory",
+  "status": "preregistered_before_new_public_discovery",
+  "maturity_ceiling": "ENGINEERING_VERIFIED",
+  "adapter_scope": {
+    "supported_native_adapter": "claude-code-project-preapprovals",
+    "source_system": "Claude Code project settings",
+    "supported_default_mode": "dontAsk",
+    "candidate_paths": [
+      ".claude/settings.json",
+      ".claude/settings.local.json"
+    ],
+    "other_source_systems_supported_in_public_historical_slice": false
+  },
+  "discovery": {
+    "query_concepts": [
+      {
+        "id": "q1",
+        "concept": "defaultMode dontAsk permissions allow"
+      },
+      {
+        "id": "q2",
+        "concept": "permissions allow ask deny .claude settings"
+      },
+      {
+        "id": "q3",
+        "concept": "WebFetch domain permissions allow"
+      },
+      {
+        "id": "q4",
+        "concept": "Bash permissions allow .claude"
+      },
+      {
+        "id": "q5",
+        "concept": "WebSearch permissions allow .claude"
+      }
+    ],
+    "ledger_required": true,
+    "retain_rejected_candidates": true,
+    "required_ledger_fields": [
+      "discovery_query_id",
+      "discovery_timestamp",
+      "repository_url",
+      "path",
+      "candidate_commit",
+      "candidate_blob",
+      "baseline_commit",
+      "baseline_blob",
+      "screening_status",
+      "exclusion_reason",
+      "contamination_status",
+      "selection_key"
+    ]
+  },
+  "public_historical_slice": {
+    "target_cases": 18,
+    "maximum_cases_per_repository": 2,
+    "label_quota": null,
+    "membership_selected_before_labeling": true,
+    "membership_selected_before_permitdiff_execution": true,
+    "transition_rule": "candidate commit plus immediately preceding unambiguous version of the same path",
+    "selection_key_formula": "SHA256(repository_url + '\n' + baseline_commit + '\n' + candidate_commit + '\n' + path)",
+    "selection_order": "selection_key_ascending",
+    "shortfall_policy": "use all eligible transitions and report shortfall; do not relax criteria",
+    "replacement_after_product_output": false
+  },
+  "synthetic_supported_slice": {
+    "target_cases": 8,
+    "purpose": "atomic supported-semantic coverage gaps not represented by public history",
+    "reported_separately": true
+  },
+  "unsupported_unknown_slice": {
+    "target_cases": 4,
+    "purpose": "explicit fail-closed boundary stress",
+    "reported_separately": true
+  },
+  "nominal_total_cases": 30,
+  "screening": {
+    "occurs_before_labeling": true,
+    "occurs_before_permitdiff_execution": true,
+    "required_conditions": [
+      "publicly retrievable repository, commit, and file",
+      "immutable reproducible baseline and candidate bytes",
+      "valid JSON Claude settings artifacts",
+      "authorization-relevant source change or intentional outside-projection control",
+      "sufficient public source-system semantics for later review",
+      "no private data or credentials",
+      "not a cosmetic duplicate"
+    ],
+    "fixed_exclusion_reasons": [
+      "unavailable_provenance",
+      "ambiguous_parent_transition",
+      "artifact_parse_failure",
+      "no_authorization_relevant_change",
+      "duplicate_transition",
+      "insufficient_public_semantics",
+      "private_or_sensitive_content",
+      "non_project_or_unscoped_settings",
+      "pre_exposed_engineering_control"
+    ],
+    "outcome_dependent_exclusion_forbidden": true
+  },
+  "contamination_register": [
+    {
+      "repository_url": "https://github.com/SpearIT-LLC/project-framework",
+      "baseline_commit": "28133b63a9a54621c8d7be879ba671daf8464c1c",
+      "candidate_commit": "d8a47de7f5f96d501432a7f02c6909c667a5f31d",
+      "path": ".claude/settings.local.json",
+      "status": "pre_exposed_engineering_control",
+      "eligible_for_public_historical_selection": false,
+      "reason": "transition already used by PermitDiff external-repository validation before preregistration"
+    }
+  ],
+  "adjudication": {
+    "labels": [
+      "SECURITY_RELEVANT_REGRESSION",
+      "BENIGN_OR_RESTRICTIVE_CHANGE",
+      "UNKNOWN_OR_UNSUPPORTED"
+    ],
+    "permitdiff_output_hidden_from_reviewers": true,
+    "plain_text_diff_allowed_in_review_packet": true,
+    "ai_assistance_counts_as_independent_human_reviewer": false,
+    "single_reviewed_exploratory_cases_allowed": true,
+    "single_reviewed_cases_must_remain_separable": true,
+    "post_output_label_revision_is_contamination": true
+  },
+  "pre_execution_lock": {
+    "required_before_first_permitdiff_run": [
+      "complete candidate discovery ledger",
+      "deterministic selected-case list",
+      "immutable artifacts and provenance",
+      "SHA-256 digests",
+      "provisional exploratory adjudications",
+      "canonical case manifest",
+      "integrity-validator evidence"
+    ],
+    "change_after_first_execution_requires_new_corpus_version": true
+  },
+  "analysis_policy": {
+    "exploratory_results_are_confirmatory_accuracy_evidence": false,
+    "population_generalization_permitted": false,
+    "significance_testing_expected": false,
+    "raw_case_outcomes_required": true,
+    "public_historical_synthetic_and_unknown_slices_reported_separately": true,
+    "product_fixes_triggered_by_cases_must_reference_case_ids": true,
+    "reruns_after_fixes_are_new_exploratory_run_versions": true
+  }
+}
