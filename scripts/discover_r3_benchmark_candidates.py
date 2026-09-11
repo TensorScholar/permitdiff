@@ -19,6 +19,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -417,7 +418,7 @@ def enumerate_transitions(
         if len(commits) < 2:
             continue
 
-        for candidate_record, baseline_record in zip(commits, commits[1:], strict=False):
+        for candidate_record, baseline_record in pairwise(commits):
             candidate_commit = _commit_sha(candidate_record, context=f"{repository}:{path}")
             baseline_commit = _commit_sha(baseline_record, context=f"{repository}:{path}")
             identity = (repository_url, baseline_commit, candidate_commit, path)
