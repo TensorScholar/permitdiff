@@ -16,21 +16,25 @@ The scientific order remains:
 
 ## Commands
 
-Live discovery:
+Live public-only discovery:
 
 ```bash
-python scripts/discover_r3_benchmark_candidates.py discover \
+python scripts/discover_r3_public_benchmark_candidates.py discover \
   --output validation/r3-benchmark/exploratory/discovery-ledger.json
 ```
 
-GitHub code search is an authenticated/rate-limited public API. The script reads `GH_TOKEN` or `GITHUB_TOKEN` from the environment when available. Tokens are collection credentials only: they must never be committed to the ledger, source tree, review packets, or benchmark artifacts.
+GitHub code search is an authenticated/rate-limited API. The public-only entrypoint reads `GH_TOKEN` or `GITHUB_TOKEN` from the environment when available. Tokens are collection credentials only: they must never be committed to the ledger, source tree, review packets, or benchmark artifacts.
+
+Authenticated code search can expose repositories visible to the supplied token. Because the preregistered historical slice is public-only, the live entrypoint admits a search result only when GitHub explicitly reports `repository.private == false`. Results from private repositories are excluded before any repository name, path, commit, or artifact enters the ledger. A result with missing or non-boolean visibility metadata causes that search to fail closed as incomplete rather than being assumed public.
+
+The lower-level `discover_r3_benchmark_candidates.py` module contains the shared discovery and deterministic-selection mechanics. Direct live collection should use the public-only entrypoint above so the source-visibility boundary is enforced even when the credential can read private code.
 
 A deliberately truncated debug collection may be run with `--max-history-commits`, but any reached history cap marks the ledger incomplete. An incomplete ledger is rejected by the selection command and is not admissible for the preregistered historical slice.
 
 After manual screening changes every retained transition from `pending` to either `eligible` or `excluded` under the fixed exclusion vocabulary, deterministic selection is:
 
 ```bash
-python scripts/discover_r3_benchmark_candidates.py select \
+python scripts/discover_r3_public_benchmark_candidates.py select \
   --ledger validation/r3-benchmark/exploratory/discovery-ledger.json \
   --output validation/r3-benchmark/exploratory/public-selection.json
 ```
@@ -58,7 +62,7 @@ The harness expands the five preregistered semantic query concepts over the two 
 
 Search hits at nested or example/template paths are not admitted merely because their names contain `.claude/settings`. This deliberately chooses a narrower, reproducible frame over subjective path interpretation.
 
-For each exact path discovered on a repository's indexed default branch, the harness enumerates commit history touching that path and pairs adjacent historical versions. It captures:
+For each exact public path discovered on a repository's indexed default branch, the harness enumerates commit history touching that path and pairs adjacent historical versions. It captures:
 
 - repository and path;
 - discovery query provenance;
@@ -83,12 +87,14 @@ The harness automatically excludes only conditions that can be established mecha
 - ambiguous multi-parent candidate transition;
 - a transition already registered as a pre-exposed engineering control.
 
+Repository visibility is enforced even earlier, at search-result admission: non-public results never become transition candidates.
+
 A transition whose `permissions` subtree is unchanged is **not** automatically discarded. It remains pending so a reviewer can determine whether another authorization-relevant source surface changed or whether the transition should receive the preregistered `no_authorization_relevant_change` exclusion. This avoids silently filtering outside-projection/unknown candidates.
 
 Pending transitions require manual screening for at least:
 
 - public source-semantic sufficiency;
-- sensitive/private content;
+- sensitive/private content within otherwise public artifacts;
 - project-scoped interpretation;
 - cosmetic duplication;
 - authorization relevance outside the `permissions` subtree.
@@ -101,6 +107,7 @@ Manual screening must not consult PermitDiff output.
 
 - GitHub reports incomplete code-search results;
 - a code-search query exceeds GitHub's 1,000-result API window;
+- repository visibility metadata is unavailable for a returned search result;
 - commit history was intentionally capped and the cap was reached.
 
 The selector refuses an incomplete ledger.
