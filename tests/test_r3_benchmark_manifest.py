@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from scripts.validate_r3_benchmark_manifest import IntegrityError, main, validate_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
