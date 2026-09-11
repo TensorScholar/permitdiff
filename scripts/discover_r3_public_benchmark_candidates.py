@@ -19,6 +19,7 @@ import re
 import sys
 import time
 from collections.abc import Mapping, Sequence
+from http.client import IncompleteRead
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,8 @@ _CODE_SEARCH_INTERVAL_SECONDS = 7.0
 _RATE_LIMIT_RETRIES = 8
 _RATE_LIMIT_FALLBACK_SECONDS = 10.0
 _RATE_LIMIT_DELAY = re.compile(r"try again in ([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
+_TRANSIENT_READ_RETRIES = 3
+_TRANSIENT_READ_RETRY_SECONDS = 1.0
 
 
 def _retry_delay_seconds(error: DiscoveryError) -> float | None:
@@ -70,34 +73,48 @@ class PublicOnlyGitHubClient(GitHubClient):
     def get_json(
         self, endpoint: str, params: Mapping[str, str | int] | None = None
     ) -> dict[str, Any]:
-        """Retry explicit throttles while preserving the exact requested endpoint/params."""
+        """Retry bounded transport failures without changing endpoint or parameters."""
 
-        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+        rate_limit_attempts = 0
+        read_attempts = 0
+        while True:
             if endpoint == "/search/code":
                 self._pace_code_search()
             try:
                 return super().get_json(endpoint, params)
+            except IncompleteRead:
+                if read_attempts == _TRANSIENT_READ_RETRIES:
+                    raise
+                read_attempts += 1
+                time.sleep(_TRANSIENT_READ_RETRY_SECONDS)
             except DiscoveryError as exc:
                 delay = _retry_delay_seconds(exc)
-                if delay is None or attempt == _RATE_LIMIT_RETRIES:
+                if delay is None or rate_limit_attempts == _RATE_LIMIT_RETRIES:
                     raise
+                rate_limit_attempts += 1
                 time.sleep(delay)
-        raise AssertionError("unreachable retry loop")
 
     def _get_json_array(
         self, endpoint: str, params: Mapping[str, str | int] | None = None
     ) -> list[dict[str, Any]]:
-        """Retry throttled paginated array endpoints without changing request semantics."""
+        """Retry bounded transport failures for paginated array endpoints."""
 
-        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+        rate_limit_attempts = 0
+        read_attempts = 0
+        while True:
             try:
                 return super()._get_json_array(endpoint, params)
+            except IncompleteRead:
+                if read_attempts == _TRANSIENT_READ_RETRIES:
+                    raise
+                read_attempts += 1
+                time.sleep(_TRANSIENT_READ_RETRY_SECONDS)
             except DiscoveryError as exc:
                 delay = _retry_delay_seconds(exc)
-                if delay is None or attempt == _RATE_LIMIT_RETRIES:
+                if delay is None or rate_limit_attempts == _RATE_LIMIT_RETRIES:
                     raise
+                rate_limit_attempts += 1
                 time.sleep(delay)
-        raise AssertionError("unreachable retry loop")
 
     def search_code(self, query: str) -> tuple[list[dict[str, Any]], int, bool]:
         items, total_count, incomplete = super().search_code(query)
