@@ -1,0 +1,59 @@
+{
+  "cases": [
+    {
+      "adapter": null,
+      "adjudication": {
+        "atomic_categories": [
+          "new_allow"
+        ],
+        "evidence_refs": [
+          "README.md"
+        ],
+        "label": "SECURITY_RELEVANT_REGRESSION",
+        "rationale": "Example-only rationale showing the required adjudication shape; replace before exploratory execution.",
+        "review_status": "single_reviewed",
+        "reviewers": [
+          "example-reviewer"
+        ],
+        "support_boundary": "supported"
+      },
+      "baseline": {
+        "path": "cases/synthetic.new-allow.001/baseline.yaml",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "source_blob": null,
+        "source_commit": null,
+        "source_url": null
+      },
+      "candidate": {
+        "path": "cases/synthetic.new-allow.001/candidate.yaml",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "source_blob": null,
+        "source_commit": null,
+        "source_url": null
+      },
+      "change_family": "new_allow",
+      "description": "Minimal synthetic scaffold case demonstrating the manifest shape.",
+      "id": "synthetic.new-allow.001",
+      "notes": "Placeholder digests are structurally valid only. This file must never be treated as frozen benchmark evidence.",
+      "scenario_corpus": {
+        "path": "cases/synthetic.new-allow.001/corpus.jsonl",
+        "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "source_blob": null,
+        "source_commit": null,
+        "source_url": null
+      },
+      "source_kind": "synthetic",
+      "source_system": "permitdiff-policy",
+      "tags": [
+        "example",
+        "synthetic"
+      ]
+    }
+  ],
+  "corpus_id": "r3-exploratory-v0",
+  "description": "Schema example and directory scaffold only; not benchmark evidence.",
+  "frozen_at": null,
+  "phase": "exploratory",
+  "protocol_version": "r3-benchmark-protocol-v1",
+  "schema_version": "permitdiff.dev/r3-benchmark-case-manifest/v1"
+}

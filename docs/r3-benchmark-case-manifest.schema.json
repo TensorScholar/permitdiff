@@ -1,0 +1,300 @@
+{
+  "$defs": {
+    "adjudication": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "label": {
+                "const": "SECURITY_RELEVANT_REGRESSION"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "atomic_categories": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "atomic_categories"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "atomic_categories": {
+          "items": {
+            "enum": [
+              "new_allow",
+              "approval_bypass",
+              "restrictive_rule_removal",
+              "tool_or_scope_addition",
+              "predicate_removal",
+              "numeric_bound_relaxation",
+              "default_effect_relaxation",
+              "static_authority_expansion",
+              "precedence_or_order_widening",
+              "candidate_rule_coverage_gap",
+              "missing_differential_evidence",
+              "stale_or_mismatched_waiver_or_evidence",
+              "native_adapter_projection_gap",
+              "authority_contraction",
+              "additional_restriction",
+              "approval_strengthening",
+              "deny_addition",
+              "scope_narrowing",
+              "predicate_tightening",
+              "numeric_bound_tightening",
+              "equivalent_normalization",
+              "formatting_or_comment_only",
+              "unrelated_outside_projection",
+              "unsupported_predicate_relation",
+              "ambiguous_glob_relation",
+              "unmodeled_source_semantics",
+              "ambiguous_precedence_interaction"
+            ]
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "evidence_refs": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "label": {
+          "enum": [
+            "SECURITY_RELEVANT_REGRESSION",
+            "BENIGN_OR_RESTRICTIVE_CHANGE",
+            "UNKNOWN_OR_UNSUPPORTED"
+          ]
+        },
+        "rationale": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "review_status": {
+          "enum": [
+            "single_reviewed",
+            "double_reviewed",
+            "adjudicated"
+          ]
+        },
+        "reviewers": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "support_boundary": {
+          "enum": [
+            "supported",
+            "unsupported_or_unknown"
+          ]
+        }
+      },
+      "required": [
+        "label",
+        "support_boundary",
+        "review_status",
+        "rationale"
+      ],
+      "type": "object"
+    },
+    "artifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_blob": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_url": {
+          "format": "uri",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "case": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "maxLength": 128,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adjudication": {
+          "$ref": "#/$defs/adjudication"
+        },
+        "baseline": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "candidate": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "change_family": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 2000,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "type": "string"
+        },
+        "notes": {
+          "maxLength": 4000,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scenario_corpus": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/artifactRef"
+            }
+          ]
+        },
+        "source_kind": {
+          "enum": [
+            "public_historical",
+            "public_fixture",
+            "synthetic"
+          ]
+        },
+        "source_system": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "source_kind",
+        "source_system",
+        "change_family",
+        "baseline",
+        "candidate",
+        "adjudication"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://permitdiff.dev/schemas/r3-benchmark-case-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Machine-readable manifest for exploratory or confirmatory authorization-regression benchmark cases defined by r3-benchmark-protocol-v1.",
+  "properties": {
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/case"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "corpus_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "type": "string"
+    },
+    "description": {
+      "maxLength": 2000,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "frozen_at": {
+      "format": "date-time",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "phase": {
+      "enum": [
+        "exploratory",
+        "confirmatory"
+      ]
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-benchmark-case-manifest/v1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "corpus_id",
+    "phase",
+    "cases"
+  ],
+  "title": "PermitDiff R3 Benchmark Case Manifest",
+  "type": "object"
+}
