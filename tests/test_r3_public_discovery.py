@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from http.client import IncompleteRead
+from http.client import IncompleteRead, RemoteDisconnected
 from typing import Any
 
 import scripts.discover_r3_public_benchmark_candidates as public_discovery
@@ -147,6 +147,30 @@ def test_incomplete_read_is_retried_without_changing_request(monkeypatch) -> Non
     assert sleeps == [1.0]
 
 
+def test_remote_disconnect_is_retried_without_changing_request(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
+    sleeps: list[float] = []
+
+    def fake_get_json(self, endpoint, params=None):
+        calls.append((endpoint, params))
+        if len(calls) == 1:
+            raise RemoteDisconnected("remote end closed connection without response")
+        return {"ok": True}
+
+    monkeypatch.setattr(GitHubClient, "get_json", fake_get_json)
+    monkeypatch.setattr(public_discovery.time, "sleep", sleeps.append)
+
+    client = PublicOnlyGitHubClient(None)
+    result = client.get_json("/search/code", {"q": "query", "page": 7})
+
+    assert result == {"ok": True}
+    assert calls == [
+        ("/search/code", {"q": "query", "page": 7}),
+        ("/search/code", {"q": "query", "page": 7}),
+    ]
+    assert sleeps == [1.0, 11.0]
+
+
 def test_incomplete_array_read_is_retried_without_changing_request(monkeypatch) -> None:
     calls: list[tuple[str, object]] = []
     sleeps: list[float] = []
@@ -155,6 +179,30 @@ def test_incomplete_array_read_is_retried_without_changing_request(monkeypatch) 
         calls.append((endpoint, params))
         if len(calls) == 1:
             raise IncompleteRead(b"partial", 10)
+        return [{"sha": "a" * 40}]
+
+    monkeypatch.setattr(GitHubClient, "_get_json_array", fake_get_json_array)
+    monkeypatch.setattr(public_discovery.time, "sleep", sleeps.append)
+
+    client = PublicOnlyGitHubClient(None)
+    result = client._get_json_array("/repos/example/project/commits", {"page": 2})
+
+    assert result == [{"sha": "a" * 40}]
+    assert calls == [
+        ("/repos/example/project/commits", {"page": 2}),
+        ("/repos/example/project/commits", {"page": 2}),
+    ]
+    assert sleeps == [1.0]
+
+
+def test_remote_disconnect_array_is_retried_without_changing_request(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
+    sleeps: list[float] = []
+
+    def fake_get_json_array(self, endpoint, params=None):
+        calls.append((endpoint, params))
+        if len(calls) == 1:
+            raise RemoteDisconnected("remote end closed connection without response")
         return [{"sha": "a" * 40}]
 
     monkeypatch.setattr(GitHubClient, "_get_json_array", fake_get_json_array)
