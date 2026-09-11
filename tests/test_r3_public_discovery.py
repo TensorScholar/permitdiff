@@ -79,7 +79,7 @@ def test_explicit_http_429_is_retried_without_changing_request(monkeypatch) -> N
         calls.append((endpoint, params))
         if len(calls) == 1:
             raise DiscoveryError(
-                'GitHub API HTTP 429 for https://api.github.com/example: '
+                "GitHub API HTTP 429 for https://api.github.com/example: "
                 '{"message":"try again in 0.25s"}'
             )
         return {"ok": True}
