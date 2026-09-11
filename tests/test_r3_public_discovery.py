@@ -96,7 +96,31 @@ def test_explicit_http_429_is_retried_without_changing_request(monkeypatch) -> N
         ("/repos/example/project", {"page": 3}),
         ("/repos/example/project", {"page": 3}),
     ]
-    assert sleeps == [1.25]
+    assert sleeps == [60.0]
+
+
+def test_repeated_http_429_uses_bounded_exponential_backoff(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
+    sleeps: list[float] = []
+
+    def fake_get_json(self, endpoint, params=None):
+        calls.append((endpoint, params))
+        if len(calls) <= 3:
+            raise DiscoveryError(
+                "GitHub API HTTP 429 for https://api.github.com/example: "
+                '{"message":"try again in 0.25s"}'
+            )
+        return {"ok": True}
+
+    monkeypatch.setattr(GitHubClient, "get_json", fake_get_json)
+    monkeypatch.setattr(public_discovery.time, "sleep", sleeps.append)
+
+    client = PublicOnlyGitHubClient(None)
+    result = client.get_json("/repos/example/project", {"page": 3})
+
+    assert result == {"ok": True}
+    assert len(calls) == 4
+    assert sleeps == [60.0, 120.0, 240.0]
 
 
 def test_incomplete_read_is_retried_without_changing_request(monkeypatch) -> None:
@@ -159,4 +183,4 @@ def test_code_search_requests_are_paced(monkeypatch) -> None:
     client.get_json("/search/code", {"q": "first"})
     client.get_json("/search/code", {"q": "second"})
 
-    assert sleeps == [5.0]
+    assert sleeps == [10.0]

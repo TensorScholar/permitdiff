@@ -33,24 +33,32 @@ from scripts.discover_r3_benchmark_candidates import (
     select_public_historical,
 )
 
-_CODE_SEARCH_INTERVAL_SECONDS = 7.0
-_RATE_LIMIT_RETRIES = 8
-_RATE_LIMIT_FALLBACK_SECONDS = 10.0
+_CODE_SEARCH_INTERVAL_SECONDS = 12.0
+_RATE_LIMIT_RETRIES = 4
+_RATE_LIMIT_FALLBACK_SECONDS = 60.0
+_RATE_LIMIT_MAX_SECONDS = 240.0
 _RATE_LIMIT_DELAY = re.compile(r"try again in ([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
 _TRANSIENT_READ_RETRIES = 3
 _TRANSIENT_READ_RETRY_SECONDS = 1.0
 
 
-def _retry_delay_seconds(error: DiscoveryError) -> float | None:
-    """Return a bounded retry delay only for explicit GitHub HTTP 429 responses."""
+def _retry_delay_seconds(error: DiscoveryError, *, retry_index: int) -> float | None:
+    """Return a conservative bounded retry delay only for explicit GitHub HTTP 429 responses."""
 
     message = str(error)
     if "GitHub API HTTP 429" not in message and "HTTP Error 429" not in message:
         return None
     match = _RATE_LIMIT_DELAY.search(message)
-    if match is None:
-        return _RATE_LIMIT_FALLBACK_SECONDS
-    return min(max(float(match.group(1)) + 1.0, 1.0), 60.0)
+    server_delay = (
+        _RATE_LIMIT_FALLBACK_SECONDS
+        if match is None
+        else min(max(float(match.group(1)) + 1.0, 1.0), _RATE_LIMIT_MAX_SECONDS)
+    )
+    exponential_delay = min(
+        _RATE_LIMIT_FALLBACK_SECONDS * (2**retry_index),
+        _RATE_LIMIT_MAX_SECONDS,
+    )
+    return max(server_delay, exponential_delay)
 
 
 class PublicOnlyGitHubClient(GitHubClient):
@@ -88,7 +96,7 @@ class PublicOnlyGitHubClient(GitHubClient):
                 read_attempts += 1
                 time.sleep(_TRANSIENT_READ_RETRY_SECONDS)
             except DiscoveryError as exc:
-                delay = _retry_delay_seconds(exc)
+                delay = _retry_delay_seconds(exc, retry_index=rate_limit_attempts)
                 if delay is None or rate_limit_attempts == _RATE_LIMIT_RETRIES:
                     raise
                 rate_limit_attempts += 1
@@ -110,7 +118,7 @@ class PublicOnlyGitHubClient(GitHubClient):
                 read_attempts += 1
                 time.sleep(_TRANSIENT_READ_RETRY_SECONDS)
             except DiscoveryError as exc:
-                delay = _retry_delay_seconds(exc)
+                delay = _retry_delay_seconds(exc, retry_index=rate_limit_attempts)
                 if delay is None or rate_limit_attempts == _RATE_LIMIT_RETRIES:
                     raise
                 rate_limit_attempts += 1
