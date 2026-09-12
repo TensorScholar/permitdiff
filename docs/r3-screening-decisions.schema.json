@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-screening-decisions.schema.json",
+  "title": "PermitDiff R3 Public Screening Decisions",
+  "description": "Output-blind manual screening decisions bound to one complete R3 discovery ledger.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_version",
+    "protocol_version",
+    "source_ledger_sha256",
+    "generated_at",
+    "instructions",
+    "decisions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "permitdiff.dev/r3-screening-decisions/v1"
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "source_ledger_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "instructions": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    }
+  },
+  "$defs": {
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "exclusionReason": {
+      "enum": [
+        "unavailable_provenance",
+        "ambiguous_parent_transition",
+        "artifact_parse_failure",
+        "no_authorization_relevant_change",
+        "duplicate_transition",
+        "insufficient_public_semantics",
+        "private_or_sensitive_content",
+        "non_project_or_unscoped_settings",
+        "pre_exposed_engineering_control"
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transition_id",
+        "repository_url",
+        "path",
+        "baseline_commit",
+        "candidate_commit",
+        "permissions_changed",
+        "contamination_status",
+        "decision",
+        "exclusion_reasons",
+        "rationale",
+        "reviewer"
+      ],
+      "properties": {
+        "transition_id": {
+          "type": "string",
+          "pattern": "^gh-[0-9a-f]{20}$"
+        },
+        "repository_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+        },
+        "path": {
+          "enum": [
+            ".claude/settings.json",
+            ".claude/settings.local.json"
+          ]
+        },
+        "baseline_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "candidate_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "permissions_changed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "contamination_status": {
+          "enum": [
+            "clean",
+            "pre_exposed_engineering_control"
+          ]
+        },
+        "decision": {
+          "enum": [
+            "pending",
+            "eligible",
+            "excluded"
+          ]
+        },
+        "exclusion_reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/exclusionReason"
+          }
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 10000
+        },
+        "reviewer": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "pending"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "exclusion_reasons": {
+                "maxItems": 0
+              },
+              "rationale": {
+                "type": "null"
+              },
+              "reviewer": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "eligible"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "exclusion_reasons": {
+                "maxItems": 0
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reviewer": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "excluded"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "exclusion_reasons": {
+                "minItems": 1
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reviewer": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
