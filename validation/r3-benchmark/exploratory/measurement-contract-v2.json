@@ -1,0 +1,71 @@
+{
+  "schema_version": "permitdiff.dev/r3-measurement-contract/v1",
+  "measurement_contract_version": "r3-exploratory-measurement-contract-v2",
+  "amendment_id": "r3-exploratory-measurement-amendment-2026-09-12-v1",
+  "parent_plan_version": "r3-exploratory-corpus-plan-v1",
+  "protocol_version": "r3-benchmark-protocol-v1",
+  "adopted_before_canonical_labels": true,
+  "adopted_before_product_execution": true,
+  "primary_research_target": "review_worthy_authorization_widening_under_frozen_source_semantics",
+  "semantic_version_policy": "fixed_version_replay",
+  "source_semantic_relations": [
+    "WIDENING",
+    "RESTRICTIVE",
+    "EQUIVALENT",
+    "MIXED",
+    "UNRESOLVED"
+  ],
+  "tool_support_values": [
+    "SUPPORTED",
+    "PARTIALLY_SUPPORTED",
+    "UNSUPPORTED"
+  ],
+  "organizational_intent_values": [
+    "KNOWN_INTENDED",
+    "KNOWN_UNINTENDED",
+    "UNAVAILABLE",
+    "NOT_APPLICABLE"
+  ],
+  "source_semantics_resolution_values": [
+    "RESOLVED",
+    "AMBIGUOUS",
+    "UNAVAILABLE"
+  ],
+  "scenario_provenance_values": [
+    "PREEXISTING_PROJECT",
+    "INDEPENDENT_BLIND",
+    "DIAGNOSTIC_ANSWER_INFORMED",
+    "PRODUCT_GENERATED"
+  ],
+  "primary_scenario_provenance": [
+    "PREEXISTING_PROJECT",
+    "INDEPENDENT_BLIND"
+  ],
+  "primary_metrics": [
+    "definite_detection_recall",
+    "automatic_pass_error_rate",
+    "decisive_coverage",
+    "escalation_burden",
+    "false_alarm_burden",
+    "support_boundary_rate",
+    "scenario_channel_availability",
+    "static_channel_contribution"
+  ],
+  "human_review_independence": {
+    "adjudicators_separate_from_timed_reviewers": true,
+    "one_condition_per_case_per_participant": true,
+    "training_cases_disjoint": true,
+    "checklist_frozen_before_evaluation": true
+  },
+  "holdout_rule": "inspected_or_debugged_cases_are_never_fresh_confirmatory_evidence",
+  "unchanged_preregistration_controls": [
+    "frozen_discovery_queries",
+    "exact_candidate_paths",
+    "public_only_collection",
+    "fixed_exclusion_vocabulary",
+    "contamination_register",
+    "deterministic_selection",
+    "max_two_cases_per_repository",
+    "no_product_output_before_lock"
+  ]
+}
