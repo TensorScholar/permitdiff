@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from http.client import IncompleteRead, RemoteDisconnected
 from typing import Any
 
@@ -234,3 +235,70 @@ def test_code_search_requests_are_paced(monkeypatch) -> None:
     client.get_json("/search/code", {"q": "second"})
 
     assert sleeps == [10.0]
+
+
+def test_history_listing_primes_commit_metadata_cache(monkeypatch) -> None:
+    commit = {
+        "sha": "a" * 40,
+        "parents": [{"sha": "b" * 40}],
+        "commit": {"committer": {"date": "2026-09-01T00:00:00Z"}},
+    }
+
+    monkeypatch.setattr(
+        GitHubClient,
+        "list_path_commits",
+        lambda self, repository, path, max_commits=None: ([commit], False),
+    )
+
+    def unexpected_get_commit(self, repository, sha):
+        raise AssertionError("cached history metadata should avoid a second API request")
+
+    monkeypatch.setattr(GitHubClient, "get_commit", unexpected_get_commit)
+
+    client = PublicOnlyGitHubClient(None)
+    commits, truncated = client.list_path_commits("public/example", ".claude/settings.json")
+    resolved = client.get_commit("public/example", "a" * 40)
+
+    assert commits == [commit]
+    assert truncated is False
+    assert resolved == commit
+    assert client._commit_cache_hits == 1
+    assert client._commit_cache_misses == 0
+
+
+def test_file_bytes_are_cached_by_exact_repository_path_and_ref(monkeypatch) -> None:
+    calls: list[tuple[str, str, str]] = []
+    result = ({"sha": "c" * 40, "type": "file"}, b'{"permissions": {}}')
+
+    def fake_get_file(self, repository, path, ref):
+        calls.append((repository, path, ref))
+        return result
+
+    monkeypatch.setattr(GitHubClient, "get_file", fake_get_file)
+
+    client = PublicOnlyGitHubClient(None)
+    first = client.get_file("public/example", ".claude/settings.json", "a" * 40)
+    second = client.get_file("public/example", ".claude/settings.json", "a" * 40)
+
+    assert first == result
+    assert second == result
+    assert calls == [("public/example", ".claude/settings.json", "a" * 40)]
+    assert client._file_cache_hits == 1
+    assert client._file_cache_misses == 1
+
+
+def test_progress_snapshot_is_atomic_noncanonical_and_token_free(tmp_path) -> None:
+    progress_path = tmp_path / "discovery-progress.json"
+    secret = "secret-token-must-not-appear"
+    client = PublicOnlyGitHubClient(secret, progress_path=progress_path)
+
+    client.finish("complete", transition_count=7)
+
+    payload = json.loads(progress_path.read_text(encoding="utf-8"))
+    raw = progress_path.read_text(encoding="utf-8")
+    assert payload["schema_version"] == "permitdiff.dev/r3-discovery-progress/v1"
+    assert payload["status"] == "complete"
+    assert payload["last_event"]["event"] == "run_finished"
+    assert payload["last_event"]["transition_count"] == 7
+    assert secret not in raw
+    assert not progress_path.with_name(progress_path.name + ".tmp").exists()

@@ -72,7 +72,8 @@ jobs:
         run: |
           mkdir -p validation/r3-benchmark/exploratory/live-capture-v1
           python -m scripts.discover_r3_public_benchmark_candidates discover \
-            --output validation/r3-benchmark/exploratory/live-capture-v1/discovery-ledger.json
+            --output validation/r3-benchmark/exploratory/live-capture-v1/discovery-ledger.json \
+            --progress-output validation/r3-benchmark/exploratory/live-capture-v1/discovery-progress.json
 
       - name: Validate ledger schema and research invariants
         run: |
@@ -135,3 +136,12 @@ jobs:
           path: validation/r3-benchmark/exploratory/live-capture-v1/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload failed discovery diagnostics
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: r3-live-public-discovery-diagnostics-${{ github.run_id }}
+          path: validation/r3-benchmark/exploratory/live-capture-v1/
+          if-no-files-found: warn
+          retention-days: 14
