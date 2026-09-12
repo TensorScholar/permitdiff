@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-review-context.schema.json",
+  "title": "PermitDiff R3 Blinded Review Context",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_version",
+    "protocol_version",
+    "source_materialization_sha256",
+    "generated_at",
+    "common_documentation_refs",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "permitdiff.dev/r3-review-context/v1"
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "source_materialization_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "common_documentation_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/documentationRef"
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "documentationRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "title",
+        "version_or_date",
+        "notes"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "version_or_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "transition_id",
+        "status",
+        "documentation_refs",
+        "notes"
+      ],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "transition_id": {
+          "type": "string",
+          "pattern": "^gh-[0-9a-f]{20}$"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "ready"
+          ]
+        },
+        "documentation_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/documentationRef"
+          }
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 10000
+        }
+      }
+    }
+  }
+}
