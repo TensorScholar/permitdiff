@@ -11,11 +11,7 @@ from jsonschema.exceptions import ValidationError
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = (
-    ROOT
-    / "validation"
-    / "r3-benchmark"
-    / "exploratory"
-    / "freeze-completion-contract-v1.json"
+    ROOT / "validation" / "r3-benchmark" / "exploratory" / "freeze-completion-contract-v1.json"
 )
 CONTRACT_SCHEMA_PATH = ROOT / "docs" / "r3-freeze-completion-contract.schema.json"
 RECORDS_SCHEMA_PATH = ROOT / "docs" / "r3-freeze-completion-records.schema.json"
@@ -44,6 +40,76 @@ def test_freeze_completion_contract_and_schemas_are_valid() -> None:
     Draft202012Validator(schema).validate(contract)
     records_schema = _load(RECORDS_SCHEMA_PATH)
     Draft202012Validator.check_schema(records_schema)
+
+
+def test_records_schema_resolves_nested_result_definitions() -> None:
+    records_schema = _load(RECORDS_SCHEMA_PATH)
+    validator = Draft202012Validator(records_schema)
+    digest = "a" * 64
+    rate = {"numerator": 0, "denominator": 1, "rate": 0.0}
+
+    validator.validate(
+        {
+            "schema_version": "permitdiff.dev/r3-permitdiff-result-record/v1",
+            "case_id": "case-1",
+            "product_commit": "1f3b3a4afda67c01c4f29a93a45b18511980036b",
+            "execution_state": "EXECUTED",
+            "scenario_channel_state": "PRESENT",
+            "product_disposition": "DEFINITE_REVIEW_REQUIRED",
+            "command_argv": ["python", "-m", "permitdiff"],
+            "report_artifact": {"path": "report.json", "sha256": digest},
+            "projection_evidence_artifact": {
+                "path": "projection-evidence.json",
+                "sha256": digest,
+            },
+            "exit_code": 1,
+            "runtime_seconds": 0.1,
+            "error": None,
+        }
+    )
+
+    validator.validate(
+        {
+            "schema_version": "permitdiff.dev/r3-comparative-analysis-result/v1",
+            "corpus_id": "corpus-1",
+            "pre_execution_lock_sha256": digest,
+            "primary_population": "public_historical_natural_only",
+            "natural_case_count": 1,
+            "invalidated_case_count": 0,
+            "permitdiff": {
+                "definite_detection_recall": rate,
+                "automatic_pass_error_rate": rate,
+                "decisive_coverage": rate,
+                "escalation_burden": rate,
+                "false_alarm_burden": rate,
+            },
+            "permitdiff_assisted": {
+                "missed_consequential_changes": 0,
+                "false_or_misleading_alerts": 0,
+                "escalation_count": 0,
+                "agreement_with_reference": rate,
+                "timing_valid_case_count": 1,
+                "median_active_seconds": 10.0,
+                "total_active_seconds": 10.0,
+            },
+            "structured_manual": {
+                "missed_consequential_changes": 0,
+                "false_or_misleading_alerts": 0,
+                "escalation_count": 0,
+                "agreement_with_reference": rate,
+                "timing_valid_case_count": 1,
+                "median_active_seconds": 20.0,
+                "total_active_seconds": 20.0,
+            },
+            "simple_automated_baseline": {
+                "review_trigger_recall": rate,
+                "false_alarm_burden": rate,
+                "unknown_or_error_burden": rate,
+            },
+            "top_level_outcome": "EFFORT_ADVANTAGE_ONLY",
+            "interpretation_rule_version": "r3-primary-interpretation-v1",
+        }
+    )
 
 
 def test_primary_inference_and_severity_cannot_be_rescued_post_hoc() -> None:
