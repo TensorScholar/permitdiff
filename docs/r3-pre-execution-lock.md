@@ -16,7 +16,7 @@ A successful lock cryptographically binds the exact bytes of:
 - the machine-readable measurement contract;
 - the benchmark manifest;
 - deterministic public materialization;
-- blinded review-packet set;
+- blinded review-packet set and every referenced packet artifact;
 - multidimensional adjudications;
 - decided scenario-channel provenance registry;
 - manifest-integrity evidence; and
@@ -33,6 +33,8 @@ Before publishing the lock, the implementation requires:
 - plan/protocol/measurement-contract version agreement across the evidence chain;
 - a schema-valid measurement contract adopted before labels and product execution;
 - review packets and scenario provenance bound to the exact materialization bytes;
+- review-packet baseline/candidate provenance matches materialization and every referenced
+  packet artifact validates against its declared SHA-256;
 - adjudications bound to the exact blinded review-packet bytes;
 - identical case membership across manifest, materialization, review packets,
   adjudications, and scenario-channel registry;
@@ -42,8 +44,9 @@ Before publishing the lock, the implementation requires:
   validate under the frozen Task-4 contract; and
 - no pre-existing PermitDiff result artifact anywhere in the common evidence root.
 
-The implementation re-reads all evidence inputs after integrity validation and refuses to
-publish if any bytes changed during lock construction.
+The implementation re-reads all top-level evidence inputs and all referenced review-packet
+artifacts after integrity validation and refuses to publish if any bytes changed during lock
+construction.
 
 ## Outputs
 

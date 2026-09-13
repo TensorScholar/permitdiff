@@ -11,7 +11,7 @@ import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -126,6 +126,131 @@ def _assert_no_product_outputs(root: Path, output_dir: Path) -> None:
             )
 
 
+def _resolve_bound_file(root: Path, relative_path: str, *, label: str) -> Path:
+    if "\\" in relative_path:
+        raise PreExecutionLockError(f"{label} path must use POSIX separators: {relative_path!r}")
+    pure = PurePosixPath(relative_path)
+    if pure.is_absolute() or any(part == ".." for part in pure.parts):
+        raise PreExecutionLockError(f"{label} path escapes review-packet root: {relative_path!r}")
+
+    candidate = root.joinpath(*pure.parts)
+    cursor = root
+    for part in pure.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise PreExecutionLockError(
+                f"{label} path traverses a symlink: {relative_path!r}"
+            )
+    try:
+        resolved = candidate.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise PreExecutionLockError(f"{label} file is missing: {relative_path!r}") from exc
+    if not resolved.is_relative_to(root) or not resolved.is_file():
+        raise PreExecutionLockError(f"invalid {label} file path: {relative_path!r}")
+    return resolved
+
+
+def _snapshot_packet_file(
+    root: Path, artifact: Mapping[str, Any], *, label: str
+) -> tuple[Path, bytes]:
+    relative_path = artifact.get("path")
+    expected_sha256 = artifact.get("sha256")
+    if not isinstance(relative_path, str) or not isinstance(expected_sha256, str):
+        raise PreExecutionLockError(f"{label} metadata is malformed")
+    resolved = _resolve_bound_file(root, relative_path, label=label)
+    raw = resolved.read_bytes()
+    actual_sha256 = _sha256_bytes(raw)
+    if actual_sha256 != expected_sha256:
+        raise PreExecutionLockError(
+            f"{label} SHA-256 mismatch: expected {expected_sha256}, got {actual_sha256}"
+        )
+    return resolved, raw
+
+
+def _validate_review_packet_artifacts(
+    materialization_path: Path, review_packet_set_path: Path
+) -> dict[str, tuple[Path, bytes]]:
+    materialization, materialization_bytes = _read_json_object_bytes(
+        materialization_path, label="materialization"
+    )
+    packet_set, _ = _read_json_object_bytes(
+        review_packet_set_path, label="review packet set"
+    )
+    if packet_set.get("source_materialization_sha256") != _sha256_bytes(
+        materialization_bytes
+    ):
+        raise PreExecutionLockError(
+            "review packet set/materialization digest linkage failed"
+        )
+
+    raw_materialization_cases = materialization.get("cases")
+    raw_packet_cases = packet_set.get("cases")
+    if not isinstance(raw_materialization_cases, list) or not all(
+        isinstance(case, Mapping) for case in raw_materialization_cases
+    ):
+        raise PreExecutionLockError("materialization cases must contain only objects")
+    if not isinstance(raw_packet_cases, list) or not all(
+        isinstance(case, Mapping) for case in raw_packet_cases
+    ):
+        raise PreExecutionLockError("review packet cases must contain only objects")
+
+    materialization_cases = list(raw_materialization_cases)
+    packet_cases = list(raw_packet_cases)
+    materialization_ids = [case.get("transition_id") for case in materialization_cases]
+    packet_ids = [case.get("transition_id") for case in packet_cases]
+    if not all(isinstance(case_id, str) and case_id for case_id in materialization_ids):
+        raise PreExecutionLockError("materialization contains an invalid transition_id")
+    if not all(isinstance(case_id, str) and case_id for case_id in packet_ids):
+        raise PreExecutionLockError("review packet set contains an invalid transition_id")
+    if packet_ids != materialization_ids:
+        raise PreExecutionLockError("review packet membership/order does not match materialization")
+
+    packet_root = review_packet_set_path.resolve().parent
+    snapshots: dict[str, tuple[Path, bytes]] = {}
+    for materialized, packet_case in zip(
+        materialization_cases, packet_cases, strict=True
+    ):
+        case_id = str(materialized.get("transition_id"))
+        for field in ("rank", "repository_url", "source_path", "selection_key"):
+            if packet_case.get(field) != materialized.get(field):
+                raise PreExecutionLockError(
+                    f"review packet {field} provenance mismatch for {case_id}"
+                )
+
+        for role in ("baseline", "candidate"):
+            source_artifact = materialized.get(role)
+            packet_artifact = packet_case.get(role)
+            if not isinstance(source_artifact, Mapping) or not isinstance(
+                packet_artifact, Mapping
+           ):
+                raise PreExecutionLockError(
+                    f"review packet {role} metadata is malformed for {case_id}"
+                )
+            if dict(packet_artifact) != dict(source_artifact):
+                raise PreExecutionLockError(
+                    f"review packet {role} provenance mismatch for {case_id}"
+                )
+            snapshots[f"review packet {case_id} {role}"] = _snapshot_packet_file(
+                packet_root, packet_artifact, label=f"review packet {case_id} {role}"
+            )
+
+        for artifact_name in ("source_diff", "review_markdown"):
+            artifact = packet_case.get(artifact_name)
+            if not isinstance(artifact, Mapping):
+                raise PreExecutionLockError(
+                    f"review packet {artifact_name} metadata is malformed for {case_id}"
+                )
+            snapshots[f"review packet {case_id} {artifact_name}"] = (
+                _snapshot_packet_file(
+                    packet_root,
+                    artifact,
+                    label=f"review packet {case_id} {artifact_name}",
+                )
+            )
+
+    return snapshots
+
+
 def _validate_measurement_contract(contract: Mapping[str, Any]) -> None:
     if contract.get("schema_version") != MEASUREMENT_CONTRACT_SCHEMA_VERSION:
         raise PreExecutionLockError("unsupported measurement contract schema version")
@@ -189,6 +314,10 @@ def create_complete_pre_execution_lock(
         _, raw = _read_json_object_bytes(path, label=label)
         snapshots[label] = (path, raw)
 
+    review_packet_artifact_snapshots = _validate_review_packet_artifacts(
+        materialization_path, review_packet_set_path
+    )
+
     measurement_contract, measurement_bytes = _read_json_object_bytes(
         measurement_contract_path, label="measurement contract"
     )
@@ -232,9 +361,11 @@ def create_complete_pre_execution_lock(
             lock_schema_path=legacy_lock_schema_path,
         )
         if legacy_lock.get("case_count") != scenario_integrity.get("case_count"):
-            raise PreExecutionLockError("scenario channel integrity case_count mismatch")
+            raise PreExecutionLockError,"scenario channel integrity case_count mismatch")
 
         for label, (path, expected) in snapshots.items():
+            _assert_bytes_unchanged(path, expected, label=label)
+        for label, (path, expected) in review_packet_artifact_snapshots.items():
             _assert_bytes_unchanged(path, expected, label=label)
 
         staging.mkdir()

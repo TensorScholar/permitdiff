@@ -29,6 +29,7 @@ def _write_json(path: Path, payload: object) -> None:
 
 def _fixture(root: Path) -> dict[str, Path]:
     root.mkdir(parents=True)
+    transition_id = "gh-" + "1" * 20
     paths = {
         "manifest": root / "manifest.json",
         "materialization": root / "materialization.json",
@@ -37,10 +38,71 @@ def _fixture(root: Path) -> dict[str, Path]:
         "measurement_contract": root / "measurement-contract-v2.json",
         "scenario_channels": root / "scenario-channels-v1.json",
     }
+
+    case_root = root / "cases" / transition_id
+    case_root.mkdir(parents=True)
+    baseline = b'{"permissions":{"allow":["Read"]}}\n'
+    candidate = b'{"permissions":{"allow":["Read","Bash(*)"]}}\n'
+    source_diff = b"--- baseline.json\n+++ candidate.json\n"
+    review_markdown = b"# blinded review\n"
+    (case_root / "baseline.json").write_bytes(baseline)
+    (case_root / "candidate.json").write_bytes(candidate)
+    (case_root / "source-diff.txt").write_bytes(source_diff)
+    (case_root / "review.md").write_bytes(review_markdown)
+
+    def artifact(role: str, payload: bytes) -> dict[str, object]:
+        return {
+            "path": f"cases/{transition_id}/{role}.json",
+            "sha256": _sha256(payload),
+            "source_url": f"https://github.com/public/example/{role}",
+            "source_commit": ("a" if role == "baseline" else "b") * 40,
+            "source_blob": ("c" if role == "baseline" else "d") * 40,
+            "size_bytes": len(payload),
+        }
+
+    baseline_record = artifact("baseline", baseline)
+    candidate_record = artifact("candidate", candidate)
+    materialization = {
+        "cases": [
+            {
+                "rank": 1,
+                "transition_id": transition_id,
+                "repository_url": "https://github.com/public/example",
+                "source_path": ".claude/settings.json",
+                "selection_key": "e" * 64,
+                "baseline": baseline_record,
+                "candidate": candidate_record,
+            }
+        ]
+    }
+    _write_json(paths["materialization"], materialization)
+
+    review_packets = {
+        "source_materialization_sha256": _sha256(paths["materialization"].read_bytes()),
+        "cases": [
+            {
+                "rank": 1,
+                "transition_id": transition_id,
+                "repository_url": "https://github.com/public/example",
+                "source_path": ".claude/settings.json",
+                "selection_key": "e" * 64,
+                "baseline": baseline_record,
+                "candidate": candidate_record,
+                "source_diff": {
+                    "path": f"cases/{transition_id}/source-diff.txt",
+                    "sha256": _sha256(source_diff),
+                },
+                "review_markdown": {
+                    "path": f"cases/{transition_id}/review.md",
+                    "sha256": _sha256(review_markdown),
+                },
+            }
+        ],
+    }
+    _write_json(paths["review_packets"], review_packets)
+
     _write_json(paths["manifest"], {"corpus_id": "r3-test"})
-    _write_json(paths["materialization"], {"cases": [{"transition_id": "gh-" + "1" * 20}]})
-    _write_json(paths["review_packets"], {"cases": [{"transition_id": "gh-" + "1" * 20}]})
-    _write_json(paths["adjudications"], {"cases": [{"transition_id": "gh-" + "1" * 20}]})
+    _write_json(paths["adjudications"], {"cases": [{"transition_id": transition_id}]})
     shutil.copyfile(MEASUREMENT_CONTRACT, paths["measurement_contract"])
     _write_json(
         paths["scenario_channels"],
@@ -48,7 +110,7 @@ def _fixture(root: Path) -> dict[str, Path]:
             "schema_version": "permitdiff.dev/r3-scenario-channel-set/v1",
             "measurement_contract_version": "r3-exploratory-measurement-contract-v2",
             "case_count": 1,
-            "cases": [{"transition_id": "gh-" + "1" * 20, "status": "decided"}],
+            "cases": [{"transition_id": transition_id, "status": "decided"}],
         },
     )
     return paths
@@ -200,4 +262,33 @@ def test_v2_lock_rejects_preexisting_product_output(
     _install_stubs(monkeypatch, paths)
 
     with pytest.raises(PreExecutionLockError, match="product execution artifact"):
+        _create(paths, tmp_path / "evidence" / "pre-execution-lock-v2", monkeypatch)
+
+
+def test_v2_lock_rejects_review_packet_artifact_tamper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _fixture(tmp_path / "evidence")
+    transition_id = "gh-" + "1" * 20
+    (
+        tmp_path
+        / "evidence"
+        / "cases"
+        / transition_id
+        / "source-diff.txt"
+    ).write_text("tampered\n", encoding="utf-8")
+
+    with pytest.raises(PreExecutionLockError, match="review packet .*source_diff SHA-256 mismatch"):
+        _create(paths, tmp_path / "evidence" / "pre-execution-lock-v2", monkeypatch)
+
+
+def test_v2_lock_rejects_review_packet_materialization_provenance_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _fixture(tmp_path / "evidence")
+    packet_set = json.loads(paths["review_packets"].read_text(encoding="utf-8"))
+    packet_set["cases"][0]["candidate"]["source_commit"] = "f" * 40
+    _write_json(paths["review_packets"], packet_set)
+
+    with pytest.raises(PreExecutionLockError, match="review packet candidate provenance mismatch"):
         _create(paths, tmp_path / "evidence" / "pre-execution-lock-v2", monkeypatch)

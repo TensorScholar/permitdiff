@@ -177,11 +177,11 @@ This amendment does not change:
 - no PermitDiff execution before the pre-execution lock;
 - exploratory results remaining non-confirmatory.
 
-## Tooling consequence
+## Tooling consequence and implementation status
 
-The staging adjudication/review-packet tooling created before this amendment uses the earlier conflated label contract. It must **not** be used to freeze canonical exploratory labels until it is updated to conform to this amendment and receives exact-head executable validation.
+At amendment adoption, the staging adjudication/review-packet tooling still used the earlier conflated label contract and was therefore prohibited from freezing canonical exploratory labels until it was updated and exact-head executable validation passed.
 
-The pre-execution lock must ultimately bind the machine-readable measurement contract so that later execution cannot silently revert to the superseded interpretation.
+The branch now implements the amended multidimensional review/adjudication contracts, explicit scenario-provenance handling, and the complete v2 pre-execution lock. The v2 lock binds the exact machine-readable measurement contract so later execution cannot silently revert to the superseded interpretation. This implementation status does **not** waive the exact-head executable-validation gate: PR #50 remains unverified until its final head passes the required checks.
 
 ## Scientific boundary
 
