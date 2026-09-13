@@ -116,8 +116,8 @@ Scenario-set provenance is now a separate, machine-readable pre-execution artifa
 - `scripts/build_r3_scenario_channels.py`.
 
 Each selected case must explicitly record whether a primary-admissible observed-scenario
-channel is `PRESENT` or `ABSENT`. `PREEXISTING_PROJECT` and `INDEPENDENT_BLIND` review
-sets are primary-admissible. `DIAGNOSTIC_ANSWER _INFORMED_` and `PRODUCT_GENERATED` are
+channel is `PRESENT` or `ABSENT`. `PREEXISTING_PROJECT` and `INDEPENDENT_BLIND` scenario
+sets are primary-admissible. `DIAGNOSTIC_ANSWER_INFORMED` and `PRODUCT_GENERATED` are
 diagnostic-only and cannot make the primary channel available.
 
 An absent primary channel is a valid measured state and must use
