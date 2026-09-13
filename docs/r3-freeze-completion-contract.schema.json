@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-freeze-completion-contract.schema.json",
+  "title": "PermitDiff R3 Freeze Completion Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_version",
+    "protocol_version",
+    "measurement_contract_version",
+    "scientific_baseline_commit",
+    "product_execution_commit",
+    "primary_inference_boundary",
+    "structured_manual_review",
+    "simple_automated_baseline",
+    "evidence_access_matrix",
+    "permitdiff_execution",
+    "severity_policy",
+    "result_schemas",
+    "post_freeze_change_control",
+    "comparative_analysis",
+    "top_level_interpretation",
+    "hard_boundaries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "permitdiff.dev/r3-freeze-completion-contract/v1"
+    },
+    "contract_version": {
+      "const": "r3-freeze-completion-v1"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "measurement_contract_version": {
+      "const": "r3-exploratory-measurement-contract-v2"
+    },
+    "scientific_baseline_commit": {
+      "const": "1f3b3a4afda67c01c4f29a93a45b18511980036b"
+    },
+    "product_execution_commit": {
+      "const": "1f3b3a4afda67c01c4f29a93a45b18511980036b"
+    },
+    "primary_inference_boundary": {
+      "type": "object"
+    },
+    "structured_manual_review": {
+      "type": "object"
+    },
+    "simple_automated_baseline": {
+      "type": "object"
+    },
+    "evidence_access_matrix": {
+      "type": "object"
+    },
+    "permitdiff_execution": {
+      "type": "object"
+    },
+    "severity_policy": {
+      "type": "object"
+    },
+    "result_schemas": {
+      "type": "object"
+    },
+    "post_freeze_change_control": {
+      "type": "object"
+    },
+    "comparative_analysis": {
+      "type": "object"
+    },
+    "top_level_interpretation": {
+      "type": "object"
+    },
+    "hard_boundaries": {
+      "type": "object"
+    }
+  }
+}
