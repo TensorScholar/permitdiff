@@ -107,13 +107,31 @@ Fail-closed blocking caused only by uncertainty/unsupported behavior is escalati
 definite detection. A secondary `SUPPORTED` subset must be reported separately rather
 than replacing the overall result.
 
+## Frozen scenario provenance and explicit absent channel
+
+Scenario-set provenance is now a separate, machine-readable pre-execution artifact:
+
+- `docs/r3-scenario-channel-set.schema.json`;
+- `docs/r3-scenario-provenance.md`;
+- `scripts/build_r3_scenario_channels.py`.
+
+Each selected case must explicitly record whether a primary-admissible observed-scenario
+channel is `PRESENT` or `ABSENT`. `PREEXISTING_PROJECT` and `INDEPENDENT_BLIND` scenario
+sets are primary-admissible. `DIAGNOSTIC_ANSWER_INFORMED` and `PRODUCT_GENERATED` are
+diagnostic-only and cannot make the primary channel available.
+
+An absent primary channel is a valid measured state and must use
+`NO_PRIMARY_ADMISSIBLE_SCENARIO_SET`; no placeholder or answer-informed scenario corpus
+may be fabricated to convert absence into presence. The existing manifest `scenario_corpus`
+slot is not the canonical provenance carrier for this amended R3 workflow; scenario
+provenance is frozen in the dedicated scenario-channel set and will be digest-bound by
+the pre-execution lock.
+
 ## Remaining pre-execution work
 
-Scenario-set provenance remains a separate artifact-chain decision. The manifest retains
-the scenario-corpus slot, but this stage does not fabricate scenarios or infer provenance.
-
 The pre-execution lock currently checks v2 contract/version consistency. A later lock
-revision must additionally bind the exact machine-readable measurement-contract bytes.
+revision must bind the exact machine-readable measurement-contract bytes and the exact
+scenario-channel-set bytes before product execution.
 
 ## Evidence boundary
 
