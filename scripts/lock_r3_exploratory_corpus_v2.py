@@ -16,20 +16,19 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
-
 from scripts.build_r3_exploratory_adjudications import MEASUREMENT_CONTRACT_VERSION
 from scripts.build_r3_scenario_channels import validate_scenario_channels
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
 from scripts.lock_r3_exploratory_corpus import (
     PreExecutionLockError,
+)
+from scripts.lock_r3_exploratory_corpus import (
     create_pre_execution_lock as create_legacy_pre_execution_lock,
 )
 
 LOCK_SCHEMA_VERSION = "permitdiff.dev/r3-pre-execution-lock/v2"
 MEASUREMENT_CONTRACT_SCHEMA_VERSION = "permitdiff.dev/r3-measurement-contract/v2"
-SCENARIO_CHANNEL_INTEGRITY_VALIDATOR_VERSION = (
-    "permitdiff-r3-scenario-channel-integrity-v1"
-)
+SCENARIO_CHANNEL_INTEGRITY_VALIDATOR_VERSION = "permitdiff-r3-scenario-channel-integrity-v1"
 
 _FORBIDDEN_PRODUCT_OUTPUT_NAMES = {
     "permitdiff-result.json",
@@ -138,9 +137,7 @@ def _resolve_bound_file(root: Path, relative_path: str, *, label: str) -> Path:
     for part in pure.parts:
         cursor = cursor / part
         if cursor.is_symlink():
-            raise PreExecutionLockError(
-                f"{label} path traverses a symlink: {relative_path!r}"
-            )
+            raise PreExecutionLockError(f"{label} path traverses a symlink: {relative_path!r}")
     try:
         resolved = candidate.resolve(strict=True)
     except FileNotFoundError as exc:
@@ -173,15 +170,9 @@ def _validate_review_packet_artifacts(
     materialization, materialization_bytes = _read_json_object_bytes(
         materialization_path, label="materialization"
     )
-    packet_set, _ = _read_json_object_bytes(
-        review_packet_set_path, label="review packet set"
-    )
-    if packet_set.get("source_materialization_sha256") != _sha256_bytes(
-        materialization_bytes
-    ):
-        raise PreExecutionLockError(
-            "review packet set/materialization digest linkage failed"
-        )
+    packet_set, _ = _read_json_object_bytes(review_packet_set_path, label="review packet set")
+    if packet_set.get("source_materialization_sha256") != _sha256_bytes(materialization_bytes):
+        raise PreExecutionLockError("review packet set/materialization digest linkage failed")
 
     raw_materialization_cases = materialization.get("cases")
     raw_packet_cases = packet_set.get("cases")
@@ -203,15 +194,11 @@ def _validate_review_packet_artifacts(
     if not all(isinstance(case_id, str) and case_id for case_id in packet_ids):
         raise PreExecutionLockError("review packet set contains an invalid transition_id")
     if packet_ids != materialization_ids:
-        raise PreExecutionLockError(
-            "review packet membership/order does not match materialization"
-        )
+        raise PreExecutionLockError("review packet membership/order does not match materialization")
 
     packet_root = review_packet_set_path.resolve().parent
     snapshots: dict[str, tuple[Path, bytes]] = {}
-    for materialized, packet_case in zip(
-        materialization_cases, packet_cases, strict=True
-    ):
+    for materialized, packet_case in zip(materialization_cases, packet_cases, strict=True):
         case_id = str(materialized.get("transition_id"))
         for field in ("rank", "repository_url", "source_path", "selection_key"):
             if packet_case.get(field) != materialized.get(field):
@@ -222,9 +209,7 @@ def _validate_review_packet_artifacts(
         for role in ("baseline", "candidate"):
             source_artifact = materialized.get(role)
             packet_artifact = packet_case.get(role)
-            if not isinstance(source_artifact, Mapping) or not isinstance(
-                packet_artifact, Mapping
-            ):
+            if not isinstance(source_artifact, Mapping) or not isinstance(packet_artifact, Mapping):
                 raise PreExecutionLockError(
                     f"review packet {role} metadata is malformed for {case_id}"
                 )
@@ -425,11 +410,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--measurement-contract",
         type=Path,
         default=(
-            root
-            / "validation"
-            / "r3-benchmark"
-            / "exploratory"
-            / "measurement-contract-v2.json"
+            root / "validation" / "r3-benchmark" / "exploratory" / "measurement-contract-v2.json"
         ),
     )
     parser.add_argument("--scenario-channels", type=Path, required=True)

@@ -6,7 +6,6 @@ import shutil
 from pathlib import Path
 
 import pytest
-
 import scripts.lock_r3_exploratory_corpus_v2 as lock_v2
 from scripts.lock_r3_exploratory_corpus import PreExecutionLockError
 
@@ -191,16 +190,12 @@ def test_v2_lock_binds_exact_measurement_and_scenario_bytes(
     assert lock["measurement_contract_sha256"] == _sha256(
         paths["measurement_contract"].read_bytes()
     )
-    assert lock["scenario_channel_set_sha256"] == _sha256(
-        paths["scenario_channels"].read_bytes()
-    )
+    assert lock["scenario_channel_set_sha256"] == _sha256(paths["scenario_channels"].read_bytes())
     assert lock["product_execution_performed"] is False
     assert (output / "manifest-integrity.json").exists()
     scenario_integrity = output / "scenario-channel-integrity.json"
     assert scenario_integrity.exists()
-    assert lock["scenario_channel_integrity_sha256"] == _sha256(
-        scenario_integrity.read_bytes()
-    )
+    assert lock["scenario_channel_integrity_sha256"] == _sha256(scenario_integrity.read_bytes())
     assert (output / "pre-execution-lock.json").exists()
 
 
@@ -270,15 +265,13 @@ def test_v2_lock_rejects_review_packet_artifact_tamper(
 ) -> None:
     paths = _fixture(tmp_path / "evidence")
     transition_id = "gh-" + "1" * 20
-    (
-        tmp_path
-        / "evidence"
-        / "cases"
-        / transition_id
-        / "source-diff.txt"
-    ).write_text("tampered\n", encoding="utf-8")
+    (tmp_path / "evidence" / "cases" / transition_id / "source-diff.txt").write_text(
+        "tampered\n", encoding="utf-8"
+    )
 
-    with pytest.raises(PreExecutionLockError, match="review packet .*source_diff SHA-256 mismatch"):
+    with pytest.raises(
+        PreExecutionLockError, match=r"review packet .*source_diff SHA-256 mismatch"
+    ):
         _create(paths, tmp_path / "evidence" / "pre-execution-lock-v2", monkeypatch)
 
 

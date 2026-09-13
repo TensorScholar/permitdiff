@@ -90,9 +90,7 @@ class PublicOnlyGitHubClient(GitHubClient):
         self._file_cache_hits = 0
         self._file_cache_misses = 0
         self._history_commit_cache: dict[tuple[str, str], dict[str, Any]] = {}
-        self._file_cache: dict[
-            tuple[str, str, str], tuple[dict[str, Any], bytes]
-        ] = {}
+        self._file_cache: dict[tuple[str, str, str], tuple[dict[str, Any], bytes]] = {}
         self._last_progress: dict[str, Any] | None = None
 
     def _progress(self, event: str, **details: Any) -> None:
@@ -314,9 +312,7 @@ class PublicOnlyGitHubClient(GitHubClient):
             repository=repository,
             path=path,
         )
-        commits, truncated = super().list_path_commits(
-            repository, path, max_commits=max_commits
-        )
+        commits, truncated = super().list_path_commits(repository, path, max_commits=max_commits)
         for record in commits:
             sha = record.get("sha")
             parents = record.get("parents")
@@ -382,9 +378,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "discover":
             if args.max_history_commits is not None and args.max_history_commits < 2:
                 raise DiscoveryError("--max-history-commits must be at least 2")
-            client = PublicOnlyGitHubClient(
-                _resolve_token(), progress_path=args.progress_output
-            )
+            client = PublicOnlyGitHubClient(_resolve_token(), progress_path=args.progress_output)
             client._progress("run_started", output=str(args.output))
             ledger = build_ledger(
                 client,

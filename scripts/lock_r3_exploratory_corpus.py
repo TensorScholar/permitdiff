@@ -16,13 +16,12 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
-
+from scripts.build_r3_blinded_review_packets import REVIEW_PACKET_SET_SCHEMA_VERSION
 from scripts.build_r3_exploratory_adjudications import (
     ADJUDICATION_SCHEMA_VERSION,
     MANIFEST_SCHEMA_VERSION,
     MEASUREMENT_CONTRACT_VERSION,
 )
-from scripts.build_r3_blinded_review_packets import REVIEW_PACKET_SET_SCHEMA_VERSION
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
 from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
 from scripts.validate_r3_benchmark_manifest import validate_manifest
@@ -210,9 +209,7 @@ def _validate_linkage(
         materialization, id_field="transition_id", label="materialization"
     )
     packet_cases = _case_map(packet_set, id_field="transition_id", label="review packet set")
-    decision_cases = _case_map(
-        adjudications, id_field="transition_id", label="adjudications"
-    )
+    decision_cases = _case_map(adjudications, id_field="transition_id", label="adjudications")
     membership = set(manifest_cases)
     if membership != set(materialized_cases) or membership != set(packet_cases):
         raise PreExecutionLockError("manifest/materialization/review-packet membership mismatch")
@@ -232,9 +229,7 @@ def _validate_linkage(
         if manifest_case.get("source_kind") != "public_historical":
             raise PreExecutionLockError(f"unexpected source_kind for {case_id}")
 
-        if manifest_case.get("baseline") != _strip_materialized_artifact(
-            materialized["baseline"]
-        ):
+        if manifest_case.get("baseline") != _strip_materialized_artifact(materialized["baseline"]):
             raise PreExecutionLockError(f"manifest baseline provenance mismatch for {case_id}")
         if manifest_case.get("candidate") != _strip_materialized_artifact(
             materialized["candidate"]
@@ -273,9 +268,7 @@ def create_pre_execution_lock(
     )
 
     _validate_schema(manifest, manifest_schema_path, label="manifest")
-    _validate_schema(
-        materialization, materialization_schema_path, label="materialization"
-    )
+    _validate_schema(materialization, materialization_schema_path, label="materialization")
     _validate_schema(packet_set, packet_schema_path, label="review packet set")
     _validate_schema(adjudications, adjudication_schema_path, label="adjudications")
 
@@ -297,9 +290,7 @@ def create_pre_execution_lock(
     root = manifest_path.resolve().parent
     _assert_no_product_outputs(root, output_dir)
     output_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(
-        tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent)
-    )
+    staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent))
     try:
         integrity_path = staging / "manifest-integrity.json"
         _write_json(integrity_path, integrity)

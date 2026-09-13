@@ -17,7 +17,6 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
-
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
 from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
 
@@ -132,9 +131,7 @@ def _validate_materialization(index: Mapping[str, Any]) -> list[Mapping[str, Any
     if index.get("protocol_version") != PROTOCOL_VERSION:
         raise ReviewPacketError("materialization protocol version mismatch")
     raw_cases = index.get("cases")
-    if not isinstance(raw_cases, list) or not all(
-        isinstance(case, Mapping) for case in raw_cases
-    ):
+    if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
         raise ReviewPacketError("materialization cases must contain only objects")
     if index.get("selected_case_count") != len(raw_cases):
         raise ReviewPacketError("materialization selected_case_count mismatch")
@@ -367,9 +364,7 @@ def build_review_packets(
             f"output directory already exists; refuse to overwrite packets: {output_dir}"
         )
     output_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(
-        tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent)
-    )
+    staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent))
     source_root = materialization_path.resolve().parent
     packet_cases: list[dict[str, Any]] = []
     try:
@@ -382,9 +377,7 @@ def build_review_packets(
                 raise ReviewPacketError(f"review context remains pending for {transition_id}")
             specific_refs = case_context.get("documentation_refs")
             if not isinstance(specific_refs, list):
-                raise ReviewPacketError(
-                    f"documentation_refs must be a list for {transition_id}"
-                )
+                raise ReviewPacketError(f"documentation_refs must be a list for {transition_id}")
             documentation_refs = _merge_documentation_refs(common_refs, specific_refs)
             if not documentation_refs:
                 raise ReviewPacketError(

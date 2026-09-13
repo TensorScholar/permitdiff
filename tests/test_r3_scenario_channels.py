@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.build_r3_scenario_channels import (
     ScenarioChannelError,
     prepare_scenario_channels,

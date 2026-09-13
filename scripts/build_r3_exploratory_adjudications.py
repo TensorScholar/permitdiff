@@ -14,7 +14,6 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
-
 from scripts.build_r3_blinded_review_packets import REVIEW_PACKET_SET_SCHEMA_VERSION
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
 from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
@@ -118,9 +117,7 @@ def _validate_packet_set(packet_set: Mapping[str, Any]) -> list[Mapping[str, Any
         raise AdjudicationError("review packet set does not preserve source-semantics-only scope")
 
     raw_cases = packet_set.get("cases")
-    if not isinstance(raw_cases, list) or not all(
-        isinstance(case, Mapping) for case in raw_cases
-    ):
+    if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
         raise AdjudicationError("review packet cases must contain only objects")
     if packet_set.get("case_count") != len(raw_cases):
         raise AdjudicationError("review packet case_count mismatch")
@@ -198,9 +195,7 @@ def _validate_decisions(
         raise AdjudicationError("adjudications are contaminated by product output")
 
     raw_cases = adjudications.get("cases")
-    if not isinstance(raw_cases, list) or not all(
-        isinstance(case, Mapping) for case in raw_cases
-    ):
+    if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
         raise AdjudicationError("adjudication cases must contain only objects")
     decisions = list(raw_cases)
     packet_ids = [str(case["transition_id"]) for case in packet_cases]
@@ -244,9 +239,7 @@ def _validate_decisions(
                     f"{transition_id}"
                 )
             if not isinstance(ambiguity_notes, str) or not ambiguity_notes.strip():
-                raise AdjudicationError(
-                    f"UNRESOLVED requires ambiguity notes for {transition_id}"
-                )
+                raise AdjudicationError(f"UNRESOLVED requires ambiguity notes for {transition_id}")
         elif resolution != "RESOLVED":
             raise AdjudicationError(
                 f"{relation} requires RESOLVED source semantics for {transition_id}"
@@ -317,9 +310,7 @@ def build_manifest(
     materialization, materialization_bytes = _read_json_object_bytes(
         materialization_path, label="public materialization"
     )
-    _validate_schema(
-        materialization, materialization_schema_path, label="public materialization"
-    )
+    _validate_schema(materialization, materialization_schema_path, label="public materialization")
     if materialization.get("schema_version") != MATERIALIZATION_SCHEMA_VERSION:
         raise AdjudicationError("unsupported materialization schema version")
     if materialization.get("plan_version") != PLAN_VERSION:
@@ -347,9 +338,7 @@ def build_manifest(
     ):
         raise AdjudicationError("materialization cases must contain only objects")
     materialization_cases = list(raw_materialization_cases)
-    materialization_by_id = {
-        str(case.get("transition_id")): case for case in materialization_cases
-    }
+    materialization_by_id = {str(case.get("transition_id")): case for case in materialization_cases}
     if len(materialization_by_id) != len(materialization_cases):
         raise AdjudicationError("materialization contains duplicate transition IDs")
 

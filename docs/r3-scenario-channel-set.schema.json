@@ -187,6 +187,7 @@
               "absence_reason": {"const": "NO_PRIMARY_ADMISSIBLE_SCENARIO_SET" }
             }
           }
+        }
       ]
     }
   }

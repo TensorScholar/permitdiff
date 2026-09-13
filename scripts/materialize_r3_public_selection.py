@@ -19,7 +19,6 @@ from urllib.parse import quote
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
-
 from scripts.discover_r3_benchmark_candidates import (
     PLAN_VERSION,
     PROTOCOL_VERSION,
@@ -69,9 +68,7 @@ def _schema_error_path(error: ValidationError) -> str:
     return path
 
 
-def _validate_against_schema(
-    payload: dict[str, Any], schema_path: Path, *, label: str
-) -> None:
+def _validate_against_schema(payload: dict[str, Any], schema_path: Path, *, label: str) -> None:
     schema, _ = _read_json_object_bytes(schema_path, label=f"{label} schema")
     try:
         Draft202012Validator.check_schema(schema)
@@ -232,12 +229,8 @@ def materialize_selection(
 ) -> dict[str, Any]:
     """Fetch and verify exact selected source bytes without executing PermitDiff."""
 
-    selection, selection_bytes = _read_json_object_bytes(
-        selection_path, label="public selection"
-    )
-    _validate_against_schema(
-        selection, selection_schema_path, label="public selection"
-    )
+    selection, selection_bytes = _read_json_object_bytes(selection_path, label="public selection")
+    _validate_against_schema(selection, selection_schema_path, label="public selection")
     selected = _validate_selection(selection)
 
     output_dir = output_dir.resolve()
@@ -247,9 +240,7 @@ def materialize_selection(
         )
     output_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    staging = Path(
-        tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent)
-    )
+    staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent))
     visibility_cache: dict[str, dict[str, Any]] = {}
     materialized_cases: list[dict[str, Any]] = []
     try:
@@ -302,9 +293,7 @@ def materialize_selection(
             "selected_case_count": len(materialized_cases),
             "cases": materialized_cases,
         }
-        _validate_against_schema(
-            index, materialization_schema_path, label="public materialization"
-        )
+        _validate_against_schema(index, materialization_schema_path, label="public materialization")
         (staging / "materialization.json").write_text(
             json.dumps(index, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
             encoding="utf-8",

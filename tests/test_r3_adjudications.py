@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.build_r3_exploratory_adjudications import (
     AdjudicationError,
     build_manifest,
@@ -282,7 +281,7 @@ def test_resolved_relation_rejects_nonresolved_source_semantics(tmp_path: Path) 
         ambiguity_notes="conflicting docs",
     )
 
-    with pytest.raises(AdjudicationError, match="schema validation failed|requires RESOLVED"):
+    with pytest.raises(AdjudicationError, match=r"schema validation failed|requires RESOLVED"):
         _build(
             materialization_path,
             packet_path,
@@ -304,7 +303,7 @@ def test_unresolved_relation_rejects_resolved_source_semantics(tmp_path: Path) -
 
     with pytest.raises(
         AdjudicationError,
-        match="schema validation failed|UNRESOLVED requires AMBIGUOUS or UNAVAILABLE",
+        match=r"schema validation failed|UNRESOLVED requires AMBIGUOUS or UNAVAILABLE",
     ):
         _build(
             materialization_path,
@@ -324,7 +323,7 @@ def test_decided_adjudication_requires_explicit_blinding_and_contamination_state
     payload["cases"][0]["blinding_state"] = None
     _write_json(adjudications_path, payload)
 
-    with pytest.raises(AdjudicationError, match="schema validation failed|not output-blind"):
+    with pytest.raises(AdjudicationError, match=r"schema validation failed|not output-blind"):
         _build(
             materialization_path,
             packet_path,
@@ -341,7 +340,7 @@ def test_build_manifest_rejects_product_output_contamination(tmp_path: Path) -> 
     payload["product_output_consulted"] = True
     _write_json(adjudications_path, payload)
 
-    with pytest.raises(AdjudicationError, match="schema validation failed|contaminated"):
+    with pytest.raises(AdjudicationError, match=r"schema validation failed|contaminated"):
         _build(
             materialization_path,
             packet_path,

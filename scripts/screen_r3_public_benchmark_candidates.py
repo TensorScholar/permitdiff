@@ -15,7 +15,6 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
-
 from scripts.discover_r3_benchmark_candidates import (
     FIXED_EXCLUSION_REASONS,
     LEDGER_SCHEMA_VERSION,
@@ -186,9 +185,7 @@ def prepare_screening(ledger_path: Path) -> dict[str, Any]:
     }
 
 
-def _decision_metadata_matches(
-    transition: Mapping[str, Any], decision: Mapping[str, Any]
-) -> bool:
+def _decision_metadata_matches(transition: Mapping[str, Any], decision: Mapping[str, Any]) -> bool:
     fields = (
         "transition_id",
         "repository_url",

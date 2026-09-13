@@ -56,9 +56,12 @@ def test_known_widening_stays_positive_when_tool_is_unsupported() -> None:
     assert isinstance(scoring, dict)
 
     independence = scoring["dimension_independence"]
-    assert independence[
-        "unsupported_known_review_required_case_remains_in_overall_positive_denominator"
-    ] is True
+    assert (
+        independence[
+            "unsupported_known_review_required_case_remains_in_overall_positive_denominator"
+        ]
+        is True
+    )
     assert independence["tool_support_can_change_source_semantic_relation"] is False
 
     subset = scoring["supported_subset_reporting"]

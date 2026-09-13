@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.discover_r3_benchmark_candidates import selection_key, transition_id
 from scripts.screen_r3_public_benchmark_candidates import (
     ScreeningError,

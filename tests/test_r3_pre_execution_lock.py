@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.lock_r3_exploratory_corpus import (
     PreExecutionLockError,
     create_pre_execution_lock,
@@ -41,9 +40,7 @@ def _fixture(root: Path) -> tuple[Path, Path, Path, Path]:
         "path": f"cases/{transition_id}/baseline.json",
         "sha256": _sha256(baseline),
         "source_url": (
-            "https://github.com/public/example/blob/"
-            + "a" * 40
-            + "/.claude/settings.json"
+            "https://github.com/public/example/blob/" + "a" * 40 + "/.claude/settings.json"
         ),
         "source_commit": "a" * 40,
         "source_blob": "b" * 40,
@@ -53,9 +50,7 @@ def _fixture(root: Path) -> tuple[Path, Path, Path, Path]:
         "path": f"cases/{transition_id}/candidate.json",
         "sha256": _sha256(candidate),
         "source_url": (
-            "https://github.com/public/example/blob/"
-            + "c" * 40
-            + "/.claude/settings.json"
+            "https://github.com/public/example/blob/" + "c" * 40 + "/.claude/settings.json"
         ),
         "source_commit": "c" * 40,
         "source_blob": "d" * 40,
@@ -242,9 +237,7 @@ def test_pre_execution_lock_accepts_v2_multidimensional_chain(tmp_path: Path) ->
 
     assert lock["product_execution_performed"] is False
     assert lock["case_count"] == 1
-    assert lock["manifest_integrity_validator_version"] == (
-        "permitdiff-r3-benchmark-integrity-v1"
-    )
+    assert lock["manifest_integrity_validator_version"] == ("permitdiff-r3-benchmark-integrity-v1")
     assert (root / "pre-execution-lock-v1" / "manifest-integrity.json").exists()
     assert (root / "pre-execution-lock-v1" / "pre-execution-lock.json").exists()
 
@@ -300,7 +293,7 @@ def test_pre_execution_lock_rejects_measurement_contract_version_drift(tmp_path:
 
     with pytest.raises(
         PreExecutionLockError,
-        match="schema validation failed|measurement contract version mismatch",
+        match=r"schema validation failed|measurement contract version mismatch",
     ):
         create_pre_execution_lock(
             manifest_path=manifest,

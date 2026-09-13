@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.build_r3_blinded_review_packets import (
     ReviewPacketError,
     build_review_packets,
@@ -134,10 +133,7 @@ def test_build_review_packets_creates_source_semantics_only_packets(tmp_path) ->
     serialized_packet = json.dumps(packet_set)
 
     assert packet_set["schema_version"] == "permitdiff.dev/r3-review-packet-set/v2"
-    assert (
-        packet_set["measurement_contract_version"]
-        == "r3-exploratory-measurement-contract-v2"
-    )
+    assert packet_set["measurement_contract_version"] == "r3-exploratory-measurement-contract-v2"
     assert packet_set["product_output_prohibited"] is True
     assert packet_set["review_scope"] == "source_semantics_only"
     assert set(packet_set["source_semantic_relation_definitions"]) == {

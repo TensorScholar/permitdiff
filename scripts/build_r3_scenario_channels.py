@@ -14,7 +14,6 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
-
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
 from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
 
@@ -104,9 +103,7 @@ def _validate_materialization(
         raise ScenarioChannelError("materialization protocol version mismatch")
 
     raw_cases = materialization.get("cases")
-    if not isinstance(raw_cases, list) or not all(
-        isinstance(case, Mapping) for case in raw_cases
-    ):
+    if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
         raise ScenarioChannelError("materialization cases must contain only objects")
     if materialization.get("selected_case_count") != len(raw_cases):
         raise ScenarioChannelError("materialization selected_case_count mismatch")
@@ -199,9 +196,7 @@ def _validate_scenario_set(
 
     expected_primary_admissible = provenance in _PRIMARY_ADMISSIBLE_PROVENANCE
     if scenario_set.get("primary_admissible") is not expected_primary_admissible:
-        raise ScenarioChannelError(
-            f"primary_admissible does not match provenance for {case_id}"
-        )
+        raise ScenarioChannelError(f"primary_admissible does not match provenance for {case_id}")
 
     if provenance == "PRODUCT_GENERATED":
         if scenario_set.get("generation_cost_accounting_required") is not True:
@@ -219,8 +214,10 @@ def _validate_scenario_set(
         )
 
     evidence_refs = scenario_set.get("provenance_evidence_refs")
-    if not isinstance(evidence_refs, list) or not evidence_refs or not all(
-        isinstance(item, str) and item.strip() for item in evidence_refs
+    if (
+        not isinstance(evidence_refs, list)
+        or not evidence_refs
+        or not all(isinstance(item, str) and item.strip() for item in evidence_refs)
     ):
         raise ScenarioChannelError(f"scenario provenance evidence is required for {case_id}")
 
@@ -253,9 +250,7 @@ def validate_scenario_channels(
     materialization, materialization_bytes = _read_json_object_bytes(
         materialization_path, label="materialization"
     )
-    materialization_cases = _validate_materialization(
-        materialization, materialization_schema_path
-    )
+    materialization_cases = _validate_materialization(materialization, materialization_schema_path)
 
     scenario_channels, scenario_bytes = _read_json_object_bytes(
         scenario_channels_path, label="scenario channel set"
@@ -277,9 +272,7 @@ def validate_scenario_channels(
         raise ScenarioChannelError("scenario channel set is not bound to materialization")
 
     raw_cases = scenario_channels.get("cases")
-    if not isinstance(raw_cases, list) or not all(
-        isinstance(case, Mapping) for case in raw_cases
-    ):
+    if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
         raise ScenarioChannelError("scenario channel cases must contain only objects")
     scenario_cases = list(raw_cases)
     if scenario_channels.get("case_count") != len(scenario_cases):
