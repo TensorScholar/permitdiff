@@ -124,8 +124,8 @@ An absent primary channel is a valid measured state and must use
 `NO_PRIMARY_ADMISSIBLE_SCENARIO_SET`; no placeholder or answer-informed scenario corpus
 may be fabricated to convert absence into presence. The existing manifest `scenario_corpus`
 slot is not the canonical provenance carrier for this amended R3 workflow; scenario
-provenance is frozen in the dedicated scenario-channel set and will be digest-bound by
-the pre-execution lock.
+provenance is frozen in the dedicated scenario-channel set and is digest-bound by the
+complete v2 pre-execution lock.
 
 ## Complete pre-execution evidence lock
 
