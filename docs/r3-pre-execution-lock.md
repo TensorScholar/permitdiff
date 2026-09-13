@@ -1,54 +1,88 @@
-# R3 exploratory pre-execution lock
+# R3 complete pre-execution evidence lock
 
-## Purpose
+## Status
 
-The pre-execution lock is the final guard before PermitDiff may be run against the frozen
-exploratory public-historical corpus. It verifies the evidence chain without importing or
-executing PermitDiff analysis code.
+**Lock contract:** `permitdiff.dev/r3-pre-execution-lock/v2`  
+**Measurement contract:** `r3-exploratory-measurement-contract-v2`  
+**Scope:** R3 exploratory pre-execution evidence only.
 
-The lock checks:
+The lock is the final protocol gate before PermitDiff may be executed against the frozen
+exploratory corpus. It does not execute PermitDiff and does not create benchmark results.
 
-- canonical benchmark-manifest schema and artifact digests;
-- materialization schema and exact public-source provenance;
-- review-packet schema and materialization digest binding;
-- output-blind adjudication schema and review-packet digest binding;
-- exact case membership across all four artifacts;
-- exact manifest baseline/candidate provenance against materialization;
-- exact manifest adjudications against the frozen decisions;
-- absence of known PermitDiff result artifacts before the lock is produced.
+## Bound evidence
 
-## Command
+A successful lock cryptographically binds the exact bytes of:
+
+- the machine-readable measurement contract;
+- the benchmark manifest;
+- deterministic public materialization;
+- blinded review-packet set;
+- multidimensional adjudications;
+- decided scenario-channel provenance registry;
+- manifest-integrity evidence; and
+- scenario-channel-integrity evidence.
+
+The lock records SHA-256 digests for every item above and the exact measurement-contract
+version. Version strings alone are insufficient: the exact contract and scenario-registry
+bytes are part of the frozen evidence state.
+
+## Cross-artifact invariants
+
+Before publishing the lock, the implementation requires:
+
+- plan/protocol/measurement-contract version agreement across the evidence chain;
+- a schema-valid measurement contract adopted before labels and product execution;
+- review packets and scenario provenance bound to the exact materialization bytes;
+- adjudications bound to the exact blinded review-packet bytes;
+- identical case membership across manifest, materialization, review packets,
+  adjudications, and scenario-channel registry;
+- every adjudication and scenario-channel case to be decided;
+- manifest source provenance and adjudication payloads to match their upstream evidence;
+- scenario provenance/admissibility and referenced scenario artifact SHA-256 values to
+  validate under the frozen Task-4 contract; and
+- no pre-existing PermitDiff result artifact anywhere in the common evidence root.
+
+The implementation re-reads all evidence inputs after integrity validation and refuses to
+publish if any bytes changed during lock construction.
+
+## Outputs
+
+The output directory is created atomically and must not already exist. It contains:
+
+- `manifest-integrity.json`;
+- `scenario-channel-integrity.json`; and
+- `pre-execution-lock.json`.
+
+The scenario integrity artifact is versioned as
+`permitdiff-r3-scenario-channel-integrity-v1`; manifest integrity remains versioned by the
+existing benchmark-integrity validator.
+
+## Invocation
 
 ```bash
-python scripts/lock_r3_exploratory_corpus.py \
+python scripts/lock_r3_exploratory_corpus_v2.py \
   --manifest \
     validation/r3-benchmark/exploratory/public-historical-v1/manifest.json \
   --materialization \
     validation/r3-benchmark/exploratory/public-historical-v1/materialization.json \
   --review-packets \
-    validation/r3-benchmark/exploratory/review-packets-v1/review-packets.json \
+    validation/r3-benchmark/exploratory/review-packets-v2/review-packets.json \
   --adjudications \
-    validation/r3-benchmark/exploratory/adjudications-v1.json \
+    validation/r3-benchmark/exploratory/adjudications-v2.json \
+  --measurement-contract \
+    validation/r3-benchmark/exploratory/measurement-contract-v2.json \
+  --scenario-channels \
+    validation/r3-benchmark/exploratory/scenario-channels-v1.json \
   --output-dir \
-    validation/r3-benchmark/exploratory/public-historical-v1/pre-execution-lock-v1
+    validation/r3-benchmark/exploratory/public-historical-v1/pre-execution-lock-v2
 ```
 
-The output directory is created atomically and contains:
+`--measurement-contract` defaults to the canonical exploratory v2 contract, but the exact
+file bytes supplied or resolved by the command are always validated and digest-bound.
+`--scenario-channels` is mandatory because it is case-specific evidence.
 
-```text
-manifest-integrity.json
-pre-execution-lock.json
-```
+## Evidence boundary
 
-`manifest-integrity.json` is produced by the merged R3 benchmark integrity validator.
-`pre-execution-lock.json` records SHA-256 digests for the manifest, materialization index,
-review packet set, adjudications, and integrity evidence, plus the corpus identifier,
-case count, protocol/plan versions, lock timestamp, and explicit
-`product_execution_performed: false`.
-
-## Scientific boundary
-
-A successful lock means the corpus state is reproducibly frozen before product execution.
-It does not establish detection quality or external validation. Any material change to
-membership, artifacts, labels, or adjudications after first PermitDiff execution requires
-a new corpus version rather than rewriting this lock.
+A successful lock establishes an immutable pre-execution evidence boundary. It does not
+establish product accuracy, research novelty, external validation, production readiness,
+or commercial validation. Those claims require later execution and independent evidence.

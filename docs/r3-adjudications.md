@@ -116,8 +116,8 @@ Scenario-set provenance is now a separate, machine-readable pre-execution artifa
 - `scripts/build_r3_scenario_channels.py`.
 
 Each selected case must explicitly record whether a primary-admissible observed-scenario
-channel is `PRESENT` or `ABSENT`. `PREEXISTING_PROJECT` and `INDEPENDENT_BLIND` scenario
-sets are primary-admissible. `DIAGNOSTIC_ANSWER_INFORMED` and `PRODUCT_GENERATED` are
+channel is `PRESENT` or `ABSENT`. `PREEXISTING_PROJECT` and `INDEPENDENT_BLIND` review
+sets are primary-admissible. `DIAGNOSTIC_ANSWER _INFORMED_` and `PRODUCT_GENERATED` are
 diagnostic-only and cannot make the primary channel available.
 
 An absent primary channel is a valid measured state and must use
@@ -127,15 +127,41 @@ slot is not the canonical provenance carrier for this amended R3 workflow; scena
 provenance is frozen in the dedicated scenario-channel set and will be digest-bound by
 the pre-execution lock.
 
-## Remaining pre-execution work
+## Complete pre-execution evidence lock
 
-The pre-execution lock currently checks v2 contract/version consistency. A later lock
-revision must bind the exact machine-readable measurement-contract bytes and the exact
-scenario-channel-set bytes before product execution.
+The pre-execution lock now requires the exact machine-readable measurement contract and
+the decided scenario-channel set as first-class inputs. It validates their schemas and
+cross-artifact linkage, verifies scenario artifact integrity, and binds their exact bytes
+alongside the manifest, materialization, blinded review packets, adjudications, and
+manifest-integrity evidence.
+
+```bash
+python scripts/lock_r3_exploratory_corpus_v2.py \
+  --manifest \
+    validation/r3-benchmark/exploratory/public-historical-v1/manifest.json \
+  --materialization \
+    validation/r3-benchmark/exploratory/public-historical-v1/materialization.json \
+  --review-packets \
+    validation/r3-benchmark/exploratory/review-packets-v2/review-packets.json \
+  --adjudications \
+    validation/r3-benchmark/exploratory/adjudications-v2.json \
+  --measurement-contract \
+    validation/r3-benchmark/exploratory/measurement-contract-v2.json \
+  --scenario-channels \
+    validation/r3-benchmark/exploratory/scenario-channels-v1.json \
+  --output-dir \
+    validation/r3-benchmark/exploratory/public-historical-v1/pre-execution-lock-v2
+```
+
+The lock publishes `manifest-integrity.json`, `scenario-channel-integrity.json`, and
+`pre-execution-lock.json` atomically. The lock is schema-versioned as
+`permitdiff.dev/r3-pre-execution-lock/v2` and records SHA-256 digests for every frozen
+measurement/evidence input plus both integrity-evidence artifacts.
 
 ## Evidence boundary
 
-This stage freezes multidimensional, output-independent exploratory ground truth and the
-predeclared review/scoring interpretation. It still does not permit PermitDiff execution
-until the complete pre-execution lock has bound all required evidence, including the
-measurement contract, and integrity validation has succeeded.
+This stage freezes multidimensional, output-independent exploratory ground truth, the
+predeclared review/scoring interpretation, scenario provenance, and the exact evidence
+chain required before product execution. It still does not itself run PermitDiff, create
+benchmark outcomes, or upgrade maturity; product execution becomes protocol-permissible
+only after a real corpus has been collected/adjudicated and this complete lock succeeds.

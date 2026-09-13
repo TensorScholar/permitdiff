@@ -100,6 +100,7 @@ integrity.
 This is provenance/evidence preparation only. It does not execute PermitDiff, score a
 case, or upgrade maturity.
 
-The scenario-channel set becomes part of the pre-execution evidence chain. The lock must
-bind its exact bytes before product execution; that binding is implemented in the next
-pre-execution-lock task.
+The scenario-channel set is part of the pre-execution evidence chain. The v2
+pre-execution lock validates the registry against the exact materialization, verifies any
+referenced scenario artifacts, emits `scenario-channel-integrity.json`, and binds both the
+registry bytes and derived integrity evidence by SHA-256 before product execution.
