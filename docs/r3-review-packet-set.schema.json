@@ -8,23 +8,29 @@
     "schema_version",
     "plan_version",
     "protocol_version",
+    "measurement_contract_version",
     "source_materialization_sha256",
     "generated_at",
     "product_output_prohibited",
-    "review_question",
-    "label_definitions",
+    "review_scope",
+    "source_semantic_question",
+    "source_semantic_relation_definitions",
+    "source_semantics_resolution_definitions",
     "case_count",
     "cases"
   ],
   "properties": {
     "schema_version": {
-      "const": "permitdiff.dev/r3-review-packet-set/v1"
+      "const": "permitdiff.dev/r3-review-packet-set/v2"
     },
     "plan_version": {
       "const": "r3-exploratory-corpus-plan-v1"
     },
     "protocol_version": {
       "const": "r3-benchmark-protocol-v1"
+    },
+    "measurement_contract_version": {
+      "const": "r3-exploratory-measurement-contract-v2"
     },
     "source_materialization_sha256": {
       "type": "string",
@@ -37,28 +43,64 @@
     "product_output_prohibited": {
       "const": true
     },
-    "review_question": {
+    "review_scope": {
+      "const": "source_semantics_only"
+    },
+    "source_semantic_question": {
       "type": "string",
       "minLength": 1
     },
-    "label_definitions": {
+    "source_semantic_relation_definitions": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "SECURITY_RELEVANT_REGRESSION",
-        "BENIGN_OR_RESTRICTIVE_CHANGE",
-        "UNKNOWN_OR_UNSUPPORTED"
+        "WIDENING",
+        "RESTRICTIVE",
+        "EQUIVALENT",
+        "MIXED",
+        "UNRESOLVED"
       ],
       "properties": {
-        "SECURITY_RELEVANT_REGRESSION": {
+        "WIDENING": {
           "type": "string",
           "minLength": 1
         },
-        "BENIGN_OR_RESTRICTIVE_CHANGE": {
+        "RESTRICTIVE": {
           "type": "string",
           "minLength": 1
         },
-        "UNKNOWN_OR_UNSUPPORTED": {
+        "EQUIVALENT": {
+          "type": "string",
+          "minLength": 1
+        },
+        "MIXED": {
+          "type": "string",
+          "minLength": 1
+        },
+        "UNRESOLVED": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source_semantics_resolution_definitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "RESOLVED",
+        "AMBIGUOUS",
+        "UNAVAILABLE"
+      ],
+      "properties": {
+        "RESOLVED": {
+          "type": "string",
+          "minLength": 1
+        },
+        "AMBIGUOUS": {
+          "type": "string",
+          "minLength": 1
+        },
+        "UNAVAILABLE": {
           "type": "string",
           "minLength": 1
         }

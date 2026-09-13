@@ -97,7 +97,7 @@ def _ready_context(materialization_path: Path, tmp_path: Path) -> Path:
     return path
 
 
-def test_prepare_context_is_bound_and_contains_no_ground_truth_labels(tmp_path) -> None:
+def test_prepare_context_is_bound_and_contains_no_adjudication_decisions(tmp_path) -> None:
     materialization_path = _materialization(tmp_path / "source")
 
     context = prepare_context(materialization_path, MATERIALIZATION_SCHEMA)
@@ -105,10 +105,14 @@ def test_prepare_context_is_bound_and_contains_no_ground_truth_labels(tmp_path) 
     assert context["schema_version"] == "permitdiff.dev/r3-review-context/v1"
     assert context["cases"][0]["status"] == "pending"
     assert context["cases"][0]["documentation_refs"] == []
-    assert "label" not in json.dumps(context).lower()
+    serialized = json.dumps(context)
+    assert "source_semantic_relation" not in serialized
+    assert "source_semantics_resolution" not in serialized
+    assert "tool_support" not in serialized
+    assert "organizational_intent" not in serialized
 
 
-def test_build_review_packets_creates_self_contained_plain_diff_packets(tmp_path) -> None:
+def test_build_review_packets_creates_source_semantics_only_packets(tmp_path) -> None:
     materialization_path = _materialization(tmp_path / "source")
     context_path = _ready_context(materialization_path, tmp_path)
     output_dir = tmp_path / "packets"
@@ -127,12 +131,41 @@ def test_build_review_packets_creates_self_contained_plain_diff_packets(tmp_path
     case_root = output_dir / "cases" / transition_id
     diff = (case_root / "source-diff.txt").read_text(encoding="utf-8")
     review = (case_root / "review.md").read_text(encoding="utf-8")
+    serialized_packet = json.dumps(packet_set)
 
+    assert packet_set["schema_version"] == "permitdiff.dev/r3-review-packet-set/v2"
+    assert (
+        packet_set["measurement_contract_version"]
+        == "r3-exploratory-measurement-contract-v2"
+    )
     assert packet_set["product_output_prohibited"] is True
+    assert packet_set["review_scope"] == "source_semantics_only"
+    assert set(packet_set["source_semantic_relation_definitions"]) == {
+        "WIDENING",
+        "RESTRICTIVE",
+        "EQUIVALENT",
+        "MIXED",
+        "UNRESOLVED",
+    }
+    assert set(packet_set["source_semantics_resolution_definitions"]) == {
+        "RESOLVED",
+        "AMBIGUOUS",
+        "UNAVAILABLE",
+    }
+    assert "SECURITY_RELEVANT_REGRESSION" not in serialized_packet
+    assert "BENIGN_OR_RESTRICTIVE_CHANGE" not in serialized_packet
+    assert "UNKNOWN_OR_UNSUPPORTED" not in serialized_packet
+    assert "tool_support" not in packet_set
+    assert "organizational_intent" not in packet_set
+
     assert "--- baseline.json" in diff
     assert "+++ candidate.json" in diff
     assert "Bash(*)" in diff
     assert "Do not consult PermitDiff output" in review
+    assert "source_semantic_relation" in review
+    assert "source_semantics_resolution" in review
+    assert "tool support or organizational intent" in review
+    assert "fixed-version semantic replay" in review
     assert "Public permission semantics" in review
     assert (case_root / "baseline.json").exists()
     assert (case_root / "candidate.json").exists()

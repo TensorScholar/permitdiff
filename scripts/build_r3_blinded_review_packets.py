@@ -22,24 +22,44 @@ from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERS
 from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
 
 REVIEW_CONTEXT_SCHEMA_VERSION = "permitdiff.dev/r3-review-context/v1"
-REVIEW_PACKET_SET_SCHEMA_VERSION = "permitdiff.dev/r3-review-packet-set/v1"
-_REVIEW_QUESTION = (
-    "Compared with the baseline, does the candidate introduce a security-relevant "
-    "authorization regression, remain benign/restrictive, or require "
-    "UNKNOWN_OR_UNSUPPORTED under documented public source semantics?"
+REVIEW_PACKET_SET_SCHEMA_VERSION = "permitdiff.dev/r3-review-packet-set/v2"
+MEASUREMENT_CONTRACT_VERSION = "r3-exploratory-measurement-contract-v2"
+_REVIEW_SCOPE = "source_semantics_only"
+_SOURCE_SEMANTIC_QUESTION = (
+    "Under the frozen documented source semantics and declared review assumptions, "
+    "what semantic relation holds between the exact baseline and candidate artifacts?"
 )
-_LABEL_DEFINITIONS = {
-    "SECURITY_RELEVANT_REGRESSION": (
-        "Documented source semantics establish a material authorization regression "
-        "within the review scope."
+_SOURCE_SEMANTIC_RELATION_DEFINITIONS = {
+    "WIDENING": (
+        "Documented source semantics establish a net authorization broadening or "
+        "approval-boundary weakening relevant to the frozen review scope."
     ),
-    "BENIGN_OR_RESTRICTIVE_CHANGE": (
-        "Documented source semantics establish no security-relevant broadening; the "
-        "change is benign or restrictive within the review scope."
+    "RESTRICTIVE": "Documented source semantics establish a net restriction.",
+    "EQUIVALENT": (
+        "The changed authorization-relevant source state is semantically equivalent "
+        "within the frozen review scope."
     ),
-    "UNKNOWN_OR_UNSUPPORTED": (
-        "Available public evidence cannot soundly order the authorization effect, or "
-        "the relevant semantics are genuinely ambiguous or unsupported."
+    "MIXED": (
+        "Both widening and restrictive effects are established and a single directional "
+        "ordering would be misleading."
+    ),
+    "UNRESOLVED": (
+        "Available public source evidence cannot establish the source-level relation "
+        "without undocumented runtime, precedence, or environment assumptions."
+    ),
+}
+_SOURCE_SEMANTICS_RESOLUTION_DEFINITIONS = {
+    "RESOLVED": (
+        "The frozen source-system evidence is sufficient to resolve the relevant semantics "
+        "under the declared review assumptions."
+    ),
+    "AMBIGUOUS": (
+        "The frozen source-system evidence exists but leaves materially conflicting or "
+        "ambiguous semantics."
+    ),
+    "UNAVAILABLE": (
+        "Evidence required to resolve the relevant source-system semantics is unavailable "
+        "within the frozen documentation set."
     ),
 }
 
@@ -125,7 +145,7 @@ def _validate_materialization(index: Mapping[str, Any]) -> list[Mapping[str, Any
 
 
 def prepare_context(materialization_path: Path, materialization_schema: Path) -> dict[str, Any]:
-    """Create a source-document context worksheet without any security labels."""
+    """Create a source-document context worksheet without any adjudication decisions."""
 
     index, index_bytes = _read_json_object_bytes(
         materialization_path, label="public materialization"
@@ -218,15 +238,37 @@ def _markdown_packet(
         "",
         "Do not consult PermitDiff output, normalized policies, findings, gates, or explanations.",
         "",
-        f"**Question:** {_REVIEW_QUESTION}",
+        "This packet is limited to source-system semantics. Do not determine PermitDiff "
+        "tool support or organizational intent here; those are separate adjudication dimensions.",
         "",
-        "Choose exactly one ground-truth label during adjudication:",
+        "The exploratory public-historical slice uses fixed-version semantic replay. "
+        "Current frozen documentation defines the review semantics; this packet does not "
+        "claim historical deployed runtime behavior.",
+        "",
+        f"**Source-semantic question:** {_SOURCE_SEMANTIC_QUESTION}",
+        "",
+        "Record exactly one `source_semantic_relation` during adjudication:",
         "",
     ]
-    for label, definition in _LABEL_DEFINITIONS.items():
-        lines.append(f"- `{label}` — {definition}")
+    for relation, definition in _SOURCE_SEMANTIC_RELATION_DEFINITIONS.items():
+        lines.append(f"- `{relation}` — {definition}")
     lines.extend(
         [
+            "",
+            "Record exactly one `source_semantics_resolution` during adjudication:",
+            "",
+        ]
+    )
+    for resolution, definition in _SOURCE_SEMANTICS_RESOLUTION_DEFINITIONS.items():
+        lines.append(f"- `{resolution}` — {definition}")
+    lines.extend(
+        [
+            "",
+            "Consistency rule: any `source_semantic_relation` other than `UNRESOLVED` "
+            "requires `source_semantics_resolution = RESOLVED`.",
+            "",
+            "`UNRESOLVED` is about source-semantic ground truth. It must not be used merely "
+            "because PermitDiff does not support a construct.",
             "",
             "## Public source",
             "",
@@ -409,11 +451,14 @@ def build_review_packets(
             "schema_version": REVIEW_PACKET_SET_SCHEMA_VERSION,
             "plan_version": PLAN_VERSION,
             "protocol_version": PROTOCOL_VERSION,
+            "measurement_contract_version": MEASUREMENT_CONTRACT_VERSION,
             "source_materialization_sha256": _sha256_bytes(index_bytes),
             "generated_at": _utc_now(),
             "product_output_prohibited": True,
-            "review_question": _REVIEW_QUESTION,
-            "label_definitions": _LABEL_DEFINITIONS,
+            "review_scope": _REVIEW_SCOPE,
+            "source_semantic_question": _SOURCE_SEMANTIC_QUESTION,
+            "source_semantic_relation_definitions": _SOURCE_SEMANTIC_RELATION_DEFINITIONS,
+            "source_semantics_resolution_definitions": _SOURCE_SEMANTICS_RESOLUTION_DEFINITIONS,
             "case_count": len(packet_cases),
             "cases": packet_cases,
         }

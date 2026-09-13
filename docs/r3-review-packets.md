@@ -7,6 +7,10 @@ selected public historical slice. It is deliberately source-system-only: no Perm
 output, normalized policy, finding, gate result, or explanation is allowed into the
 packet.
 
+The packet contract implements `r3-exploratory-measurement-contract-v2`. It no longer
+uses the superseded three-way label that conflated source-semantic direction, PermitDiff
+support, organizational intent, and source-semantic uncertainty.
+
 ## 1. Prepare documentation context
 
 After exact source artifacts have been materialized:
@@ -19,7 +23,7 @@ python scripts/build_r3_blinded_review_packets.py prepare \
 ```
 
 The generated context is bound to the exact materialization-index bytes. It contains no
-ground-truth label fields.
+ground-truth decision fields.
 
 Populate `common_documentation_refs` and/or each case's `documentation_refs` with the
 public source-system documentation a reviewer may consult. Then change every case
@@ -36,7 +40,7 @@ python scripts/build_r3_blinded_review_packets.py build \
   --materialization \
     validation/r3-benchmark/exploratory/public-historical-v1/materialization.json \
   --context validation/r3-benchmark/exploratory/review-context.json \
-  --output-dir validation/r3-benchmark/exploratory/review-packets-v1
+  --output-dir validation/r3-benchmark/exploratory/review-packets-v2
 ```
 
 The builder verifies the materialization index and every copied artifact digest, requires
@@ -54,10 +58,30 @@ review.md
 ```
 
 `source-diff.txt` is a plain unified text diff with no PermitDiff-derived annotation.
-`review.md` states the fixed review question, the three protocol labels, source
-provenance, packet files, and the allowed source-system documentation.
 
-The top-level `review-packets.json` binds packet metadata and generated-file digests.
+`review.md` asks only the source-semantic questions governed by the measurement contract:
+
+- exactly one `source_semantic_relation`:
+  `WIDENING`, `RESTRICTIVE`, `EQUIVALENT`, `MIXED`, or `UNRESOLVED`;
+- exactly one `source_semantics_resolution`:
+  `RESOLVED`, `AMBIGUOUS`, or `UNAVAILABLE`.
+
+Any relation other than `UNRESOLVED` requires `RESOLVED` source semantics under the
+frozen evidence set.
+
+The packet explicitly does **not** ask the reviewer to determine `tool_support` or
+`organizational_intent`. Those are separate adjudication dimensions and must not change
+the source-semantic relation. In particular, `UNRESOLVED` is not a synonym for
+PermitDiff unsupported behavior.
+
+The exploratory public-historical slice uses fixed-version semantic replay: reviewers
+answer the source-semantic question under the frozen documented semantics and declared
+review assumptions. The packet does not claim that current documentation proves the
+historically deployed runtime behavior.
+
+The top-level `review-packets.json` binds the packet schema version, measurement-contract
+version, source materialization digest, review scope, frozen semantic definitions,
+case metadata, and generated-file digests.
 
 ## Machine contracts
 
@@ -68,29 +92,32 @@ Context worksheets conform to:
 Built packet sets conform to:
 
 - `docs/r3-review-packet-set.schema.json`
+- schema version `permitdiff.dev/r3-review-packet-set/v2`
+- measurement contract `r3-exploratory-measurement-contract-v2`
 
 ## Blinding rule
 
-A reviewer must decide ground truth from the exact source artifacts, plain text diff,
-and documented public source-system semantics. Do not inspect PermitDiff output before
-the provisional adjudication is recorded.
+A reviewer determines source semantics from the exact source artifacts, plain text diff,
+and frozen public source-system documentation. Do not inspect PermitDiff output before
+the provisional source-semantic adjudication is recorded.
 
-The packet labels are:
+The source-semantic question is:
 
-- `SECURITY_RELEVANT_REGRESSION`
-- `BENIGN_OR_RESTRICTIVE_CHANGE`
-- `UNKNOWN_OR_UNSUPPORTED`
+> Under the frozen documented source semantics and declared review assumptions, what
+> semantic relation holds between the exact baseline and candidate artifacts?
 
-When public documentation is insufficient or runtime/precedence semantics remain
-genuinely ambiguous, the protocol requires `UNKNOWN_OR_UNSUPPORTED` instead of a forced
-binary judgment.
+The packet itself does not determine whether PermitDiff supports those semantics, whether
+the change was organizationally intended, or how the case should score against product
+outputs. Those decisions belong to later, separately modeled adjudication/scoring
+contracts.
 
 ## Evidence boundary
 
 Packet construction is evidence preparation, not adjudication. A complete packet set
-does not itself establish a security label or external validation.
+does not itself establish a semantic relation, product result, security defect, or
+external validation.
 
-The next step is to record output-blind provisional adjudications, including rationale,
-evidence references, support-boundary status, review status, and atomic categories where
-required. Those records must be locked into the benchmark manifest before PermitDiff
-execution.
+The next step is to record multidimensional output-blind adjudications under the amended
+measurement contract. Those adjudications must preserve source semantic relation, tool
+support, organizational intent, and source-semantic resolution as separate dimensions
+before PermitDiff execution.
