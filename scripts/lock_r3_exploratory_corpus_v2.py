@@ -203,7 +203,9 @@ def _validate_review_packet_artifacts(
     if not all(isinstance(case_id, str) and case_id for case_id in packet_ids):
         raise PreExecutionLockError("review packet set contains an invalid transition_id")
     if packet_ids != materialization_ids:
-        raise PreExecutionLockError("review packet membership/order does not match materialization")
+        raise PreExecutionLockError(
+            "review packet membership/order does not match materialization"
+        )
 
     packet_root = review_packet_set_path.resolve().parent
     snapshots: dict[str, tuple[Path, bytes]] = {}
@@ -222,7 +224,7 @@ def _validate_review_packet_artifacts(
             packet_artifact = packet_case.get(role)
             if not isinstance(source_artifact, Mapping) or not isinstance(
                 packet_artifact, Mapping
-           ):
+            ):
                 raise PreExecutionLockError(
                     f"review packet {role} metadata is malformed for {case_id}"
                 )
@@ -240,12 +242,10 @@ def _validate_review_packet_artifacts(
                 raise PreExecutionLockError(
                     f"review packet {artifact_name} metadata is malformed for {case_id}"
                 )
-            snapshots[f"review packet {case_id} {artifact_name}"] = (
-                _snapshot_packet_file(
-                    packet_root,
-                    artifact,
-                    label=f"review packet {case_id} {artifact_name}",
-                )
+            snapshots[f"review packet {case_id} {artifact_name}"] = _snapshot_packet_file(
+                packet_root,
+                artifact,
+                label=f"review packet {case_id} {artifact_name}",
             )
 
     return snapshots
@@ -361,7 +361,7 @@ def create_complete_pre_execution_lock(
             lock_schema_path=legacy_lock_schema_path,
         )
         if legacy_lock.get("case_count") != scenario_integrity.get("case_count"):
-            raise PreExecutionLockError,"scenario channel integrity case_count mismatch")
+            raise PreExecutionLockError("scenario channel integrity case_count mismatch")
 
         for label, (path, expected) in snapshots.items():
             _assert_bytes_unchanged(path, expected, label=label)
