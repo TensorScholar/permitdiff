@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-adjudications.schema.json",
+  "title": "PermitDiff R3 Output-Blind Multidimensional Adjudications",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_version",
+    "protocol_version",
+    "measurement_contract_version",
+    "source_review_packet_set_sha256",
+    "generated_at",
+    "product_output_consulted",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "permitdiff.dev/r3-adjudications/v2"
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "measurement_contract_version": {
+      "const": "r3-exploratory-measurement-contract-v2"
+    },
+    "source_review_packet_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "product_output_consulted": {
+      "const": false
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "transition_id",
+        "status",
+        "source_semantic_relation",
+        "tool_support",
+        "organizational_intent",
+        "source_semantics_resolution",
+        "review_status",
+        "reviewers",
+        "rationale",
+        "atomic_categories",
+        "evidence_refs",
+        "ambiguity_notes",
+        "change_family",
+        "blinding_state",
+        "contamination_state"
+      ],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "transition_id": {
+          "type": "string",
+          "pattern": "^gh-[0-9a-f]{20}$"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "decided"
+          ]
+        },
+        "source_semantic_relation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "WIDENING",
+            "RESTRICTIVE",
+            "EQUIVALENT",
+            "MIXED",
+            "UNRESOLVED",
+            null
+          ]
+        },
+        "tool_support": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "SUPPORTED",
+            "PARTIALLY_SUPPORTED",
+            "UNSUPPORTED",
+            null
+          ]
+        },
+        "organizational_intent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "KNOWN_INTENDED",
+            "KNOWN_UNINTENDED",
+            "UNAVAILABLE",
+            "NOT_APPLICABLE",
+            null
+          ]
+        },
+        "source_semantics_resolution": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "RESOLVED",
+            "AMBIGUOUS",
+            "UNAVAILABLE",
+            null
+          ]
+        },
+        "review_status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "single_reviewed",
+            "double_reviewed",
+            "adjudicated",
+            null
+          ]
+        },
+        "reviewers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 10000
+        },
+        "atomic_categories": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "ambiguity_notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "change_family": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "blinding_state": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "OUTPUT_BLIND",
+            null
+          ]
+        },
+        "contamination_state": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "NO_KNOWN_PREEXPOSURE",
+            "KNOWN_PREEXPOSURE",
+            "UNKNOWN",
+            null
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "decided"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source_semantic_relation": {
+                "type": "string"
+              },
+              "tool_support": {
+                "type": "string"
+              },
+              "organizational_intent": {
+                "type": "string"
+              },
+              "source_semantics_resolution": {
+                "type": "string"
+              },
+              "review_status": {
+                "type": "string"
+              },
+              "reviewers": {
+                "minItems": 1
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence_refs": {
+                "minItems": 1
+              },
+              "change_family": {
+                "type": "string",
+                "minLength": 1
+              },
+              "blinding_state": {
+                "const": "OUTPUT_BLIND"
+              },
+              "contamination_state": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source_semantic_relation": {
+                "enum": [
+                  "WIDENING",
+                  "RESTRICTIVE",
+                  "EQUIVALENT",
+                  "MIXED"
+                ]
+              }
+            },
+            "required": [
+              "source_semantic_relation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source_semantics_resolution": {
+                "const": "RESOLVED"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source_semantic_relation": {
+                "const": "UNRESOLVED"
+              }
+            },
+            "required": [
+              "source_semantic_relation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source_semantics_resolution": {
+                "enum": [
+                  "AMBIGUOUS",
+                  "UNAVAILABLE"
+                ]
+              },
+              "ambiguity_notes": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-scenario-channel-set.schema.json",
+  "title": "PermitDiff R3 Scenario Channel Set",
+  "description": "Output-blind per-case scenario-channel provenance and explicit primary-channel availability for the R3 exploratory corpus.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_version",
+    "protocol_version",
+    "measurement_contract_version",
+    "source_materialization_sha256",
+    "generated_at",
+    "product_output_consulted",
+    "case_count",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {"const": "permitdiff.dev/r3-scenario-channel-set/v1"},
+    "plan_version": {"const": "r3-exploratory-corpus-plan-v1"},
+    "protocol_version": {"const": "r3-benchmark-protocol-v1"},
+    "measurement_contract_version": {"const": "r3-exploratory-measurement-contract-v2"},
+    "source_materialization_sha256": {"$ref": "#/$defs/sha256"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "product_output_consulted": {"const": false},
+    "case_count": {"type": "integer", "minimum": 0},
+    "cases": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/case"}
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "source_url",
+        "source_commit",
+        "source_blob"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^cases/gh-[0-9a-f]{20}/scenarios/[^/].*$",
+          "maxLength": 1024
+        },
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "source_url": {
+          "type": ["string", "null"],
+          "format": "uri"
+        },
+        "source_commit": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "source_blob": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "scenarioSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "provenance",
+        "primary_admissible",
+        "artifact",
+        "provenance_evidence_refs",
+        "generation_cost_accounting_required",
+        "notes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "provenance": {
+          "enum": [
+            "PREEXISTING_PROJECT",
+            "INDEPENDENT_BLIND",
+            "DIAGNOSTIC_ANSWER_INFORMED",
+            "PRODUCT_GENERATED"
+          ]
+        },
+        "primary_admissible": {"type": "boolean"},
+        "artifact": {"$ref": "#/$defs/artifact"},
+        "provenance_evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "generation_cost_accounting_required": {"type": "boolean"},
+        "notes": {
+          "type": ["string", "null"],
+          "maxLength": 4000
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "transition_id",
+        "status",
+        "primary_channel_state",
+        "absence_reason",
+        "scenario_sets",
+        "notes"
+      ],
+      "properties": {
+        "rank": {"type": "integer", "minimum": 1},
+        "transition_id": {
+          "type": "string",
+          "pattern": "^gh-[0-9a-f]{20}$"
+        },
+        "status": {"enum": ["pending", "decided"]},
+        "primary_channel_state": {
+          "type": ["string", "null"],
+          "enum": ["PRESENT", "ABSENT", null]
+        },
+        "absence_reason": {
+          "type": ["string", "null"],
+          "enum": ["NO_PRIMARY_ADMISSIBLE_SCENARIO_SET", null]
+        },
+        "scenario_sets": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/scenarioSet"}
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "maxLength": 4000
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"status": {"const": "pending"}},
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "primary_channel_state": {"type": "null"},
+              "absence_reason": {"type": "null"},
+              "scenario_sets": {"maxItems": 0}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {"const": "decided"},
+              "primary_channel_state": {"const": "PRESENT"}
+            },
+            "required": ["status", "primary_channel_state"]
+          },
+          "then": {
+            "properties": {"absence_reason": {"type": "null"}}
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {"const": "decided"},
+              "primary_channel_state": {"const": "ABSENT"}
+            },
+            "required": ["status", "primary_channel_state"]
+          },
+          "then": {
+            "properties": {
+              "absence_reason": {"const": "NO_PRIMARY_ADMISSIBLE_SCENARIO_SET" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

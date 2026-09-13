@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-public-materialization.schema.json",
+  "title": "PermitDiff R3 Public Historical Materialization",
+  "description": "Exact vendored artifacts for a frozen R3 public historical selection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_version",
+    "protocol_version",
+    "source_selection_sha256",
+    "generated_at",
+    "selected_case_count",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "permitdiff.dev/r3-public-materialization/v1"
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "source_selection_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "selected_case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "source_url",
+        "source_commit",
+        "source_blob",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^cases/gh-[0-9a-f]{20}/(baseline|candidate)\\.json$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github\\.com/"
+        },
+        "source_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "source_blob": {
+          "$ref": "#/$defs/sha1"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "transition_id",
+        "repository_full_name",
+        "repository_url",
+        "source_path",
+        "selection_key",
+        "baseline",
+        "candidate"
+      ],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "transition_id": {
+          "type": "string",
+          "pattern": "^gh-[0-9a-f]{20}$"
+        },
+        "repository_full_name": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$"
+        },
+        "repository_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+        },
+        "source_path": {
+          "enum": [
+            ".claude/settings.json",
+            ".claude/settings.local.json"
+          ]
+        },
+        "selection_key": {
+          "$ref": "#/$defs/sha256"
+        },
+        "baseline": {
+          "$ref": "#/$defs/artifact"
+        },
+        "candidate": {
+          "$ref": "#/$defs/artifact"
+        }
+      }
+    }
+  }
+}

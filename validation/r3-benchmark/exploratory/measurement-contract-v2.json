@@ -1,0 +1,203 @@
+{
+  "schema_version": "permitdiff.dev/r3-measurement-contract/v2",
+  "measurement_contract_version": "r3-exploratory-measurement-contract-v2",
+  "amendment_id": "r3-exploratory-measurement-amendment-2026-09-12-v1",
+  "parent_plan_version": "r3-exploratory-corpus-plan-v1",
+  "protocol_version": "r3-benchmark-protocol-v1",
+  "adopted_before_canonical_labels": true,
+  "adopted_before_product_execution": true,
+  "primary_research_target": "review_worthy_authorization_widening_under_frozen_source_semantics",
+  "semantic_version_policy": "fixed_version_replay",
+  "source_semantic_relations": [
+    "WIDENING",
+    "RESTRICTIVE",
+    "EQUIVALENT",
+    "MIXED",
+    "UNRESOLVED"
+  ],
+  "tool_support_values": [
+    "SUPPORTED",
+    "PARTIALLY_SUPPORTED",
+    "UNSUPPORTED"
+  ],
+  "organizational_intent_values": [
+    "KNOWN_INTENDED",
+    "KNOWN_UNINTENDED",
+    "UNAVAILABLE",
+    "NOT_APPLICABLE"
+  ],
+  "source_semantics_resolution_values": [
+    "RESOLVED",
+    "AMBIGUOUS",
+    "UNAVAILABLE"
+  ],
+  "review_trigger_scoring_contract": {
+    "version": "r3-review-trigger-scoring-v1",
+    "ground_truth_review_classes": {
+      "known_review_required_relations": [
+        "WIDENING",
+        "MIXED"
+      ],
+      "known_no_review_by_direction_relations": [
+        "RESTRICTIVE",
+        "EQUIVALENT"
+      ],
+      "uncertain_relations": [
+        "UNRESOLVED"
+      ]
+    },
+    "relation_trigger_policy": {
+      "WIDENING": "REQUIRES_AUTHORIZATION_REVIEW",
+      "MIXED": "REQUIRES_AUTHORIZATION_REVIEW",
+      "RESTRICTIVE": "NO_REVIEW_BY_SEMANTIC_DIRECTION_ALONE",
+      "EQUIVALENT": "NO_REVIEW_BY_SEMANTIC_DIRECTION_ALONE",
+      "UNRESOLVED": "REQUIRES_SEMANTIC_ESCALATION"
+    },
+    "product_dispositions": [
+      "DEFINITE_REVIEW_REQUIRED",
+      "DEFINITE_NO_REVIEW_REQUIRED",
+      "ESCALATE"
+    ],
+    "product_disposition_rules": {
+      "DEFINITE_REVIEW_REQUIRED": "At least one definite authorization-widening or approval-weakening finding independently justifies review; uncertainty may coexist but is not the sole reason.",
+      "DEFINITE_NO_REVIEW_REQUIRED": "No definite review-triggering finding and no unresolved/unsupported condition requires escalation; the system permits automatic pass for the measured construct.",
+      "ESCALATE": "No definite review-triggering finding exists, but uncertainty, unsupported semantics, abstention, or another fail-closed condition prevents automatic pass."
+    },
+    "normalization_precedence": [
+      "DEFINITE_REVIEW_REQUIRED",
+      "ESCALATE",
+      "DEFINITE_NO_REVIEW_REQUIRED"
+    ],
+    "dimension_independence": {
+      "tool_support_can_change_source_semantic_relation": false,
+      "organizational_intent_can_change_source_semantic_relation": false,
+      "organizational_intent_can_suppress_review_trigger": false,
+      "unsupported_known_review_required_case_remains_in_overall_positive_denominator": true,
+      "uncertainty_only_gate_block_counts_as_definite_detection": false
+    },
+    "mixed_policy": {
+      "preserve_relation_as_mixed": true,
+      "include_in_known_review_required_denominator": true,
+      "reason": "MIXED already establishes both widening and restrictive effects; the widening component requires authorization review without relabeling the case as WIDENING."
+    },
+    "unresolved_policy": {
+      "ordinary_positive": false,
+      "ordinary_negative": false,
+      "requires_semantic_escalation": true,
+      "included_in_directional_detection_error_denominators": false,
+      "included_in_decisive_coverage_and_escalation_burden": true,
+      "relation_stratified_dispositions_must_be_reported": true
+    },
+    "supported_subset_reporting": {
+      "filter": {
+        "tool_support": [
+          "SUPPORTED"
+        ]
+      },
+      "secondary_view_only": true,
+      "must_not_replace_overall_metrics": true,
+      "overall_known_review_required_denominator_includes": [
+        "SUPPORTED",
+        "PARTIALLY_SUPPORTED",
+        "UNSUPPORTED"
+      ],
+      "recompute_metrics": [
+        "definite_detection_recall",
+        "automatic_pass_error_rate",
+        "decisive_coverage",
+        "escalation_burden",
+        "false_alarm_burden",
+        "scenario_channel_availability",
+        "static_channel_contribution"
+      ]
+    },
+    "rate_reporting": {
+      "report_numerator_and_denominator": true,
+      "zero_denominator_rate": null,
+      "no_post_outcome_rule_changes": true
+    },
+    "metric_definitions": {
+      "definite_detection_recall": {
+        "denominator": "known_review_required_relations",
+        "numerator": "Cases in the denominator with product disposition DEFINITE_REVIEW_REQUIRED and at least one semantically correct definite review-triggering finding.",
+        "unsupported_cases_remain_in_denominator": true,
+        "escalation_counts_as_detection": false
+      },
+      "automatic_pass_error_rate": {
+        "denominator": "known_review_required_relations",
+        "numerator": "Cases in the denominator with product disposition DEFINITE_NO_REVIEW_REQUIRED.",
+        "unsupported_cases_remain_in_denominator": true
+      },
+      "decisive_coverage": {
+        "denominator": "all_evaluated_cases",
+        "numerator_dispositions": [
+          "DEFINITE_REVIEW_REQUIRED",
+          "DEFINITE_NO_REVIEW_REQUIRED"
+        ]
+      },
+      "escalation_burden": {
+        "denominator": "all_evaluated_cases",
+        "numerator_dispositions": [
+          "ESCALATE"
+        ]
+      },
+      "false_alarm_burden": {
+        "denominator": "known_no_review_by_direction_relations",
+        "numerator": "Cases in the denominator with product disposition DEFINITE_REVIEW_REQUIRED for the measured authorization-widening construct.",
+        "escalation_counts_as_false_alarm": false
+      },
+      "support_boundary_rate": {
+        "denominator": "all_evaluated_cases",
+        "numerator_tool_support": [
+          "PARTIALLY_SUPPORTED",
+          "UNSUPPORTED"
+        ]
+      },
+      "scenario_channel_availability": {
+        "denominator": "all_evaluated_cases",
+        "numerator": "Cases with a primary-admissible scenario channel under the frozen scenario provenance contract; explicit absence is not imputed."
+      },
+      "static_channel_contribution": {
+        "denominator": "known_review_required_relations",
+        "numerator": "Cases in the denominator with a semantically correct definite review-triggering finding from the static channel and no semantically correct definite review-triggering finding from the primary-admissible scenario channel."
+      }
+    }
+  },
+  "scenario_provenance_values": [
+    "PREEXISTING_PROJECT",
+    "INDEPENDENT_BLIND",
+    "DIAGNOSTIC_ANSWER_INFORMED",
+    "PRODUCT_GENERATED"
+  ],
+  "primary_scenario_provenance": [
+    "PREEXISTING_PROJECT",
+    "INDEPENDENT_BLIND"
+  ],
+  "primary_metrics": [
+    "definite_detection_recall",
+    "automatic_pass_error_rate",
+    "decisive_coverage",
+    "escalation_burden",
+    "false_alarm_burden",
+    "support_boundary_rate",
+    "scenario_channel_availability",
+    "static_channel_contribution"
+  ],
+  "human_review_independence": {
+    "adjudicators_separate_from_timed_reviewers": true,
+    "one_condition_per_case_per_participant": true,
+    "training_cases_disjoint": true,
+    "checklist_frozen_before_evaluation": true
+  },
+  "holdout_rule": "inspected_or_debugged_cases_are_never_fresh_confirmatory_evidence",
+  "unchanged_preregistration_controls": [
+    "frozen_discovery_queries",
+    "exact_candidate_paths",
+    "public_only_collection",
+    "fixed_exclusion_vocabulary",
+    "contamination_register",
+    "deterministic_selection",
+    "max_two_cases_per_repository",
+    "no_product_output_before_lock"
+  ]
+}

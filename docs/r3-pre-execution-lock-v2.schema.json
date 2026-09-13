@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-pre-execution-lock-v2.schema.json",
+  "title": "PermitDiff R3 Pre-Execution Lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_version",
+    "protocol_version",
+    "measurement_contract_version",
+    "corpus_id",
+    "locked_at",
+    "case_count",
+    "product_execution_performed",
+    "measurement_contract_sha256",
+    "manifest_sha256",
+    "materialization_sha256",
+    "review_packet_set_sha256",
+    "adjudications_sha256",
+    "scenario_channel_set_sha256",
+    "manifest_integrity_sha256",
+    "manifest_integrity_validator_version",
+    "scenario_channel_integrity_sha256",
+    "scenario_channel_integrity_validator_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "permitdiff.dev/r3-pre-execution-lock/v2"
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "measurement_contract_version": {
+      "const": "r3-exploratory-measurement-contract-v2"
+    },
+    "corpus_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "locked_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "product_execution_performed": {
+      "const": false
+    },
+    "measurement_contract_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "materialization_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "review_packet_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "adjudications_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scenario_channel_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "manifest_integrity_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "manifest_integrity_validator_version": {
+      "const": "permitdiff-r3-benchmark-integrity-v1"
+    },
+    "scenario_channel_integrity_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scenario_channel_integrity_validator_version": {
+      "const": "permitdiff-r3-scenario-channel-integrity-v1"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

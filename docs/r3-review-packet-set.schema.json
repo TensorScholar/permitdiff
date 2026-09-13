@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-review-packet-set.schema.json",
+  "title": "PermitDiff R3 Blinded Review Packet Set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_version",
+    "protocol_version",
+    "measurement_contract_version",
+    "source_materialization_sha256",
+    "generated_at",
+    "product_output_prohibited",
+    "review_scope",
+    "source_semantic_question",
+    "source_semantic_relation_definitions",
+    "source_semantics_resolution_definitions",
+    "case_count",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "permitdiff.dev/r3-review-packet-set/v2"
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "measurement_contract_version": {
+      "const": "r3-exploratory-measurement-contract-v2"
+    },
+    "source_materialization_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "product_output_prohibited": {
+      "const": true
+    },
+    "review_scope": {
+      "const": "source_semantics_only"
+    },
+    "source_semantic_question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_semantic_relation_definitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "WIDENING",
+        "RESTRICTIVE",
+        "EQUIVALENT",
+        "MIXED",
+        "UNRESOLVED"
+      ],
+      "properties": {
+        "WIDENING": {
+          "type": "string",
+          "minLength": 1
+        },
+        "RESTRICTIVE": {
+          "type": "string",
+          "minLength": 1
+        },
+        "EQUIVALENT": {
+          "type": "string",
+          "minLength": 1
+        },
+        "MIXED": {
+          "type": "string",
+          "minLength": 1
+        },
+        "UNRESOLVED": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source_semantics_resolution_definitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "RESOLVED",
+        "AMBIGUOUS",
+        "UNAVAILABLE"
+      ],
+      "properties": {
+        "RESOLVED": {
+          "type": "string",
+          "minLength": 1
+        },
+        "AMBIGUOUS": {
+          "type": "string",
+          "minLength": 1
+        },
+        "UNAVAILABLE": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "documentationRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "title",
+        "version_or_date",
+        "notes"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "version_or_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "source_url",
+        "source_commit",
+        "source_blob",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^cases/gh-[0-9a-f]{20}/(baseline|candidate)\\.json$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github\\.com/"
+        },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "source_blob": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "fileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "transition_id",
+        "repository_url",
+        "source_path",
+        "selection_key",
+        "documentation_refs",
+        "context_notes",
+        "baseline",
+        "candidate",
+        "source_diff",
+        "review_markdown"
+      ],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "transition_id": {
+          "type": "string",
+          "pattern": "^gh-[0-9a-f]{20}$"
+        },
+        "repository_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+        },
+        "source_path": {
+          "enum": [
+            ".claude/settings.json",
+            ".claude/settings.local.json"
+          ]
+        },
+        "selection_key": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "documentation_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/documentationRef"
+          }
+        },
+        "context_notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 10000
+        },
+        "baseline": {
+          "$ref": "#/$defs/artifact"
+        },
+        "candidate": {
+          "$ref": "#/$defs/artifact"
+        },
+        "source_diff": {
+          "$ref": "#/$defs/fileRef"
+        },
+        "review_markdown": {
+          "$ref": "#/$defs/fileRef"
+        }
+      }
+    }
+  }
+}
