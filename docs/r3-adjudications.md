@@ -90,13 +90,26 @@ writes a non-null freeze timestamp.
 
 No PermitDiff module is imported or executed by this workflow.
 
-## Deliberately deferred to later tasks
+## Frozen review-trigger and scoring semantics
 
-This task does **not** define the normative review-trigger/scoring matrix for `MIXED`,
-`UNRESOLVED`, supported-subset reporting, or abstention scoring. That contract must be
-frozen separately before canonical labels are used for scoring.
+The normative review-trigger/scoring contract is now frozen before canonical labels and
+before product execution:
 
-Scenario-set provenance is also a separate artifact-chain decision. The manifest retains
+- `docs/r3-review-trigger-scoring.md`
+- `validation/r3-benchmark/exploratory/measurement-contract-v2.json`
+
+`WIDENING` and `MIXED` are known review-required relations. `RESTRICTIVE` and
+`EQUIVALENT` do not require review by the semantic-direction rule alone. `UNRESOLVED`
+requires semantic escalation and is neither an ordinary positive nor negative.
+
+Unsupported known review-required cases remain in the overall positive denominator.
+Fail-closed blocking caused only by uncertainty/unsupported behavior is escalation, not
+definite detection. A secondary `SUPPORTED` subset must be reported separately rather
+than replacing the overall result.
+
+## Remaining pre-execution work
+
+Scenario-set provenance remains a separate artifact-chain decision. The manifest retains
 the scenario-corpus slot, but this stage does not fabricate scenarios or infer provenance.
 
 The pre-execution lock currently checks v2 contract/version consistency. A later lock
@@ -104,7 +117,7 @@ revision must additionally bind the exact machine-readable measurement-contract 
 
 ## Evidence boundary
 
-This stage freezes multidimensional, output-independent exploratory ground truth. It
-still does not permit PermitDiff execution until the complete pre-execution lock has
-bound all required evidence, including the measurement contract, and integrity
-validation has succeeded.
+This stage freezes multidimensional, output-independent exploratory ground truth and the
+predeclared review/scoring interpretation. It still does not permit PermitDiff execution
+until the complete pre-execution lock has bound all required evidence, including the
+measurement contract, and integrity validation has succeeded.
