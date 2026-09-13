@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://permitdiff.dev/schemas/r3-benchmark-case-manifest-v2.schema.json",
+  "title": "PermitDiff R3 Benchmark Case Manifest v2",
+  "description": "Versioned R3 benchmark manifest using the multidimensional measurement-contract-v2 adjudication model.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "measurement_contract_version",
+    "corpus_id",
+    "phase",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "permitdiff.dev/r3-benchmark-case-manifest/v2"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "measurement_contract_version": {
+      "const": "r3-exploratory-measurement-contract-v2"
+    },
+    "corpus_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "phase": {
+      "enum": [
+        "exploratory",
+        "confirmatory"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 2000
+    },
+    "frozen_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uri"
+        },
+        "source_commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "source_blob": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "adjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_semantic_relation",
+        "tool_support",
+        "organizational_intent",
+        "source_semantics_resolution",
+        "review_status",
+        "rationale",
+        "atomic_categories",
+        "reviewers",
+        "evidence_refs",
+        "ambiguity_notes",
+        "blinding_state",
+        "contamination_state"
+      ],
+      "properties": {
+        "source_semantic_relation": {
+          "enum": [
+            "WIDENING",
+            "RESTRICTIVE",
+            "EQUIVALENT",
+            "MIXED",
+            "UNRESOLVED"
+          ]
+        },
+        "tool_support": {
+          "enum": [
+            "SUPPORTED",
+            "PARTIALLY_SUPPORTED",
+            "UNSUPPORTED"
+          ]
+        },
+        "organizational_intent": {
+          "enum": [
+            "KNOWN_INTENDED",
+            "KNOWN_UNINTENDED",
+            "UNAVAILABLE",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "source_semantics_resolution": {
+          "enum": [
+            "RESOLVED",
+            "AMBIGUOUS",
+            "UNAVAILABLE"
+          ]
+        },
+        "review_status": {
+          "enum": [
+            "single_reviewed",
+            "double_reviewed",
+            "adjudicated"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "atomic_categories": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "new_allow",
+              "approval_bypass",
+              "restrictive_rule_removal",
+              "tool_or_scope_addition",
+              "predicate_removal",
+              "numeric_bound_relaxation",
+              "default_effect_relaxation",
+              "static_authority_expansion",
+              "precedence_or_order_widening",
+              "candidate_rule_coverage_gap",
+              "missing_differential_evidence",
+              "stale_or_mismatched_waiver_or_evidence",
+              "native_adapter_projection_gap",
+              "authority_contraction",
+              "additional_restriction",
+              "approval_strengthening",
+              "deny_addition",
+              "scope_narrowing",
+              "predicate_tightening",
+              "numeric_bound_tightening",
+              "equivalent_normalization",
+              "formatting_or_comment_only",
+              "unrelated_outside_projection",
+              "unsupported_predicate_relation",
+              "ambiguous_glob_relation",
+              "unmodeled_source_semantics",
+              "ambiguous_precedence_interaction"
+            ]
+          }
+        },
+        "reviewers": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "ambiguity_notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "blinding_state": {
+          "const": "OUTPUT_BLIND"
+        },
+        "contamination_state": {
+          "enum": [
+            "NO_KNOWN_PREEXPOSURE",
+            "KNOWN_PREEXPOSURE",
+            "UNKNOWN"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source_semantic_relation": {
+                "enum": [
+                  "WIDENING",
+                  "RESTRICTIVE",
+                  "EQUIVALENT",
+                  "MIXED"
+                ]
+              }
+            },
+            "required": [
+              "source_semantic_relation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source_semantics_resolution": {
+                "const": "RESOLVED"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source_semantic_relation": {
+                "const": "UNRESOLVED"
+              }
+            },
+            "required": [
+              "source_semantic_relation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source_semantics_resolution": {
+                "enum": [
+                  "AMBIGUOUS",
+                  "UNAVAILABLE"
+                ]
+              },
+              "ambiguity_notes": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source_kind",
+        "source_system",
+        "change_family",
+        "baseline",
+        "candidate",
+        "adjudication"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "source_kind": {
+          "enum": [
+            "public_historical",
+            "public_fixture",
+            "synthetic"
+          ]
+        },
+        "source_system": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "change_family": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "adapter": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "baseline": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "candidate": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "scenario_corpus": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/artifactRef"
+            }
+          ]
+        },
+        "adjudication": {
+          "$ref": "#/$defs/adjudication"
+        }
+      }
+    }
+  }
+}

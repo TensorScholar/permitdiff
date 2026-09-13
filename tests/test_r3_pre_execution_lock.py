@@ -12,7 +12,7 @@ from scripts.lock_r3_exploratory_corpus import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST_SCHEMA = ROOT / "docs" / "r3-benchmark-case-manifest.schema.json"
+MANIFEST_SCHEMA = ROOT / "docs" / "r3-benchmark-case-manifest-v2.schema.json"
 MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization.schema.json"
 PACKET_SCHEMA = ROOT / "docs" / "r3-review-packet-set.schema.json"
 ADJUDICATION_SCHEMA = ROOT / "docs" / "r3-adjudications.schema.json"
@@ -86,17 +86,26 @@ def _fixture(root: Path) -> tuple[Path, Path, Path, Path]:
     _write_json(materialization_path, materialization)
 
     packet = {
-        "schema_version": "permitdiff.dev/r3-review-packet-set/v1",
+        "schema_version": "permitdiff.dev/r3-review-packet-set/v2",
         "plan_version": "r3-exploratory-corpus-plan-v1",
         "protocol_version": "r3-benchmark-protocol-v1",
+        "measurement_contract_version": "r3-exploratory-measurement-contract-v2",
         "source_materialization_sha256": _sha256(materialization_path.read_bytes()),
         "generated_at": "2026-09-01T00:00:01Z",
         "product_output_prohibited": True,
-        "review_question": "Review question",
-        "label_definitions": {
-            "SECURITY_RELEVANT_REGRESSION": "regression",
-            "BENIGN_OR_RESTRICTIVE_CHANGE": "benign",
-            "UNKNOWN_OR_UNSUPPORTED": "unknown",
+        "review_scope": "source_semantics_only",
+        "source_semantic_question": "What source-semantic relation holds?",
+        "source_semantic_relation_definitions": {
+            "WIDENING": "widening",
+            "RESTRICTIVE": "restrictive",
+            "EQUIVALENT": "equivalent",
+            "MIXED": "mixed",
+            "UNRESOLVED": "unresolved",
+        },
+        "source_semantics_resolution_definitions": {
+            "RESOLVED": "resolved",
+            "AMBIGUOUS": "ambiguous",
+            "UNAVAILABLE": "unavailable",
         },
         "case_count": 1,
         "cases": [
@@ -135,20 +144,25 @@ def _fixture(root: Path) -> tuple[Path, Path, Path, Path]:
         "rank": 1,
         "transition_id": transition_id,
         "status": "decided",
-        "label": "SECURITY_RELEVANT_REGRESSION",
-        "support_boundary": "supported",
+        "source_semantic_relation": "WIDENING",
+        "tool_support": "UNSUPPORTED",
+        "organizational_intent": "UNAVAILABLE",
+        "source_semantics_resolution": "RESOLVED",
         "review_status": "single_reviewed",
         "reviewers": ["exploratory-reviewer-a"],
         "rationale": "Candidate adds documented Bash preapproval.",
-        "atomic_categories": ["new_allow"],
+        "atomic_categories": ["tool_or_scope_addition"],
         "evidence_refs": ["https://docs.example.test/permissions"],
         "ambiguity_notes": None,
-        "change_family": "new_allow",
+        "change_family": "tool_or_scope_change",
+        "blinding_state": "OUTPUT_BLIND",
+        "contamination_state": "NO_KNOWN_PREEXPOSURE",
     }
     adjudications = {
-        "schema_version": "permitdiff.dev/r3-adjudications/v1",
+        "schema_version": "permitdiff.dev/r3-adjudications/v2",
         "plan_version": "r3-exploratory-corpus-plan-v1",
         "protocol_version": "r3-benchmark-protocol-v1",
+        "measurement_contract_version": "r3-exploratory-measurement-contract-v2",
         "source_review_packet_set_sha256": _sha256(packet_path.read_bytes()),
         "generated_at": "2026-09-01T00:00:02Z",
         "product_output_consulted": False,
@@ -164,8 +178,9 @@ def _fixture(root: Path) -> tuple[Path, Path, Path, Path]:
         }
 
     manifest = {
-        "schema_version": "permitdiff.dev/r3-benchmark-case-manifest/v1",
+        "schema_version": "permitdiff.dev/r3-benchmark-case-manifest/v2",
         "protocol_version": "r3-benchmark-protocol-v1",
+        "measurement_contract_version": "r3-exploratory-measurement-contract-v2",
         "corpus_id": "r3-exploratory-public-historical-v1",
         "phase": "exploratory",
         "description": "test",
@@ -175,7 +190,7 @@ def _fixture(root: Path) -> tuple[Path, Path, Path, Path]:
                 "id": transition_id,
                 "source_kind": "public_historical",
                 "source_system": "claude-code",
-                "change_family": "new_allow",
+                "change_family": "tool_or_scope_change",
                 "adapter": "claude-code-project-preapprovals",
                 "description": "test transition",
                 "notes": None,
@@ -184,13 +199,18 @@ def _fixture(root: Path) -> tuple[Path, Path, Path, Path]:
                 "candidate": _manifest_artifact(candidate_record),
                 "scenario_corpus": None,
                 "adjudication": {
-                    "label": decision["label"],
-                    "support_boundary": decision["support_boundary"],
+                    "source_semantic_relation": decision["source_semantic_relation"],
+                    "tool_support": decision["tool_support"],
+                    "organizational_intent": decision["organizational_intent"],
+                    "source_semantics_resolution": decision["source_semantics_resolution"],
                     "review_status": decision["review_status"],
                     "rationale": decision["rationale"],
                     "atomic_categories": decision["atomic_categories"],
                     "reviewers": decision["reviewers"],
                     "evidence_refs": decision["evidence_refs"],
+                    "ambiguity_notes": decision["ambiguity_notes"],
+                    "blinding_state": decision["blinding_state"],
+                    "contamination_state": decision["contamination_state"],
                 },
             }
         ],
@@ -216,7 +236,7 @@ def _lock(root: Path, output: Path):
     )
 
 
-def test_pre_execution_lock_binds_full_evidence_chain(tmp_path: Path) -> None:
+def test_pre_execution_lock_accepts_v2_multidimensional_chain(tmp_path: Path) -> None:
     root = tmp_path / "corpus"
     lock = _lock(root, root / "pre-execution-lock-v1")
 
@@ -253,10 +273,35 @@ def test_pre_execution_lock_rejects_manifest_adjudication_drift(tmp_path: Path) 
     root = tmp_path / "corpus"
     manifest, materialization, packet, adjudications = _fixture(root)
     payload = json.loads(manifest.read_text(encoding="utf-8"))
-    payload["cases"][0]["adjudication"]["rationale"] = "different rationale"
+    payload["cases"][0]["adjudication"]["tool_support"] = "SUPPORTED"
     _write_json(manifest, payload)
 
     with pytest.raises(PreExecutionLockError, match="adjudication mismatch"):
+        create_pre_execution_lock(
+            manifest_path=manifest,
+            materialization_path=materialization,
+            review_packet_set_path=packet,
+            adjudications_path=adjudications,
+            output_dir=root / "pre-execution-lock-v1",
+            manifest_schema_path=MANIFEST_SCHEMA,
+            materialization_schema_path=MATERIALIZATION_SCHEMA,
+            packet_schema_path=PACKET_SCHEMA,
+            adjudication_schema_path=ADJUDICATION_SCHEMA,
+            lock_schema_path=LOCK_SCHEMA,
+        )
+
+
+def test_pre_execution_lock_rejects_measurement_contract_version_drift(tmp_path: Path) -> None:
+    root = tmp_path / "corpus"
+    manifest, materialization, packet, adjudications = _fixture(root)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["measurement_contract_version"] = "wrong-contract"
+    _write_json(manifest, payload)
+
+    with pytest.raises(
+        PreExecutionLockError,
+        match="schema validation failed|measurement contract version mismatch",
+    ):
         create_pre_execution_lock(
             manifest_path=manifest,
             materialization_path=materialization,

@@ -17,7 +17,11 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 
-from scripts.build_r3_exploratory_adjudications import ADJUDICATION_SCHEMA_VERSION
+from scripts.build_r3_exploratory_adjudications import (
+    ADJUDICATION_SCHEMA_VERSION,
+    MANIFEST_SCHEMA_VERSION,
+    MEASUREMENT_CONTRACT_VERSION,
+)
 from scripts.build_r3_blinded_review_packets import REVIEW_PACKET_SET_SCHEMA_VERSION
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
 from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
@@ -117,13 +121,18 @@ def _strip_materialized_artifact(artifact: Mapping[str, Any]) -> dict[str, Any]:
 
 def _expected_manifest_adjudication(decision: Mapping[str, Any]) -> dict[str, Any]:
     return {
-        "label": decision.get("label"),
-        "support_boundary": decision.get("support_boundary"),
+        "source_semantic_relation": decision.get("source_semantic_relation"),
+        "tool_support": decision.get("tool_support"),
+        "organizational_intent": decision.get("organizational_intent"),
+        "source_semantics_resolution": decision.get("source_semantics_resolution"),
         "review_status": decision.get("review_status"),
         "rationale": decision.get("rationale"),
         "atomic_categories": decision.get("atomic_categories"),
         "reviewers": decision.get("reviewers"),
         "evidence_refs": decision.get("evidence_refs"),
+        "ambiguity_notes": decision.get("ambiguity_notes"),
+        "blinding_state": decision.get("blinding_state"),
+        "contamination_state": decision.get("contamination_state"),
     }
 
 
@@ -157,6 +166,9 @@ def _validate_linkage(
         raise PreExecutionLockError("unsupported review packet set schema version")
     if adjudications.get("schema_version") != ADJUDICATION_SCHEMA_VERSION:
         raise PreExecutionLockError("unsupported adjudication schema version")
+    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+        raise PreExecutionLockError("unsupported benchmark manifest schema version")
+
     for label, payload in (
         ("materialization", materialization),
         ("review packet set", packet_set),
@@ -167,6 +179,16 @@ def _validate_linkage(
         if payload.get("protocol_version") != PROTOCOL_VERSION:
             raise PreExecutionLockError(f"{label} protocol version mismatch")
 
+    if manifest.get("protocol_version") != PROTOCOL_VERSION:
+        raise PreExecutionLockError("manifest protocol version mismatch")
+    for label, payload in (
+        ("review packet set", packet_set),
+        ("adjudications", adjudications),
+        ("manifest", manifest),
+    ):
+        if payload.get("measurement_contract_version") != MEASUREMENT_CONTRACT_VERSION:
+            raise PreExecutionLockError(f"{label} measurement contract version mismatch")
+
     if packet_set.get("product_output_prohibited") is not True:
         raise PreExecutionLockError("review packet set does not enforce product-output blinding")
     if adjudications.get("product_output_consulted") is not False:
@@ -176,10 +198,10 @@ def _validate_linkage(
     if adjudications.get("source_review_packet_set_sha256") != _sha256_bytes(packet_bytes):
         raise PreExecutionLockError("adjudication/review-packet digest linkage failed")
 
-    if manifest.get("protocol_version") != PROTOCOL_VERSION:
-        raise PreExecutionLockError("manifest protocol version mismatch")
     if manifest.get("phase") != "exploratory":
-        raise PreExecutionLockError("pre-execution lock currently supports exploratory manifests only")
+        raise PreExecutionLockError(
+            "pre-execution lock currently supports exploratory manifests only"
+        )
     if manifest.get("frozen_at") is None:
         raise PreExecutionLockError("exploratory manifest must be frozen before lock")
 
@@ -237,7 +259,7 @@ def create_pre_execution_lock(
     adjudication_schema_path: Path,
     lock_schema_path: Path,
 ) -> dict[str, Any]:
-    """Validate the full output-blind evidence chain and publish the lock atomically."""
+    """Validate the output-blind evidence chain and publish the current lock atomically."""
 
     manifest, manifest_bytes = _read_json_object_bytes(manifest_path, label="manifest")
     materialization, materialization_bytes = _read_json_object_bytes(
@@ -317,7 +339,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--manifest-schema",
         type=Path,
-        default=root / "docs" / "r3-benchmark-case-manifest.schema.json",
+        default=root / "docs" / "r3-benchmark-case-manifest-v2.schema.json",
     )
     parser.add_argument(
         "--materialization-schema",

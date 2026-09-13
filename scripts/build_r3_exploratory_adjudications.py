@@ -19,17 +19,31 @@ from scripts.build_r3_blinded_review_packets import REVIEW_PACKET_SET_SCHEMA_VER
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
 from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
 
-ADJUDICATION_SCHEMA_VERSION = "permitdiff.dev/r3-adjudications/v1"
-MANIFEST_SCHEMA_VERSION = "permitdiff.dev/r3-benchmark-case-manifest/v1"
+ADJUDICATION_SCHEMA_VERSION = "permitdiff.dev/r3-adjudications/v2"
+MANIFEST_SCHEMA_VERSION = "permitdiff.dev/r3-benchmark-case-manifest/v2"
+MEASUREMENT_CONTRACT_VERSION = "r3-exploratory-measurement-contract-v2"
 
-_POSITIVE_LABEL = "SECURITY_RELEVANT_REGRESSION"
-_VALID_LABELS = {
-    _POSITIVE_LABEL,
-    "BENIGN_OR_RESTRICTIVE_CHANGE",
-    "UNKNOWN_OR_UNSUPPORTED",
+_VALID_SOURCE_RELATIONS = {
+    "WIDENING",
+    "RESTRICTIVE",
+    "EQUIVALENT",
+    "MIXED",
+    "UNRESOLVED",
 }
-_VALID_SUPPORT_BOUNDARIES = {"supported", "unsupported_or_unknown"}
+_VALID_TOOL_SUPPORT = {"SUPPORTED", "PARTIALLY_SUPPORTED", "UNSUPPORTED"}
+_VALID_ORGANIZATIONAL_INTENT = {
+    "KNOWN_INTENDED",
+    "KNOWN_UNINTENDED",
+    "UNAVAILABLE",
+    "NOT_APPLICABLE",
+}
+_VALID_SOURCE_RESOLUTION = {"RESOLVED", "AMBIGUOUS", "UNAVAILABLE"}
 _VALID_REVIEW_STATUSES = {"single_reviewed", "double_reviewed", "adjudicated"}
+_VALID_CONTAMINATION_STATES = {
+    "NO_KNOWN_PREEXPOSURE",
+    "KNOWN_PREEXPOSURE",
+    "UNKNOWN",
+}
 
 
 class AdjudicationError(ValueError):
@@ -96,11 +110,17 @@ def _validate_packet_set(packet_set: Mapping[str, Any]) -> list[Mapping[str, Any
         raise AdjudicationError("review packet plan version mismatch")
     if packet_set.get("protocol_version") != PROTOCOL_VERSION:
         raise AdjudicationError("review packet protocol version mismatch")
+    if packet_set.get("measurement_contract_version") != MEASUREMENT_CONTRACT_VERSION:
+        raise AdjudicationError("review packet measurement contract version mismatch")
     if packet_set.get("product_output_prohibited") is not True:
         raise AdjudicationError("review packet set does not preserve product-output blinding")
+    if packet_set.get("review_scope") != "source_semantics_only":
+        raise AdjudicationError("review packet set does not preserve source-semantics-only scope")
 
     raw_cases = packet_set.get("cases")
-    if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
+    if not isinstance(raw_cases, list) or not all(
+        isinstance(case, Mapping) for case in raw_cases
+    ):
         raise AdjudicationError("review packet cases must contain only objects")
     if packet_set.get("case_count") != len(raw_cases):
         raise AdjudicationError("review packet case_count mismatch")
@@ -115,7 +135,7 @@ def prepare_adjudications(
     review_packet_set_path: Path,
     packet_schema_path: Path,
 ) -> dict[str, Any]:
-    """Create an output-blind adjudication worksheet bound to exact review packets."""
+    """Create an output-blind multidimensional worksheet bound to exact review packets."""
 
     packet_set, packet_bytes = _read_json_object_bytes(
         review_packet_set_path, label="review packet set"
@@ -126,6 +146,7 @@ def prepare_adjudications(
         "schema_version": ADJUDICATION_SCHEMA_VERSION,
         "plan_version": PLAN_VERSION,
         "protocol_version": PROTOCOL_VERSION,
+        "measurement_contract_version": MEASUREMENT_CONTRACT_VERSION,
         "source_review_packet_set_sha256": _sha256_bytes(packet_bytes),
         "generated_at": _utc_now(),
         "product_output_consulted": False,
@@ -134,8 +155,10 @@ def prepare_adjudications(
                 "rank": case["rank"],
                 "transition_id": case["transition_id"],
                 "status": "pending",
-                "label": None,
-                "support_boundary": None,
+                "source_semantic_relation": None,
+                "tool_support": None,
+                "organizational_intent": None,
+                "source_semantics_resolution": None,
                 "review_status": None,
                 "reviewers": [],
                 "rationale": None,
@@ -143,10 +166,20 @@ def prepare_adjudications(
                 "evidence_refs": [],
                 "ambiguity_notes": None,
                 "change_family": None,
+                "blinding_state": None,
+                "contamination_state": None,
             }
             for case in cases
         ],
     }
+
+
+def _require_nonempty_strings(value: object, *, field: str, transition_id: str) -> list[str]:
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and item.strip() for item in value
+    ):
+        raise AdjudicationError(f"{field} must contain only non-empty strings for {transition_id}")
+    return list(value)
 
 
 def _validate_decisions(
@@ -159,11 +192,15 @@ def _validate_decisions(
         raise AdjudicationError("adjudication plan version mismatch")
     if adjudications.get("protocol_version") != PROTOCOL_VERSION:
         raise AdjudicationError("adjudication protocol version mismatch")
+    if adjudications.get("measurement_contract_version") != MEASUREMENT_CONTRACT_VERSION:
+        raise AdjudicationError("adjudication measurement contract version mismatch")
     if adjudications.get("product_output_consulted") is not False:
         raise AdjudicationError("adjudications are contaminated by product output")
 
     raw_cases = adjudications.get("cases")
-    if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
+    if not isinstance(raw_cases, list) or not all(
+        isinstance(case, Mapping) for case in raw_cases
+    ):
         raise AdjudicationError("adjudication cases must contain only objects")
     decisions = list(raw_cases)
     packet_ids = [str(case["transition_id"]) for case in packet_cases]
@@ -178,47 +215,69 @@ def _validate_decisions(
         if decision.get("status") != "decided":
             raise AdjudicationError(f"adjudication remains pending for {transition_id}")
 
-        label = decision.get("label")
-        support_boundary = decision.get("support_boundary")
+        relation = decision.get("source_semantic_relation")
+        tool_support = decision.get("tool_support")
+        organizational_intent = decision.get("organizational_intent")
+        resolution = decision.get("source_semantics_resolution")
         review_status = decision.get("review_status")
         rationale = decision.get("rationale")
         reviewers = decision.get("reviewers")
         categories = decision.get("atomic_categories")
         evidence_refs = decision.get("evidence_refs")
+        ambiguity_notes = decision.get("ambiguity_notes")
         change_family = decision.get("change_family")
+        blinding_state = decision.get("blinding_state")
+        contamination_state = decision.get("contamination_state")
 
-        if label not in _VALID_LABELS:
-            raise AdjudicationError(f"invalid label for {transition_id}")
-        if support_boundary not in _VALID_SUPPORT_BOUNDARIES:
-            raise AdjudicationError(f"invalid support boundary for {transition_id}")
+        if relation not in _VALID_SOURCE_RELATIONS:
+            raise AdjudicationError(f"invalid source semantic relation for {transition_id}")
+        if tool_support not in _VALID_TOOL_SUPPORT:
+            raise AdjudicationError(f"invalid tool support for {transition_id}")
+        if organizational_intent not in _VALID_ORGANIZATIONAL_INTENT:
+            raise AdjudicationError(f"invalid organizational intent for {transition_id}")
+        if resolution not in _VALID_SOURCE_RESOLUTION:
+            raise AdjudicationError(f"invalid source semantics resolution for {transition_id}")
+        if relation == "UNRESOLVED":
+            if resolution not in {"AMBIGUOUS", "UNAVAILABLE"}:
+                raise AdjudicationError(
+                    f"UNRESOLVED requires AMBIGUOUS or UNAVAILABLE source semantics for "
+                    f"{transition_id}"
+                )
+            if not isinstance(ambiguity_notes, str) or not ambiguity_notes.strip():
+                raise AdjudicationError(
+                    f"UNRESOLVED requires ambiguity notes for {transition_id}"
+                )
+        elif resolution != "RESOLVED":
+            raise AdjudicationError(
+                f"{relation} requires RESOLVED source semantics for {transition_id}"
+            )
+
         if review_status not in _VALID_REVIEW_STATUSES:
             raise AdjudicationError(f"invalid review status for {transition_id}")
         if not isinstance(rationale, str) or not rationale.strip():
             raise AdjudicationError(f"missing rationale for {transition_id}")
-        if not isinstance(reviewers, list) or not all(
-            isinstance(item, str) and item.strip() for item in reviewers
-        ):
-            raise AdjudicationError(f"reviewers must be non-empty strings for {transition_id}")
-        if review_status in {"double_reviewed", "adjudicated"} and len(set(reviewers)) < 2:
+        reviewer_values = _require_nonempty_strings(
+            reviewers, field="reviewers", transition_id=transition_id
+        )
+        if review_status in {"double_reviewed", "adjudicated"} and len(set(reviewer_values)) < 2:
             raise AdjudicationError(
                 f"{review_status} requires at least two distinct reviewers for {transition_id}"
             )
-        if not isinstance(categories, list) or not all(
-            isinstance(item, str) and item.strip() for item in categories
-        ):
-            raise AdjudicationError(f"atomic categories are malformed for {transition_id}")
-        if label == _POSITIVE_LABEL and not categories:
-            raise AdjudicationError(
-                f"positive adjudication requires atomic categories for {transition_id}"
-            )
-        if not isinstance(evidence_refs, list) or not all(
-            isinstance(item, str) and item.strip() for item in evidence_refs
-        ):
-            raise AdjudicationError(f"evidence refs are malformed for {transition_id}")
-        if not evidence_refs:
+
+        _require_nonempty_strings(
+            categories, field="atomic categories", transition_id=transition_id
+        )
+        evidence_values = _require_nonempty_strings(
+            evidence_refs, field="evidence refs", transition_id=transition_id
+        )
+        if not evidence_values:
             raise AdjudicationError(f"adjudication requires evidence refs for {transition_id}")
         if not isinstance(change_family, str) or not change_family.strip():
             raise AdjudicationError(f"change_family is required for {transition_id}")
+        if blinding_state != "OUTPUT_BLIND":
+            raise AdjudicationError(f"adjudication is not output-blind for {transition_id}")
+        if contamination_state not in _VALID_CONTAMINATION_STATES:
+            raise AdjudicationError(f"invalid contamination state for {transition_id}")
 
     return decisions
 
@@ -253,7 +312,7 @@ def build_manifest(
     manifest_schema_path: Path,
     corpus_id: str,
 ) -> dict[str, Any]:
-    """Build the frozen public-historical manifest without running PermitDiff."""
+    """Build the frozen public-historical v2 manifest without running PermitDiff."""
 
     materialization, materialization_bytes = _read_json_object_bytes(
         materialization_path, label="public materialization"
@@ -323,7 +382,7 @@ def build_manifest(
                 "change_family": decision["change_family"],
                 "adapter": "claude-code-project-preapprovals",
                 "description": (
-                    f"Public historical Claude Code settings transition "
+                    "Public historical Claude Code settings transition "
                     f"{source_case['repository_full_name']}:{source_case['source_path']}"
                 ),
                 "notes": _case_notes(decision),
@@ -332,13 +391,18 @@ def build_manifest(
                 "candidate": _manifest_artifact(source_case["candidate"]),
                 "scenario_corpus": None,
                 "adjudication": {
-                    "label": decision["label"],
-                    "support_boundary": decision["support_boundary"],
+                    "source_semantic_relation": decision["source_semantic_relation"],
+                    "tool_support": decision["tool_support"],
+                    "organizational_intent": decision["organizational_intent"],
+                    "source_semantics_resolution": decision["source_semantics_resolution"],
                     "review_status": decision["review_status"],
                     "rationale": decision["rationale"],
                     "atomic_categories": decision["atomic_categories"],
                     "reviewers": decision["reviewers"],
                     "evidence_refs": decision["evidence_refs"],
+                    "ambiguity_notes": decision["ambiguity_notes"],
+                    "blinding_state": decision["blinding_state"],
+                    "contamination_state": decision["contamination_state"],
                 },
             }
         )
@@ -346,11 +410,13 @@ def build_manifest(
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "protocol_version": PROTOCOL_VERSION,
+        "measurement_contract_version": MEASUREMENT_CONTRACT_VERSION,
         "corpus_id": corpus_id,
         "phase": "exploratory",
         "description": (
-            "Output-blind R3 public historical exploratory slice; labels were recorded "
-            "before PermitDiff execution."
+            "Output-blind R3 public historical exploratory slice under the "
+            "multidimensional measurement-contract-v2 adjudication model; "
+            "source-semantic decisions were recorded before PermitDiff execution."
         ),
         "frozen_at": _utc_now(),
         "cases": manifest_cases,
@@ -398,7 +464,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     build.add_argument(
         "--manifest-schema",
         type=Path,
-        default=root / "docs" / "r3-benchmark-case-manifest.schema.json",
+        default=root / "docs" / "r3-benchmark-case-manifest-v2.schema.json",
     )
 
     args = parser.parse_args(argv)
