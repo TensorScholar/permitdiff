@@ -210,7 +210,9 @@ def _validate_schema(value: dict[str, Any], schema_path: Path, label: str) -> No
 
 
 def validate_terminal_completeness(result_set: Mapping[str, Any], case_ids: Sequence[str]) -> None:
-    expected = {(case_id, condition) for case_id in case_ids for condition in REQUIRED_TERMINAL_CONDITIONS}
+    expected = {
+        (case_id, condition) for case_id in case_ids for condition in REQUIRED_TERMINAL_CONDITIONS
+    }
     rows = result_set.get("terminal_states")
     if not isinstance(rows, list):
         raise StudyResultError("terminal_states must be a list")
@@ -221,7 +223,11 @@ def validate_terminal_completeness(result_set: Mapping[str, Any], case_ids: Sequ
         case_id = raw.get("case_id")
         condition = raw.get("condition")
         state = raw.get("state")
-        if not isinstance(case_id, str) or not isinstance(condition, str) or not isinstance(state, str):
+        if (
+            not isinstance(case_id, str)
+            or not isinstance(condition, str)
+            or not isinstance(state, str)
+        ):
             raise StudyResultError("terminal state is malformed")
         key = (case_id, condition)
         if key in seen:
@@ -230,7 +236,9 @@ def validate_terminal_completeness(result_set: Mapping[str, Any], case_ids: Sequ
     if set(seen) != expected:
         missing = sorted(expected - set(seen))
         extra = sorted(set(seen) - expected)
-        raise StudyResultError(f"terminal-state population mismatch; missing={missing}, extra={extra}")
+        raise StudyResultError(
+            f"terminal-state population mismatch; missing={missing}, extra={extra}"
+        )
 
 
 def _records_by_case(records: Any, label: str) -> dict[str, Mapping[str, Any]]:
@@ -286,7 +294,9 @@ def validate_result_set(
                 raise StudyResultError(f"{collection} contains a cross-study record")
 
     permitdiff = _records_by_case(result_set.get("permitdiff_results"), "permitdiff_results")
-    baseline = _records_by_case(result_set.get("simple_baseline_results"), "simple_baseline_results")
+    baseline = _records_by_case(
+        result_set.get("simple_baseline_results"), "simple_baseline_results"
+    )
     for case_id in case_ids:
         states = {
             row["condition"]: row["state"]
@@ -294,7 +304,9 @@ def validate_result_set(
             if row["case_id"] == case_id
         }
         if states["PERMITDIFF_MACHINE"] == "RECORDED" and case_id not in permitdiff:
-            raise StudyResultError(f"missing PermitDiff record for terminal RECORDED case {case_id}")
+            raise StudyResultError(
+                f"missing PermitDiff record for terminal RECORDED case {case_id}"
+            )
         if states["SIMPLE_AUTOMATED_BASELINE"] == "RECORDED" and case_id not in baseline:
             raise StudyResultError(f"missing baseline record for terminal RECORDED case {case_id}")
 

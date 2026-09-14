@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Deterministic R3 reviewer eligibility and condition assignment."""
+
 from __future__ import annotations
 
 import argparse
@@ -66,9 +67,7 @@ def validate_roster(roster: dict[str, Any], case_ids: list[str]) -> list[str]:
         if raw.get("training_protocol_version") != "r3-reviewer-training-v1":
             raise AssignmentError(f"participant {participant_id} training version mismatch")
         if raw.get("product_behavior_contributor") is not False:
-            raise AssignmentError(
-                f"participant {participant_id} is a product-behavior contributor"
-            )
+            raise AssignmentError(f"participant {participant_id} is a product-behavior contributor")
         if raw.get("disqualifying_conflict") is not False:
             raise AssignmentError(f"participant {participant_id} has a disqualifying conflict")
         exposed = set(raw.get("case_specific_prior_exposure_case_ids", []))
@@ -104,9 +103,7 @@ def build_assignment(
     manifest_sha = _sha256(manifest_bytes)
     roster_sha = _sha256(roster_bytes)
     protocol_sha = _sha256(reviewer_protocol_bytes)
-    seed = _sha256(
-        f"{ASSIGNMENT_VERSION}\n{manifest_sha}\n{roster_sha}".encode("utf-8")
-    )
+    seed = _sha256(f"{ASSIGNMENT_VERSION}\n{manifest_sha}\n{roster_sha}".encode("utf-8"))
 
     ranked_cases = sorted(
         case_ids,
@@ -158,17 +155,11 @@ def validate_balance(assignment: dict[str, Any]) -> None:
     rows = assignment.get("assignments")
     cases = assignment.get("cases")
     participants = assignment.get("participants")
-    if not (
-        isinstance(rows, list)
-        and isinstance(cases, list)
-        and isinstance(participants, list)
-    ):
+    if not (isinstance(rows, list) and isinstance(cases, list) and isinstance(participants, list)):
         raise AssignmentError("assignment is malformed")
 
     expected_cells = {
-        (case_id, participant_id)
-        for case_id in cases
-        for participant_id in participants
+        (case_id, participant_id) for case_id in cases for participant_id in participants
     }
     seen_cells: set[tuple[str, str]] = set()
     by_case: dict[str, Counter[str]] = defaultdict(Counter)

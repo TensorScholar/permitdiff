@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Validate immutable R3 source-documentation snapshots and per-case evidence identity."""
+
 from __future__ import annotations
 
 import argparse
@@ -102,9 +103,7 @@ def validate_manifest(
         selected = [by_id[doc_id] for doc_id in ids]
         expected = documentation_set_digest(selected)
         if case["documentation_snapshot_set_sha256"] != expected:
-            raise DocumentationSnapshotError(
-                f"documentation set digest mismatch for {case_id}"
-            )
+            raise DocumentationSnapshotError(f"documentation set digest mismatch for {case_id}")
     if expected_case_ids is not None and case_ids != expected_case_ids:
         raise DocumentationSnapshotError(
             "documentation case membership/order does not match lock population"

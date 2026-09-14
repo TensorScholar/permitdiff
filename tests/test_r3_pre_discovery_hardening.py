@@ -60,9 +60,7 @@ def test_new_schemas_are_valid_draft_2020_12() -> None:
 
 
 def test_hardening_contract_preserves_research_boundary() -> None:
-    contract = _json(
-        "validation/r3-benchmark/exploratory/pre-discovery-hardening-contract-v1.json"
-    )
+    contract = _json("validation/r3-benchmark/exploratory/pre-discovery-hardening-contract-v1.json")
     assert contract["adopted_against_main"] == "c3f3a866333f75ae3a1668177cda37c68aa05409"
     assert contract["adopted_before_public_discovery"] is True
     assert contract["hard_boundaries"] == {
@@ -222,9 +220,7 @@ def test_documentation_snapshots_are_content_addressed(tmp_path: Path) -> None:
 
 
 def test_execution_environment_drift_fails_closed() -> None:
-    lock = _json(
-        "validation/r3-benchmark/exploratory/permitdiff-execution-environment-v1.json"
-    )
+    lock = _json("validation/r3-benchmark/exploratory/permitdiff-execution-environment-v1.json")
     packages = dict(lock["runtime_dependencies"])
     snapshot = {
         "python_version": "3.13.15",

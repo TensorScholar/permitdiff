@@ -493,8 +493,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--freeze-completion-contract",
         type=Path,
-        default=root
-        / "validation/r3-benchmark/exploratory/freeze-completion-contract-v1.json",
+        default=root / "validation/r3-benchmark/exploratory/freeze-completion-contract-v1.json",
     )
     parser.add_argument("--product-wheel", type=Path, required=True)
     parser.add_argument(
