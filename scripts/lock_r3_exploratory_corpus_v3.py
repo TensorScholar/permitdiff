@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -99,6 +100,13 @@ def canonical_sha256(value: Any) -> str:
     return _sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8"))
 
 
+def _git_executable() -> str:
+    executable = shutil.which("git")
+    if executable is None:
+        raise V3LockError("git executable is unavailable")
+    return executable
+
+
 def _read_json(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
     try:
         raw = path.read_bytes()
@@ -126,7 +134,9 @@ def _validate_schema(value: dict[str, Any], schema_path: Path, label: str) -> No
 def _git(repo: Path, *args: str) -> str:
     try:
         return subprocess.check_output(
-            ["git", "-C", str(repo), *args], text=True, stderr=subprocess.STDOUT
+            [_git_executable(), "-C", str(repo), *args],
+            text=True,
+            stderr=subprocess.STDOUT,
         ).strip()
     except subprocess.CalledProcessError as exc:
         raise V3LockError(f"git {' '.join(args)} failed: {exc.output}") from exc
@@ -148,7 +158,7 @@ def _methodology_digests(repo: Path, head: str) -> dict[str, str]:
         working = path.read_bytes()
         try:
             tracked = subprocess.check_output(
-                ["git", "-C", str(repo), "show", f"{head}:{relative}"],
+                [_git_executable(), "-C", str(repo), "show", f"{head}:{relative}"],
                 stderr=subprocess.STDOUT,
             )
         except subprocess.CalledProcessError as exc:
@@ -251,7 +261,6 @@ def create_v3_lock(
     if materialization.get("source_selection_sha256") != _sha256(selection_bytes):
         raise V3LockError("materialization is not bound to the exact selection bytes")
 
-    # Reuse the complete v2 validator as a prerequisite, but discard its timestamped outputs.
     with tempfile.TemporaryDirectory(prefix="r3-v3-v2-validation-") as temp:
         root = repo
         create_complete_pre_execution_lock(
@@ -469,8 +478,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--measurement-contract",
         type=Path,
-        default=root
-        / "validation/r3-benchmark/exploratory/measurement-contract-v2.json",
+        default=root / "validation/r3-benchmark/exploratory/measurement-contract-v2.json",
     )
     parser.add_argument("--scenario-channels", type=Path, required=True)
     parser.add_argument("--documentation-snapshots", type=Path, required=True)

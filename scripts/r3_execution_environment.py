@@ -9,6 +9,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +26,13 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _git_executable() -> str:
+    executable = shutil.which("git")
+    if executable is None:
+        raise EnvironmentLockError("git executable is unavailable")
+    return executable
+
+
 def load_lock(path: Path, schema_path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -38,7 +46,8 @@ def load_lock(path: Path, schema_path: Path) -> dict[str, Any]:
 def _git_show(repo: Path, commit: str, path: str) -> bytes:
     try:
         return subprocess.check_output(
-            ["git", "-C", str(repo), "show", f"{commit}:{path}"], stderr=subprocess.STDOUT
+            [_git_executable(), "-C", str(repo), "show", f"{commit}:{path}"],
+            stderr=subprocess.STDOUT,
         )
     except subprocess.CalledProcessError as exc:
         raise EnvironmentLockError(
@@ -64,7 +73,8 @@ def validate_source_artifacts(lock: dict[str, Any], repo: Path) -> None:
             raise EnvironmentLockError(f"{name} SHA-256 drift")
         expected_blob = str(raw["git_blob_sha"])
         actual_blob = subprocess.check_output(
-            ["git", "-C", str(repo), "rev-parse", f"{commit}:{path}"], text=True
+            [_git_executable(), "-C", str(repo), "rev-parse", f"{commit}:{path}"],
+            text=True,
         ).strip()
         if actual_blob != expected_blob:
             raise EnvironmentLockError(f"{name} Git blob drift")
