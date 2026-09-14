@@ -1,0 +1,148 @@
+{
+  "assignment": {
+    "algorithm": "Rank cases and participants by SHA-256 using the frozen assignment seed; assign condition_index=(case_rank+participant_rank) mod 3.",
+    "assignment_completed_before_evaluated_exposure": true,
+    "balance_rule": "For each case and participant, condition counts differ by at most one; with participant count divisible by three, every case has exactly equal condition counts.",
+    "case_rank_key": "SHA256(seed + '\\ncase\\n' + case_id)",
+    "conditions": [
+      "PERMITDIFF_ASSISTED",
+      "STRUCTURED_MANUAL",
+      "SOURCE_TEXT_DIFF"
+    ],
+    "dropout": {
+      "after_any_evaluated_exposure": "Do not reassign completed or pending cells. Preserve the participant and records. If any case then lacks at least one terminal record in a required condition, invalidate the study version; otherwise report the imbalance.",
+      "before_any_evaluated_exposure": "Remove the participant, freeze a new roster version, and regenerate the entire assignment before exposure."
+    },
+    "one_condition_per_case_per_participant": true,
+    "participant_rank_key": "SHA256(seed + '\\nparticipant\\n' + participant_id)",
+    "reassignment_after_observed_behavior_forbidden": true,
+    "seed_derivation": "SHA256('r3-condition-assignment-v1\\n' + source_manifest_sha256 + '\\n' + participant_roster_sha256)",
+    "tie_breaker": "raw identifier ascending",
+    "version": "r3-condition-assignment-v1"
+  },
+  "eligibility": {
+    "disqualifiers": [
+      "material_contributor_to_permitdiff_product_behavior_at_or_after_product_execution_commit",
+      "author_or_adjudicator_of_the_specific_evaluated_case",
+      "prior_access_to_ground_truth_for_the_specific_evaluated_case",
+      "prior_access_to_permitdiff_output_for_the_specific_evaluated_case",
+      "unresolved_financial_or_personal_conflict_material_to_the_review"
+    ],
+    "eligibility_must_be_frozen_before_assignment": true,
+    "methodology_only_contributor_allowed": true,
+    "required_attestations": [
+      "Can read JSON configuration diffs and reason about allow/ask/deny/default-mode changes.",
+      "Has working familiarity with Claude Code project settings and the frozen permission-semantics documentation supplied by the study.",
+      "Can distinguish widening, restriction/equivalence, and unresolved semantics without inventing undocumented runtime behavior."
+    ],
+    "required_participant_count": 3,
+    "stable_pseudonymous_participant_ids_required": true
+  },
+  "protocol_version": "r3-reviewer-protocol-v1",
+  "schema_version": "permitdiff.dev/r3-reviewer-protocol/v1",
+  "training": {
+    "allowed_questions": "Questions may clarify the frozen procedure, decision vocabulary, documentation snapshots, timing rules, and PermitDiff output field meanings. Questions about any evaluated case are forbidden before that participant submits the case.",
+    "answers_and_explanations_shown": true,
+    "evaluated_cases_may_be_training_cases": false,
+    "materials": {
+      "field_orientation": [
+        "permissions.defaultMode",
+        "permissions.allow",
+        "permissions.ask",
+        "permissions.deny",
+        "REQUIRES_AUTHORIZATION_REVIEW",
+        "NO_REVIEW_BY_SEMANTIC_DIRECTION_ALONE",
+        "REQUIRES_SEMANTIC_ESCALATION",
+        "PermitDiff raw JSON report field orientation without evaluated-case content"
+      ],
+      "worked_examples": [
+        {
+          "baseline": {
+            "permissions": {
+              "allow": [
+                "Read"
+              ],
+              "ask": [],
+              "defaultMode": "dontAsk",
+              "deny": []
+            }
+          },
+          "candidate": {
+            "permissions": {
+              "allow": [
+                "Read",
+                "Bash(git status)"
+              ],
+              "ask": [],
+              "defaultMode": "dontAsk",
+              "deny": []
+            }
+          },
+          "expected_decision": "REQUIRES_AUTHORIZATION_REVIEW",
+          "explanation": "The candidate adds declared preapproval authority.",
+          "source": "synthetic_disjoint_training_fixture",
+          "training_case_id": "r3-training-v1-add-allow"
+        },
+        {
+          "baseline": {
+            "permissions": {
+              "allow": [
+                "Read",
+                "Write"
+              ],
+              "ask": [],
+              "defaultMode": "dontAsk",
+              "deny": []
+            }
+          },
+          "candidate": {
+            "permissions": {
+              "allow": [
+                "Read"
+              ],
+              "ask": [],
+              "defaultMode": "dontAsk",
+              "deny": []
+            }
+          },
+          "expected_decision": "NO_REVIEW_BY_SEMANTIC_DIRECTION_ALONE",
+          "explanation": "The change is restrictive within the frozen directional construct.",
+          "source": "synthetic_disjoint_training_fixture",
+          "training_case_id": "r3-training-v1-remove-allow"
+        },
+        {
+          "baseline": {
+            "permissions": {
+              "allow": [
+                "CustomTool(scope:a*)"
+              ],
+              "ask": [],
+              "defaultMode": "dontAsk",
+              "deny": []
+            }
+          },
+          "candidate": {
+            "permissions": {
+              "allow": [
+                "CustomTool(scope:ab*)"
+              ],
+              "ask": [],
+              "defaultMode": "dontAsk",
+              "deny": []
+            }
+          },
+          "expected_decision": "REQUIRES_SEMANTIC_ESCALATION",
+          "explanation": "The supplied frozen semantics do not establish the custom matcher ordering without undocumented assumptions.",
+          "source": "synthetic_disjoint_training_fixture",
+          "training_case_id": "r3-training-v1-unresolved"
+        }
+      ]
+    },
+    "maximum_total_minutes": 45,
+    "post_exposure_training_additions_forbidden": true,
+    "same_for_all_conditions": true,
+    "stopping_rule": "Complete all three frozen worked examples and the field-orientation section exactly once; no additional case-specific training is allowed.",
+    "timing": "Complete once after eligibility approval and before condition assignment or evaluated exposure.",
+    "version": "r3-reviewer-training-v1"
+  }
+}

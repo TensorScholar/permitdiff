@@ -1,0 +1,111 @@
+{
+  "adopted_against_main": "c3f3a866333f75ae3a1668177cda37c68aa05409",
+  "adopted_before_corpus_construction": true,
+  "adopted_before_product_execution": true,
+  "adopted_before_public_discovery": true,
+  "condition_assignment": {
+    "assignment_completed_before_evaluated_exposure": true,
+    "conditions": [
+      "PERMITDIFF_ASSISTED",
+      "STRUCTURED_MANUAL",
+      "SOURCE_TEXT_DIFF"
+    ],
+    "implementation": "scripts/r3_review_assignment.py",
+    "reassignment_after_observed_behavior_forbidden": true,
+    "version": "r3-condition-assignment-v1"
+  },
+  "contract_version": "r3-pre-discovery-hardening-v1",
+  "documentation_evidence": {
+    "live_web_evidence_during_evaluated_review": false,
+    "same_snapshot_identity_required_for_parity_conditions": true,
+    "schema": "docs/r3-documentation-snapshot-manifest.schema.json",
+    "snapshot_and_sha256_required": true,
+    "url_is_provenance_not_evidence_identity": true,
+    "validator": "scripts/r3_documentation_snapshots.py"
+  },
+  "execution_environment": {
+    "environment_mismatch_fails_closed": true,
+    "lock_path": "validation/r3-benchmark/exploratory/permitdiff-execution-environment-v1.json",
+    "product_commit": "1f3b3a4afda67c01c4f29a93a45b18511980036b",
+    "validator": "scripts/r3_execution_environment.py",
+    "version": "r3-permitdiff-execution-environment-v1"
+  },
+  "final_lock": {
+    "binds_all_pre_result_methodology": true,
+    "implementation": "scripts/lock_r3_exploratory_corpus_v3.py",
+    "obsolete_v2_sufficient_for_amended_study": false,
+    "schema_version": "permitdiff.dev/r3-pre-execution-lock/v3"
+  },
+  "freeze_completion_contract_version": "r3-freeze-completion-v1",
+  "hard_boundaries": {
+    "canonical_r3_results": "NOT_CREATED",
+    "empirical_scientific_validation_percent": 0,
+    "external_validation_claim": "NOT_ESTABLISHED",
+    "r3_execution": "NOT_STARTED"
+  },
+  "measurement_contract_version": "r3-exploratory-measurement-contract-v2",
+  "natural_corpus": {
+    "below_minimum_actions": {
+      "adjudication_may_begin": false,
+      "condition_assignment_may_begin": false,
+      "materialization_may_begin": false,
+      "pre_execution_lock_may_be_created": false,
+      "product_execution_may_begin": false,
+      "selection_output_may_be_finalized": false
+    },
+    "eligible_count_policy": {
+      "at_or_above_target": "SELECT_EXACTLY_TARGET",
+      "below_minimum": "ABORT_CONSTRUCTION_PROTOCOL_AMENDMENT_REQUIRED",
+      "below_target_at_or_above_minimum": "SELECT_ALL_ELIGIBLE_AND_REPORT_PREDECLARED_SHORTFALL"
+    },
+    "maximum_cases_per_repository": 2,
+    "minimum_viable_case_count": 12,
+    "target_case_count": 18,
+    "threshold_rationale": "Twelve is two-thirds of the preregistered 18-case natural target and is frozen as a descriptive exploratory viability floor, not as a statistical-power threshold."
+  },
+  "protocol_version": "r3-benchmark-protocol-v1",
+  "result_integrity": {
+    "all_records_bind_pre_execution_lock": true,
+    "caller_supplied_rates_are_recomputed_and_verified": true,
+    "primary_metrics_must_match_measurement_contract": true,
+    "record_schema": "docs/r3-freeze-completion-records-v2.schema.json",
+    "result_set_completeness_required": true,
+    "result_set_schema": "docs/r3-study-result-set.schema.json",
+    "top_level_outcome_derived_not_selected": true,
+    "validator_and_scorer": "scripts/r3_study_results.py"
+  },
+  "reviewer_protocol": {
+    "contract_path": "validation/r3-benchmark/exploratory/reviewer-protocol-v1.json",
+    "eligibility_frozen_before_case_assignment": true,
+    "required_eligible_participants": 3,
+    "same_training_for_all_conditions": true,
+    "training_frozen_before_case_assignment": true,
+    "version": "r3-reviewer-protocol-v1"
+  },
+  "scenario_channel_cardinality": {
+    "absent_requires_zero_primary_admissible_sets": true,
+    "multiple_primary_admissible_sets": "LOCK_FAILS_PROTOCOL_AMENDMENT_REQUIRED",
+    "present_requires_exactly_one_primary_admissible_set": true
+  },
+  "schema_version": "permitdiff.dev/r3-pre-discovery-hardening-contract/v1",
+  "selected_case_failure_policy": {
+    "chronology_must_be_preserved": true,
+    "corpus_shrinkage_allowed": false,
+    "discretionary_substitution_forbidden": true,
+    "disposition": "ABORT_CURRENT_CORPUS_VERSION_NO_REPLACEMENT",
+    "failed_case_and_reason_must_be_preserved": true,
+    "failure_reasons": [
+      "UNAVAILABLE_PROVENANCE",
+      "CORRUPTED_ARTIFACT",
+      "BROKEN_MATERIALIZATION",
+      "DOCUMENTATION_SNAPSHOT_FAILURE",
+      "INVALID_REVIEW_PACKET",
+      "SCENARIO_EVIDENCE_INTEGRITY_FAILURE",
+      "OTHER_PRE_EXECUTION_INTEGRITY_FAILURE"
+    ],
+    "label_or_product_result_consultation_forbidden": true,
+    "replacement_allowed": false,
+    "restart_rule": "A later attempt requires a new explicitly versioned corpus construction record; the failed current corpus version remains auditable and cannot be scored or locked.",
+    "version": "r3-selected-case-failure-policy-v1"
+  }
+}

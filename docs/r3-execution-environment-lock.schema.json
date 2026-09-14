@@ -1,0 +1,164 @@
+{
+  "$defs": {
+    "fileLock": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://permitdiff.dev/schemas/r3-execution-environment-lock.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_hash_identity": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "base_image": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_note": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "oci_index_sha256": {
+          "const": "9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285"
+        },
+        "reference": {
+          "const": "python:3.13.15-slim-trixie"
+        }
+      },
+      "required": [
+        "reference",
+        "oci_index_sha256",
+        "evidence_note"
+      ],
+      "type": "object"
+    },
+    "build_dependencies": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minProperties": 1,
+      "type": "object"
+    },
+    "environment_version": {
+      "const": "r3-permitdiff-execution-environment-v1"
+    },
+    "execution": {
+      "additionalProperties": false,
+      "properties": {
+        "encoding": {
+          "const": "UTF-8"
+        },
+        "locale_policy": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "network_mode": {
+          "const": "none"
+        },
+        "network_required": {
+          "const": false
+        },
+        "timezone": {
+          "const": "UTC"
+        }
+      },
+      "required": [
+        "network_required",
+        "network_mode",
+        "encoding",
+        "locale_policy",
+        "timezone"
+      ],
+      "type": "object"
+    },
+    "installation_method": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "platform": {
+      "const": {
+        "architecture": "amd64",
+        "containerized": true,
+        "os": "linux"
+      }
+    },
+    "product_commit": {
+      "const": "1f3b3a4afda67c01c4f29a93a45b18511980036b"
+    },
+    "python_version": {
+      "const": "3.13.15"
+    },
+    "python_version_source": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "r3_dependency_locks": {
+      "additionalProperties": false,
+      "properties": {
+        "build": {
+          "$ref": "#/$defs/fileLock"
+        },
+        "runtime": {
+          "$ref": "#/$defs/fileLock"
+        }
+      },
+      "required": [
+        "runtime",
+        "build"
+      ],
+      "type": "object"
+    },
+    "runtime_dependencies": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minProperties": 1,
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-execution-environment-lock/v1"
+    },
+    "source_artifacts": {
+      "minProperties": 1,
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "environment_version",
+    "product_commit",
+    "python_version",
+    "python_version_source",
+    "platform",
+    "base_image",
+    "source_artifacts",
+    "r3_dependency_locks",
+    "runtime_dependencies",
+    "build_dependencies",
+    "installation_method",
+    "execution",
+    "artifact_hash_identity"
+  ],
+  "type": "object"
+}

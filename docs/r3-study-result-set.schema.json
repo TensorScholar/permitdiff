@@ -1,0 +1,100 @@
+{
+  "$defs": {
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "terminalState": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "condition": {
+          "enum": [
+            "PERMITDIFF_MACHINE",
+            "SIMPLE_AUTOMATED_BASELINE",
+            "PERMITDIFF_ASSISTED",
+            "STRUCTURED_MANUAL",
+            "SOURCE_TEXT_DIFF"
+          ]
+        },
+        "state": {
+          "enum": [
+            "RECORDED",
+            "NOT_RUN_STUDY_INVALIDATED"
+          ]
+        }
+      },
+      "required": [
+        "case_id",
+        "condition",
+        "state"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://permitdiff.dev/schemas/r3-study-result-set.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "comparative_analysis": {
+      "type": "object"
+    },
+    "disagreements": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "human_reviews": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "invalidations": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "permitdiff_results": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "pre_execution_lock_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-study-result-set/v1"
+    },
+    "simple_baseline_results": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "terminal_states": {
+      "items": {
+        "$ref": "#/$defs/terminalState"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "pre_execution_lock_sha256",
+    "terminal_states",
+    "permitdiff_results",
+    "simple_baseline_results",
+    "human_reviews",
+    "invalidations",
+    "disagreements",
+    "comparative_analysis"
+  ],
+  "type": "object"
+}

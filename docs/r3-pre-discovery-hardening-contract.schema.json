@@ -1,0 +1,155 @@
+{
+  "$id": "https://permitdiff.dev/schemas/r3-pre-discovery-hardening-contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adopted_against_main": {
+      "const": "c3f3a866333f75ae3a1668177cda37c68aa05409"
+    },
+    "adopted_before_corpus_construction": {
+      "const": true
+    },
+    "adopted_before_product_execution": {
+      "const": true
+    },
+    "adopted_before_public_discovery": {
+      "const": true
+    },
+    "condition_assignment": {
+      "type": "object"
+    },
+    "contract_version": {
+      "const": "r3-pre-discovery-hardening-v1"
+    },
+    "documentation_evidence": {
+      "type": "object"
+    },
+    "execution_environment": {
+      "type": "object"
+    },
+    "final_lock": {
+      "type": "object"
+    },
+    "freeze_completion_contract_version": {
+      "const": "r3-freeze-completion-v1"
+    },
+    "hard_boundaries": {
+      "const": {
+        "canonical_r3_results": "NOT_CREATED",
+        "empirical_scientific_validation_percent": 0,
+        "external_validation_claim": "NOT_ESTABLISHED",
+        "r3_execution": "NOT_STARTED"
+      }
+    },
+    "measurement_contract_version": {
+      "const": "r3-exploratory-measurement-contract-v2"
+    },
+    "natural_corpus": {
+      "additionalProperties": false,
+      "properties": {
+        "below_minimum_actions": {
+          "const": {
+            "adjudication_may_begin": false,
+            "condition_assignment_may_begin": false,
+            "materialization_may_begin": false,
+            "pre_execution_lock_may_be_created": false,
+            "product_execution_may_begin": false,
+            "selection_output_may_be_finalized": false
+          }
+        },
+        "eligible_count_policy": {
+          "const": {
+            "at_or_above_target": "SELECT_EXACTLY_TARGET",
+            "below_minimum": "ABORT_CONSTRUCTION_PROTOCOL_AMENDMENT_REQUIRED",
+            "below_target_at_or_above_minimum": "SELECT_ALL_ELIGIBLE_AND_REPORT_PREDECLARED_SHORTFALL"
+          }
+        },
+        "maximum_cases_per_repository": {
+          "const": 2
+        },
+        "minimum_viable_case_count": {
+          "const": 12
+        },
+        "target_case_count": {
+          "const": 18
+        },
+        "threshold_rationale": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_case_count",
+        "minimum_viable_case_count",
+        "maximum_cases_per_repository",
+        "eligible_count_policy",
+        "below_minimum_actions",
+        "threshold_rationale"
+      ],
+      "type": "object"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "result_integrity": {
+      "type": "object"
+    },
+    "reviewer_protocol": {
+      "type": "object"
+    },
+    "scenario_channel_cardinality": {
+      "const": {
+        "absent_requires_zero_primary_admissible_sets": true,
+        "multiple_primary_admissible_sets": "LOCK_FAILS_PROTOCOL_AMENDMENT_REQUIRED",
+        "present_requires_exactly_one_primary_admissible_set": true
+      }
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-pre-discovery-hardening-contract/v1"
+    },
+    "selected_case_failure_policy": {
+      "const": {
+        "chronology_must_be_preserved": true,
+        "corpus_shrinkage_allowed": false,
+        "discretionary_substitution_forbidden": true,
+        "disposition": "ABORT_CURRENT_CORPUS_VERSION_NO_REPLACEMENT",
+        "failed_case_and_reason_must_be_preserved": true,
+        "failure_reasons": [
+          "UNAVAILABLE_PROVENANCE",
+          "CORRUPTED_ARTIFACT",
+          "BROKEN_MATERIALIZATION",
+          "DOCUMENTATION_SNAPSHOT_FAILURE",
+          "INVALID_REVIEW_PACKET",
+          "SCENARIO_EVIDENCE_INTEGRITY_FAILURE",
+          "OTHER_PRE_EXECUTION_INTEGRITY_FAILURE"
+        ],
+        "label_or_product_result_consultation_forbidden": true,
+        "replacement_allowed": false,
+        "restart_rule": "A later attempt requires a new explicitly versioned corpus construction record; the failed current corpus version remains auditable and cannot be scored or locked.",
+        "version": "r3-selected-case-failure-policy-v1"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "contract_version",
+    "protocol_version",
+    "measurement_contract_version",
+    "freeze_completion_contract_version",
+    "adopted_against_main",
+    "adopted_before_public_discovery",
+    "adopted_before_corpus_construction",
+    "adopted_before_product_execution",
+    "natural_corpus",
+    "selected_case_failure_policy",
+    "reviewer_protocol",
+    "condition_assignment",
+    "scenario_channel_cardinality",
+    "documentation_evidence",
+    "execution_environment",
+    "result_integrity",
+    "final_lock",
+    "hard_boundaries"
+  ],
+  "type": "object"
+}
