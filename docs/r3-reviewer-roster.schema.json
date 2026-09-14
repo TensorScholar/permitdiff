@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "participant": {
+      "additionalProperties": false,
+      "properties": {
+        "case_specific_adjudication_case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "case_specific_prior_exposure_case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "claude_settings_familiarity_attested": {
+          "const": true
+        },
+        "disqualifying_conflict": {
+          "const": false
+        },
+        "domain_familiarity_attested": {
+          "const": true
+        },
+        "methodology_only_contributor": {
+          "type": "boolean"
+        },
+        "participant_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "type": "string"
+        },
+        "product_behavior_contributor": {
+          "const": false
+        },
+        "training_completed": {
+          "const": true
+        },
+        "training_protocol_version": {
+          "const": "r3-reviewer-training-v1"
+        }
+      },
+      "required": [
+        "participant_id",
+        "domain_familiarity_attested",
+        "claude_settings_familiarity_attested",
+        "training_completed",
+        "training_protocol_version",
+        "product_behavior_contributor",
+        "methodology_only_contributor",
+        "disqualifying_conflict",
+        "case_specific_prior_exposure_case_ids",
+        "case_specific_adjudication_case_ids"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://permitdiff.dev/schemas/r3-reviewer-roster.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "participants": {
+      "items": {
+        "$ref": "#/$defs/participant"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "reviewer_protocol_version": {
+      "const": "r3-reviewer-protocol-v1"
+    },
+    "roster_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-reviewer-roster/v1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "reviewer_protocol_version",
+    "roster_version",
+    "participants"
+  ],
+  "type": "object"
+}

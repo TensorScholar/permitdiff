@@ -1,0 +1,107 @@
+{
+  "$defs": {
+    "assignment": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "case_rank": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "condition": {
+          "enum": [
+            "PERMITDIFF_ASSISTED",
+            "STRUCTURED_MANUAL",
+            "SOURCE_TEXT_DIFF"
+          ]
+        },
+        "participant_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "participant_rank": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "case_id",
+        "participant_id",
+        "condition",
+        "case_rank",
+        "participant_rank"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://permitdiff.dev/schemas/r3-condition-assignment.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assignment_seed": {
+      "$ref": "#/$defs/sha256"
+    },
+    "assignment_version": {
+      "const": "r3-condition-assignment-v1"
+    },
+    "assignments": {
+      "items": {
+        "$ref": "#/$defs/assignment"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "cases": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "generated_before_evaluated_exposure": {
+      "const": true
+    },
+    "participant_roster_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "participants": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "reviewer_protocol_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-condition-assignment/v1"
+    },
+    "source_manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "required": [
+    "schema_version",
+    "assignment_version",
+    "source_manifest_sha256",
+    "participant_roster_sha256",
+    "reviewer_protocol_sha256",
+    "assignment_seed",
+    "generated_before_evaluated_exposure",
+    "participants",
+    "cases",
+    "assignments"
+  ],
+  "type": "object"
+}

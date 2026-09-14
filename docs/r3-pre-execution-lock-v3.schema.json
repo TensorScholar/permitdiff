@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "caseBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "baseline_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "candidate_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "candidate_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "case_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "documentation_snapshot_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "documentation_snapshot_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "primary_scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reference_adjudication_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "repository_url": {
+          "format": "uri",
+          "type": "string"
+        },
+        "review_packet_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_path": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "repository_url",
+        "source_path",
+        "baseline_commit",
+        "candidate_commit",
+        "baseline_sha256",
+        "candidate_sha256",
+        "review_packet_sha256",
+        "documentation_snapshot_ids",
+        "documentation_snapshot_set_sha256",
+        "primary_scenario_sha256",
+        "reference_adjudication_sha256"
+      ],
+      "type": "object"
+    },
+    "sha1": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://permitdiff.dev/schemas/r3-pre-execution-lock-v3.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adjudications_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "build_dependency_lock_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "case_bindings": {
+      "items": {
+        "$ref": "#/$defs/caseBinding"
+      },
+      "maxItems": 18,
+      "minItems": 12,
+      "type": "array"
+    },
+    "case_count": {
+      "maximum": 18,
+      "minimum": 12,
+      "type": "integer"
+    },
+    "case_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 18,
+      "minItems": 12,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "condition_assignment_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "corpus_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "documentation_snapshot_manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "environment_lock_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "hardening_contract_version": {
+      "const": "r3-pre-discovery-hardening-v1"
+    },
+    "manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "materialization_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "measurement_contract_version": {
+      "const": "r3-exploratory-measurement-contract-v2"
+    },
+    "methodology_components": {
+      "additionalProperties": {
+        "$ref": "#/$defs/sha256"
+      },
+      "minProperties": 1,
+      "propertyNames": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "permitdiff_command_identity_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "product_execution_commit": {
+      "const": "1f3b3a4afda67c01c4f29a93a45b18511980036b"
+    },
+    "product_execution_performed": {
+      "const": false
+    },
+    "product_wheel_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "review_packet_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "reviewer_roster_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "runtime_dependency_lock_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scenario_channel_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-pre-execution-lock/v3"
+    },
+    "screened_ledger_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "selection_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "study_repository_commit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "plan_version",
+    "measurement_contract_version",
+    "hardening_contract_version",
+    "corpus_id",
+    "study_repository_commit",
+    "product_execution_performed",
+    "product_execution_commit",
+    "case_count",
+    "case_ids",
+    "case_bindings",
+    "screened_ledger_sha256",
+    "selection_sha256",
+    "manifest_sha256",
+    "materialization_sha256",
+    "review_packet_set_sha256",
+    "adjudications_sha256",
+    "scenario_channel_set_sha256",
+    "documentation_snapshot_manifest_sha256",
+    "reviewer_roster_sha256",
+    "condition_assignment_sha256",
+    "environment_lock_sha256",
+    "product_wheel_sha256",
+    "runtime_dependency_lock_sha256",
+    "build_dependency_lock_sha256",
+    "permitdiff_command_identity_sha256",
+    "methodology_components"
+  ],
+  "title": "PermitDiff R3 Complete Pre-Execution Lock v3",
+  "type": "object"
+}

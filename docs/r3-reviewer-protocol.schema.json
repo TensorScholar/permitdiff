@@ -1,0 +1,13 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://permitdiff.dev/schemas/r3-reviewer-protocol.schema.json",
+  "type":"object","additionalProperties":false,
+  "required":["schema_version","protocol_version","eligibility","training","assignment"],
+  "properties":{
+    "schema_version":{"const":"permitdiff.dev/r3-reviewer-protocol/v1"},
+    "protocol_version":{"const":"r3-reviewer-protocol-v1"},
+    "eligibility":{"type":"object"},
+    "training":{"type":"object"},
+    "assignment":{"type":"object"}
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "artifact_hash_identity": "All runtime and build dependency distributions are SHA-256-authorized by the two R3-specific lock snapshots. The PermitDiff product source is Git-commit-bound; the realized product wheel digest must be recorded with execution records if a wheel is used.",
+  "base_image": {
+    "evidence_note": "Immutable OCI index digest is part of the R3 environment identity; tag text is descriptive only.",
+    "oci_index_sha256": "9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285",
+    "reference": "python:3.13.15-slim-trixie"
+  },
+  "build_dependencies": {
+    "build": "1.5.0",
+    "packaging": "26.3",
+    "pyproject-hooks": "1.2.0",
+    "setuptools": "84.0.0"
+  },
+  "environment_version": "r3-permitdiff-execution-environment-v1",
+  "execution": {
+    "encoding": "UTF-8",
+    "locale_policy": "UTF-8 locale",
+    "network_mode": "none",
+    "network_required": false,
+    "timezone": "UTC"
+  },
+  "installation_method": "Use linux/amd64 python:3.13.15-slim-trixie at the frozen OCI digest. Build the exact PermitDiff product commit 1f3b3a4afda67c01c4f29a93a45b18511980036b with the frozen R3 build lock using --require-hashes and --only-binary=:all:, then install the wheel with --no-deps and install the frozen R3 runtime lock using --require-hashes and --only-binary=:all:. Validate Python and installed-package versions before execution.",
+  "platform": {
+    "architecture": "amd64",
+    "containerized": true,
+    "os": "linux"
+  },
+  "product_commit": "1f3b3a4afda67c01c4f29a93a45b18511980036b",
+  "python_version": "3.13.15",
+  "python_version_source": "frozen R3 CPython patch release; preserved from r3-freeze-completion-v1",
+  "r3_dependency_locks": {
+    "build": {
+      "path": "validation/r3-benchmark/exploratory/r3-build-requirements-v1.lock",
+      "sha256": "83697d09efeb07bdca98934f93507a4cf0398427548e21921c89afca6b5eb54f"
+    },
+    "runtime": {
+      "path": "validation/r3-benchmark/exploratory/r3-runtime-requirements-v1.lock",
+      "sha256": "64fa71208e2d55b9199561d04a52ce7d6ed72f252640fba48a9ff3ff7f261754"
+    }
+  },
+  "runtime_dependencies": {
+    "PyYAML": "6.0.3",
+    "annotated-doc": "0.0.5",
+    "annotated-types": "0.8.0",
+    "markdown-it-py": "4.2.0",
+    "mdurl": "0.1.2",
+    "pydantic": "2.13.4",
+    "pydantic-core": "2.46.4",
+    "pygments": "2.20.0",
+    "rich": "14.3.4",
+    "shellingham": "1.5.4",
+    "typer": "0.27.1",
+    "typing-extensions": "4.16.0",
+    "typing-inspection": "0.4.3"
+  },
+  "schema_version": "permitdiff.dev/r3-execution-environment-lock/v1",
+  "source_artifacts": {
+    "build_dependency_lock": {
+      "git_blob_sha": "d2f1a5a2f7e07b62f5e40605a735f1d8b2363230",
+      "path": "docker/build-requirements.lock",
+      "sha256": "83697d09efeb07bdca98934f93507a4cf0398427548e21921c89afca6b5eb54f"
+    },
+    "dockerfile": {
+      "git_blob_sha": "fe23578c734ab70f91dde72ec51baa6eb267f522",
+      "path": "Dockerfile"
+    },
+    "runtime_dependency_lock": {
+      "git_blob_sha": "8033179abd66d7e58abae5231a76a789d1503767",
+      "path": "docker/requirements.lock",
+      "sha256": "64fa71208e2d55b9199561d04a52ce7d6ed72f252640fba48a9ff3ff7f261754"
+    }
+  }
+}
