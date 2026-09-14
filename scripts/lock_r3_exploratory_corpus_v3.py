@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
-
 from scripts.discover_r3_benchmark_candidates import select_public_historical
 from scripts.lock_r3_exploratory_corpus import PreExecutionLockError
 from scripts.lock_r3_exploratory_corpus_v2 import create_complete_pre_execution_lock
@@ -285,11 +284,11 @@ def create_v3_lock(
     packet_set, packet_bytes = _read_json(review_packet_set_path, "review packet set")
     adjudications, adjudication_bytes = _read_json(adjudications_path, "adjudications")
     scenarios, scenario_bytes = _read_json(scenario_channel_set_path, "scenario channel set")
-    measurement, measurement_bytes = _read_json(measurement_contract_path, "measurement contract")
-    freeze_contract, freeze_bytes = _read_json(
+    measurement, _measurement_bytes = _read_json(measurement_contract_path, "measurement contract")
+    freeze_contract, _freeze_bytes = _read_json(
         freeze_completion_contract_path, "freeze-completion contract"
     )
-    hardening, hardening_bytes = _read_json(hardening_contract_path, "hardening contract")
+    hardening, _hardening_bytes = _read_json(hardening_contract_path, "hardening contract")
     roster, roster_bytes = _read_json(reviewer_roster_path, "reviewer roster")
     assignment, assignment_bytes = _read_json(condition_assignment_path, "condition assignment")
     environment, environment_bytes = _read_json(environment_lock_path, "execution environment")
@@ -342,7 +341,7 @@ def create_v3_lock(
         schema_path=repo / "docs/r3-documentation-snapshot-manifest.schema.json",
         expected_case_ids=case_ids,
     )
-    docs_manifest, docs_bytes = _read_json(
+    docs_manifest, _docs_bytes = _read_json(
         documentation_snapshot_manifest_path, "documentation snapshot manifest"
     )
     doc_by_id = {str(doc["document_id"]): doc for doc in docs_manifest["documents"]}

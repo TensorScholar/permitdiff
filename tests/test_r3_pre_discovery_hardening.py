@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
-
 from scripts.r3_documentation_snapshots import (
     DocumentationSnapshotError,
     documentation_set_digest,

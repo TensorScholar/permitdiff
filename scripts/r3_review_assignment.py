@@ -103,7 +103,7 @@ def build_assignment(
     manifest_sha = _sha256(manifest_bytes)
     roster_sha = _sha256(roster_bytes)
     protocol_sha = _sha256(reviewer_protocol_bytes)
-    seed = _sha256(f"{ASSIGNMENT_VERSION}\n{manifest_sha}\n{roster_sha}".encode("utf-8"))
+    seed = _sha256(f"{ASSIGNMENT_VERSION}\n{manifest_sha}\n{roster_sha}".encode())
 
     ranked_cases = sorted(
         case_ids,

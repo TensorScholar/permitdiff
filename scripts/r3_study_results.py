@@ -7,7 +7,6 @@ import argparse
 import hashlib
 import json
 import math
-from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -174,9 +173,13 @@ def derive_top_level_outcome(
     ):
         return "EFFORT_ADVANTAGE_ONLY", ["FROZEN_TWENTY_PERCENT_EFFORT_ADVANTAGE"]
 
-    if supported_data_available and timing_complete and assisted_missed >= manual_missed:
-        if not effort_threshold_met:
-            return "NO_MEANINGFUL_ADVANTAGE", ["NO_DETECTION_OR_FROZEN_EFFORT_ADVANTAGE"]
+    if (
+        supported_data_available
+        and timing_complete
+        and assisted_missed >= manual_missed
+        and not effort_threshold_met
+    ):
+        return "NO_MEANINGFUL_ADVANTAGE", ["NO_DETECTION_OR_FROZEN_EFFORT_ADVANTAGE"]
 
     reasons: list[str] = []
     if not supported_data_available:
