@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import ssl
 import sys
 import time
 from collections.abc import Mapping, Sequence
@@ -44,6 +45,10 @@ _RATE_LIMIT_MAX_SECONDS = 240.0
 _RATE_LIMIT_DELAY = re.compile(r"try again in ([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
 _TRANSIENT_READ_RETRIES = 3
 _TRANSIENT_READ_RETRY_SECONDS = 1.0
+# ssl.SSLEOFError surfaces as a raw read-phase TLS truncation (same stage as
+# IncompleteRead/RemoteDisconnected) and is retried under the same budget.
+# Query text, pacing, filtering, schemas, and ledger semantics are unchanged.
+_TRANSIENT_READ_ERRORS = (IncompleteRead, RemoteDisconnected, ssl.SSLEOFError)
 
 
 def _utc_now() -> str:
@@ -173,7 +178,7 @@ class PublicOnlyGitHubClient(GitHubClient):
             self._request_attempts += 1
             try:
                 return super().get_json(endpoint, params)
-            except (IncompleteRead, RemoteDisconnected) as exc:
+            except _TRANSIENT_READ_ERRORS as exc:
                 if read_attempts == _TRANSIENT_READ_RETRIES:
                     self._progress(
                         "transient_retry_exhausted",
@@ -222,7 +227,7 @@ class PublicOnlyGitHubClient(GitHubClient):
             self._request_attempts += 1
             try:
                 return super()._get_json_array(endpoint, params)
-            except (IncompleteRead, RemoteDisconnected) as exc:
+            except _TRANSIENT_READ_ERRORS as exc:
                 if read_attempts == _TRANSIENT_READ_RETRIES:
                     self._progress(
                         "transient_retry_exhausted",
@@ -414,7 +419,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         _write_json(args.output, result)
         return 0
-    except (DiscoveryError, IncompleteRead, RemoteDisconnected) as exc:
+    except (DiscoveryError, IncompleteRead, RemoteDisconnected, ssl.SSLEOFError) as exc:
         if client is not None:
             client.finish("failed", error_type=type(exc).__name__, error=str(exc)[:500])
         print(f"R3 public discovery failed: {exc}", file=sys.stderr)

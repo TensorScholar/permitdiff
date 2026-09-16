@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ssl
 from http.client import IncompleteRead, RemoteDisconnected
 from typing import Any
 
@@ -172,6 +173,54 @@ def test_remote_disconnect_is_retried_without_changing_request(monkeypatch) -> N
         ("/search/code", {"q": "query", "page": 7}),
     ]
     assert sleeps == [1.0, 11.0]
+
+
+def test_ssl_eof_is_retried_without_changing_request(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
+    sleeps: list[float] = []
+
+    def fake_get_json(self, endpoint, params=None):
+        calls.append((endpoint, params))
+        if len(calls) == 1:
+            raise ssl.SSLEOFError("UNEXPECTED_EOF_WHILE_READING")
+        return {"ok": True}
+
+    monkeypatch.setattr(GitHubClient, "get_json", fake_get_json)
+    monkeypatch.setattr(public_discovery.time, "sleep", sleeps.append)
+
+    client = PublicOnlyGitHubClient(None)
+    result = client.get_json("/repos/example/project", {"page": 4})
+
+    assert result == {"ok": True}
+    assert calls == [
+        ("/repos/example/project", {"page": 4}),
+        ("/repos/example/project", {"page": 4}),
+    ]
+    assert sleeps == [1.0]
+
+
+def test_ssl_eof_array_is_retried_without_changing_request(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
+    sleeps: list[float] = []
+
+    def fake_get_json_array(self, endpoint, params=None):
+        calls.append((endpoint, params))
+        if len(calls) == 1:
+            raise ssl.SSLEOFError("UNEXPECTED_EOF_WHILE_READING")
+        return [{"sha": "a" * 40}]
+
+    monkeypatch.setattr(GitHubClient, "_get_json_array", fake_get_json_array)
+    monkeypatch.setattr(public_discovery.time, "sleep", sleeps.append)
+
+    client = PublicOnlyGitHubClient(None)
+    result = client._get_json_array("/repos/example/project/commits", {"page": 2})
+
+    assert result == [{"sha": "a" * 40}]
+    assert calls == [
+        ("/repos/example/project/commits", {"page": 2}),
+        ("/repos/example/project/commits", {"page": 2}),
+    ]
+    assert sleeps == [1.0]
 
 
 def test_incomplete_array_read_is_retried_without_changing_request(monkeypatch) -> None:
