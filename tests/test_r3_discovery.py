@@ -3,15 +3,19 @@ from __future__ import annotations
 import base64
 import copy
 import json
+import ssl
 from pathlib import Path
 from typing import Any
+from urllib.error import URLError
 
 import pytest
 from jsonschema import Draft202012Validator
+import scripts.discover_r3_benchmark_candidates as discovery
 from scripts.discover_r3_benchmark_candidates import (
     LEDGER_SCHEMA_VERSION,
     PLAN_VERSION,
     DiscoveryError,
+    GitHubClient,
     build_ledger,
     build_search_specs,
     discover_locations,
@@ -316,3 +320,33 @@ def test_selection_output_conforms_to_machine_schema() -> None:
 
     Draft202012Validator(schema).validate(result)
     assert result["selected_case_count"] == 1
+
+
+def test_get_json_preserves_wrapped_ssl_eof_for_retry(monkeypatch) -> None:
+    def fake_urlopen(request, timeout=None):
+        raise URLError(ssl.SSLEOFError("UNEXPECTED_EOF_WHILE_READING"))
+
+    monkeypatch.setattr(discovery, "urlopen", fake_urlopen)
+
+    with pytest.raises(ssl.SSLEOFError):
+        GitHubClient(None).get_json("/search/code", {"q": "query"})
+
+
+def test_get_json_array_preserves_wrapped_ssl_eof_for_retry(monkeypatch) -> None:
+    def fake_urlopen(request, timeout=None):
+        raise URLError(ssl.SSLEOFError("UNEXPECTED_EOF_WHILE_READING"))
+
+    monkeypatch.setattr(discovery, "urlopen", fake_urlopen)
+
+    with pytest.raises(ssl.SSLEOFError):
+        GitHubClient(None)._get_json_array("/repos/org/project/commits", {"page": 1})
+
+
+def test_get_json_still_wraps_nontransient_urlerror(monkeypatch) -> None:
+    def fake_urlopen(request, timeout=None):
+        raise URLError("connection refused")
+
+    monkeypatch.setattr(discovery, "urlopen", fake_urlopen)
+
+    with pytest.raises(DiscoveryError, match="GitHub API request failed"):
+        GitHubClient(None).get_json("/search/code", {"q": "query"})

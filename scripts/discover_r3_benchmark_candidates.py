@@ -14,11 +14,13 @@ import binascii
 import hashlib
 import json
 import os
+import ssl
 import sys
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from http.client import IncompleteRead, RemoteDisconnected
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
@@ -66,6 +68,18 @@ PRE_EXPOSED_CONTROLS = frozenset(
         )
     }
 )
+
+# Raw read-phase TLS/socket truncations retried by the public-only wrapper.
+# GitHubClient must preserve these through the urllib layer instead of
+# converting a URLError-wrapped transient into a non-retryable DiscoveryError.
+_TRANSIENT_READ_ERRORS = (IncompleteRead, RemoteDisconnected, ssl.SSLEOFError)
+
+
+def _transient_reason(exc: URLError) -> BaseException | None:
+    """Return the wrapped transient cause when urllib surfaces one via URLError."""
+
+    reason = exc.reason if isinstance(exc, URLError) else None
+    return reason if isinstance(reason, _TRANSIENT_READ_ERRORS) else None
 
 
 class DiscoveryError(RuntimeError):
@@ -174,6 +188,9 @@ class GitHubClient:
             detail = exc.read().decode("utf-8", errors="replace")
             raise DiscoveryError(f"GitHub API HTTP {exc.code} for {url}: {detail[:500]}") from exc
         except URLError as exc:
+            transient = _transient_reason(exc)
+            if transient is not None:
+                raise transient from exc
             raise DiscoveryError(f"GitHub API request failed for {url}: {exc.reason}") from exc
 
     def search_code(self, query: str) -> tuple[list[dict[str, Any]], int, bool]:
@@ -236,7 +253,14 @@ class GitHubClient:
         try:
             with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed HTTPS API base
                 raw = json.loads(response.read())
-        except (HTTPError, URLError, json.JSONDecodeError) as exc:
+        except HTTPError as exc:
+            raise DiscoveryError(f"GitHub API request failed for {url}: {exc}") from exc
+        except URLError as exc:
+            transient = _transient_reason(exc)
+            if transient is not None:
+                raise transient from exc
+            raise DiscoveryError(f"GitHub API request failed for {url}: {exc}") from exc
+        except json.JSONDecodeError as exc:
             raise DiscoveryError(f"GitHub API request failed for {url}: {exc}") from exc
         if not isinstance(raw, list) or not all(isinstance(item, dict) for item in raw):
             raise DiscoveryError(f"GitHub API returned unexpected array payload for {url}")
