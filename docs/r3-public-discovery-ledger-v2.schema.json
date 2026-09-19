@@ -1,0 +1,343 @@
+{
+  "$defs": {
+    "discoveryMarker": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_path": {
+          "enum": [
+            ".claude/settings.json",
+            ".claude/settings.local.json"
+          ]
+        },
+        "query_id": {
+          "enum": [
+            "q1",
+            "q2",
+            "q3",
+            "q4",
+            "q5"
+          ]
+        }
+      },
+      "required": [
+        "query_id",
+        "candidate_path"
+      ],
+      "type": "object"
+    },
+    "exclusionReason": {
+      "enum": [
+        "unavailable_provenance",
+        "ambiguous_parent_transition",
+        "artifact_parse_failure",
+        "no_authorization_relevant_change",
+        "duplicate_transition",
+        "insufficient_public_semantics",
+        "private_or_sensitive_content",
+        "non_project_or_unscoped_settings",
+        "pre_exposed_engineering_control"
+      ]
+    },
+    "nullableSha1": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/sha1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nullableSha256": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "queryEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "api_query": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "api_result_cap_reached": {
+          "type": "boolean"
+        },
+        "candidate_path": {
+          "enum": [
+            ".claude/settings.json",
+            ".claude/settings.local.json"
+          ]
+        },
+        "concept": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "exact_candidate_path_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incomplete_results": {
+          "type": "boolean"
+        },
+        "query_id": {
+          "enum": [
+            "q1",
+            "q2",
+            "q3",
+            "q4",
+            "q5"
+          ]
+        },
+        "reported_total_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "retrieved_count": {
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "query_id",
+        "concept",
+        "candidate_path",
+        "api_query",
+        "reported_total_count",
+        "retrieved_count",
+        "exact_candidate_path_count",
+        "incomplete_results",
+        "api_result_cap_reached"
+      ],
+      "type": "object"
+    },
+    "sha1": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "transition": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_blob": {
+          "$ref": "#/$defs/nullableSha1"
+        },
+        "baseline_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "baseline_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "baseline_size_bytes": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "candidate_blob": {
+          "$ref": "#/$defs/nullableSha1"
+        },
+        "candidate_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "candidate_commit_timestamp": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidate_parent_count": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "candidate_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "candidate_size_bytes": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "contamination_status": {
+          "enum": [
+            "clean",
+            "pre_exposed_engineering_control"
+          ]
+        },
+        "discovered_by": {
+          "items": {
+            "$ref": "#/$defs/discoveryMarker"
+          },
+          "type": "array"
+        },
+        "exclusion_reasons": {
+          "items": {
+            "$ref": "#/$defs/exclusionReason"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "manual_review_required": {
+          "type": "boolean"
+        },
+        "path": {
+          "enum": [
+            ".claude/settings.json",
+            ".claude/settings.local.json"
+          ]
+        },
+        "permissions_changed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "repository_full_name": {
+          "pattern": "^[^/]+/[^/]+$",
+          "type": "string"
+        },
+        "repository_url": {
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$",
+          "type": "string"
+        },
+        "screening_status": {
+          "enum": [
+            "pending",
+            "excluded"
+          ]
+        },
+        "selection_key": {
+          "$ref": "#/$defs/sha256"
+        },
+        "transition_id": {
+          "pattern": "^gh-[0-9a-f]{20}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "transition_id",
+        "discovered_by",
+        "repository_full_name",
+        "repository_url",
+        "path",
+        "baseline_commit",
+        "candidate_commit",
+        "baseline_blob",
+        "candidate_blob",
+        "baseline_sha256",
+        "candidate_sha256",
+        "baseline_size_bytes",
+        "candidate_size_bytes",
+        "candidate_commit_timestamp",
+        "candidate_parent_count",
+        "permissions_changed",
+        "screening_status",
+        "exclusion_reasons",
+        "contamination_status",
+        "selection_key",
+        "manual_review_required"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://permitdiff.dev/schemas/r3-public-discovery-ledger-v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cb01_contract_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cb01_contract_version": {
+      "const": "r3-cb01-corpus-construction-v1"
+    },
+    "discovered_location_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "discovery_complete": {
+      "type": "boolean"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "producer_id": {
+      "const": "permitdiff-r3-canonical-public-discovery-v2"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "queries": {
+      "items": {
+        "$ref": "#/$defs/queryEvidence"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-public-discovery-ledger/v2"
+    },
+    "source": {
+      "const": "github-rest-code-search-and-commit-history"
+    },
+    "study_repository_commit": {
+      "$ref": "#/$defs/sha1"
+    },
+    "transition_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "transitions": {
+      "items": {
+        "$ref": "#/$defs/transition"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "plan_version",
+    "protocol_version",
+    "cb01_contract_version",
+    "cb01_contract_sha256",
+    "study_repository_commit",
+    "producer_id",
+    "source",
+    "generated_at",
+    "discovery_complete",
+    "limitations",
+    "queries",
+    "discovered_location_count",
+    "transition_count",
+    "transitions"
+  ],
+  "title": "PermitDiff R3 Public Discovery Ledger v2",
+  "type": "object"
+}

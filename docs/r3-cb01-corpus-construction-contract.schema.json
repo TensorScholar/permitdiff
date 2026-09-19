@@ -1,0 +1,287 @@
+{
+  "$defs": {
+    "contaminationEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "candidate_commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "path": {
+          "enum": [
+            ".claude/settings.json",
+            ".claude/settings.local.json"
+          ]
+        },
+        "repository_url": {
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$",
+          "type": "string"
+        },
+        "status": {
+          "const": "pre_exposed_engineering_control"
+        }
+      },
+      "required": [
+        "repository_url",
+        "baseline_commit",
+        "candidate_commit",
+        "path",
+        "status"
+      ],
+      "type": "object"
+    },
+    "searchFrameEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "api_query": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "candidate_path": {
+          "enum": [
+            ".claude/settings.json",
+            ".claude/settings.local.json"
+          ]
+        },
+        "concept": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "query_id": {
+          "enum": [
+            "q1",
+            "q2",
+            "q3",
+            "q4",
+            "q5"
+          ]
+        }
+      },
+      "required": [
+        "query_id",
+        "concept",
+        "candidate_path",
+        "api_query"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://permitdiff.dev/schemas/r3-cb01-corpus-construction-contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Prospective machine-readable CB-01 construction contract (Packet A).",
+  "properties": {
+    "artifact_versions": {
+      "additionalProperties": false,
+      "properties": {
+        "cb01_construction_lineage": {
+          "const": "permitdiff.dev/r3-cb01-corpus-construction-lineage/v1"
+        },
+        "public_materialization": {
+          "const": "permitdiff.dev/r3-public-materialization/v2"
+        },
+        "public_selection": {
+          "const": "permitdiff.dev/r3-public-selection/v2"
+        },
+        "raw_public_discovery_ledger": {
+          "const": "permitdiff.dev/r3-public-discovery-ledger/v2"
+        },
+        "screened_discovery_ledger": {
+          "const": "permitdiff.dev/r3-screened-discovery-ledger/v1"
+        },
+        "screening_decisions": {
+          "const": "permitdiff.dev/r3-screening-decisions/v1"
+        }
+      },
+      "required": [
+        "raw_public_discovery_ledger",
+        "screening_decisions",
+        "screened_discovery_ledger",
+        "public_selection",
+        "cb01_construction_lineage",
+        "public_materialization"
+      ],
+      "type": "object"
+    },
+    "authorization": {
+      "const": "grants_no_operational_authorization"
+    },
+    "below_minimum_publication_prohibition": {
+      "const": true
+    },
+    "below_minimum_rule": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "candidate_paths": {
+      "const": [
+        ".claude/settings.json",
+        ".claude/settings.local.json"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "canonical_public_producer_id": {
+      "const": "permitdiff-r3-canonical-public-discovery-v2"
+    },
+    "canonical_repository_identity_rule": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "canonical_repository_url_rule": {
+      "const": "https://github.com/<repository_full_name>"
+    },
+    "contamination_register": {
+      "items": {
+        "$ref": "#/$defs/contaminationEntry"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "contamination_rule": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "r3-cb01-corpus-construction-v1"
+    },
+    "count_definitions": {
+      "additionalProperties": false,
+      "properties": {
+        "cap_admissible_count": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "raw_eligible_count": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "selected_case_count": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "shortfall": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "raw_eligible_count",
+        "cap_admissible_count",
+        "selected_case_count",
+        "shortfall"
+      ],
+      "type": "object"
+    },
+    "deterministic_publication_rules": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_json_note": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "digest_rule": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "no_generated_at_in_derived_artifacts": {
+          "const": true
+        },
+        "selection_order": {
+          "const": "selection_key_ascending"
+        }
+      },
+      "required": [
+        "digest_rule",
+        "no_generated_at_in_derived_artifacts",
+        "selection_order",
+        "canonical_json_note"
+      ],
+      "type": "object"
+    },
+    "maximum_cases_per_repository": {
+      "const": 2
+    },
+    "minimum_viable_selected_case_count": {
+      "const": 12
+    },
+    "plan_version": {
+      "const": "r3-exploratory-corpus-plan-v1"
+    },
+    "protocol_version": {
+      "const": "r3-benchmark-protocol-v1"
+    },
+    "same_study_commit_rule": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "permitdiff.dev/r3-cb01-corpus-construction-contract/v1"
+    },
+    "search_frame": {
+      "items": {
+        "$ref": "#/$defs/searchFrameEntry"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array"
+    },
+    "selection_key_formula": {
+      "const": "SHA256(canonical_repository_url + '\\n' + baseline_commit + '\\n' + candidate_commit + '\\n' + path)"
+    },
+    "status": {
+      "const": "prospective_before_real_r3_discovery"
+    },
+    "supersedes": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "target_case_count": {
+      "const": 18
+    },
+    "transition_id_formula": {
+      "const": "\"gh-\" + selection_key[:20]"
+    }
+  },
+  "required": [
+    "schema_version",
+    "contract_version",
+    "plan_version",
+    "protocol_version",
+    "status",
+    "authorization",
+    "artifact_versions",
+    "canonical_public_producer_id",
+    "candidate_paths",
+    "search_frame",
+    "canonical_repository_identity_rule",
+    "canonical_repository_url_rule",
+    "selection_key_formula",
+    "transition_id_formula",
+    "contamination_register",
+    "contamination_rule",
+    "target_case_count",
+    "maximum_cases_per_repository",
+    "minimum_viable_selected_case_count",
+    "count_definitions",
+    "below_minimum_publication_prohibition",
+    "below_minimum_rule",
+    "same_study_commit_rule",
+    "deterministic_publication_rules",
+    "supersedes"
+  ],
+  "title": "PermitDiff R3 CB-01 Corpus-Construction Contract",
+  "type": "object"
+}

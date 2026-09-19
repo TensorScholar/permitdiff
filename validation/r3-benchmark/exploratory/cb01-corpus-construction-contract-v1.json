@@ -1,0 +1,127 @@
+{
+  "artifact_versions": {
+    "cb01_construction_lineage": "permitdiff.dev/r3-cb01-corpus-construction-lineage/v1",
+    "public_materialization": "permitdiff.dev/r3-public-materialization/v2",
+    "public_selection": "permitdiff.dev/r3-public-selection/v2",
+    "raw_public_discovery_ledger": "permitdiff.dev/r3-public-discovery-ledger/v2",
+    "screened_discovery_ledger": "permitdiff.dev/r3-screened-discovery-ledger/v1",
+    "screening_decisions": "permitdiff.dev/r3-screening-decisions/v1"
+  },
+  "authorization": "grants_no_operational_authorization",
+  "below_minimum_publication_prohibition": true,
+  "below_minimum_rule": "A selection with SELECTED_CASE_COUNT < 12 MUST NOT be finalized, published, or materialized. The CB-01 constructor raises a dedicated construction exception instead of returning a canonical selection-v2 payload. Below-minimum handling is ABORT_CONSTRUCTION_PROTOCOL_AMENDMENT_REQUIRED before materialization, adjudication, condition assignment, pre-execution locking, or product execution.",
+  "candidate_paths": [
+    ".claude/settings.json",
+    ".claude/settings.local.json"
+  ],
+  "canonical_public_producer_id": "permitdiff-r3-canonical-public-discovery-v2",
+  "canonical_repository_identity_rule": "repository_full_name is authoritative and has the form owner/repo. repository_url MUST equal https://github.com/<repository_full_name> exactly. Any mismatch fails validation. repository_full_name determines actual materialization identity; repository_url participates in the deterministic selection-key ordering only through its canonical binding.",
+  "canonical_repository_url_rule": "https://github.com/<repository_full_name>",
+  "contamination_register": [
+    {
+      "baseline_commit": "28133b63a9a54621c8d7be879ba671daf8464c1c",
+      "candidate_commit": "d8a47de7f5f96d501432a7f02c6909c667a5f31d",
+      "path": ".claude/settings.local.json",
+      "repository_url": "https://github.com/SpearIT-LLC/project-framework",
+      "status": "pre_exposed_engineering_control"
+    }
+  ],
+  "contamination_rule": "contamination_status is recomputed from the frozen contamination identity (canonical_repository_url, baseline_commit, candidate_commit, path). Identity present in contamination_register yields pre_exposed_engineering_control; otherwise clean. Stored contamination_status is validated for exact equality but never trusted downstream. A contaminated identity MUST NOT become eligible.",
+  "contract_version": "r3-cb01-corpus-construction-v1",
+  "count_definitions": {
+    "cap_admissible_count": "Number of cases surviving deterministic selection-key ordering plus the frozen maximum of two cases per repository, computed before target truncation: sort all eligible screened transitions by selection_key ascending, scan the entire ordered set admitting at most two cases per repository_full_name to form CAP_SEQUENCE, then CAP_ADMISSIBLE_COUNT = len(CAP_SEQUENCE).",
+    "raw_eligible_count": "All fully screened eligible cases before application of the repository cap. Transparency metadata only. MUST NOT satisfy the 12-case viability threshold by itself.",
+    "selected_case_count": "len(SELECTED) where SELECTED is the first 18 cases from the cap-admissible ordered sequence (SELECTED = CAP_SEQUENCE[:18]).",
+    "shortfall": "18 - SELECTED_CASE_COUNT."
+  },
+  "deterministic_publication_rules": {
+    "canonical_json_note": "Parent-byte digests are SHA256 over exact parent file bytes. When original bytes are available, reserialized parsed JSON MUST NOT be substituted. Formatting-only changes to semantically equivalent JSON therefore produce different exact parent digests by design.",
+    "digest_rule": "cb01_contract_sha256 is SHA256(exact committed contract file bytes). Source digests (source_discovery_ledger_sha256, source_screening_decisions_sha256, source_screened_ledger_sha256, source_selection_sha256, source_cb01_lineage_sha256, raw_discovery_ledger_sha256, screening_decisions_sha256, screened_discovery_ledger_sha256, public_selection_sha256) are SHA256(exact parent file bytes).",
+    "no_generated_at_in_derived_artifacts": true,
+    "selection_order": "selection_key_ascending"
+  },
+  "maximum_cases_per_repository": 2,
+  "minimum_viable_selected_case_count": 12,
+  "plan_version": "r3-exploratory-corpus-plan-v1",
+  "protocol_version": "r3-benchmark-protocol-v1",
+  "same_study_commit_rule": "All canonical artifacts belonging to one CB-01 construction chain MUST use the same study_repository_commit. Raw public discovery v2 originates it. Screened discovery v1 inherits it from validated raw bytes, public selection v2 inherits it from validated screened bytes, lineage v1 inherits it from its validated parents, and materialization v2 inherits it from selection and lineage. Derived artifacts MUST NOT independently choose another commit. Operational Git-checkout enforcement arrives in Packet B; Packet A enforces only the semantic equality relationship.",
+  "schema_version": "permitdiff.dev/r3-cb01-corpus-construction-contract/v1",
+  "search_frame": [
+    {
+      "api_query": "\"defaultMode\" \"dontAsk\" \"permissions\" \"allow\" path:.claude filename:settings.json",
+      "candidate_path": ".claude/settings.json",
+      "concept": "defaultMode dontAsk permissions allow",
+      "query_id": "q1"
+    },
+    {
+      "api_query": "\"defaultMode\" \"dontAsk\" \"permissions\" \"allow\" path:.claude filename:settings.local.json",
+      "candidate_path": ".claude/settings.local.json",
+      "concept": "defaultMode dontAsk permissions allow",
+      "query_id": "q1"
+    },
+    {
+      "api_query": "\"permissions\" \"allow\" \"ask\" \"deny\" \"settings\" path:.claude filename:settings.json",
+      "candidate_path": ".claude/settings.json",
+      "concept": "permissions allow ask deny .claude settings",
+      "query_id": "q2"
+    },
+    {
+      "api_query": "\"permissions\" \"allow\" \"ask\" \"deny\" \"settings\" path:.claude filename:settings.local.json",
+      "candidate_path": ".claude/settings.local.json",
+      "concept": "permissions allow ask deny .claude settings",
+      "query_id": "q2"
+    },
+    {
+      "api_query": "\"WebFetch\" \"domain\" \"permissions\" \"allow\" path:.claude filename:settings.json",
+      "candidate_path": ".claude/settings.json",
+      "concept": "WebFetch domain permissions allow",
+      "query_id": "q3"
+    },
+    {
+      "api_query": "\"WebFetch\" \"domain\" \"permissions\" \"allow\" path:.claude filename:settings.local.json",
+      "candidate_path": ".claude/settings.local.json",
+      "concept": "WebFetch domain permissions allow",
+      "query_id": "q3"
+    },
+    {
+      "api_query": "\"Bash\" \"permissions\" \"allow\" path:.claude filename:settings.json",
+      "candidate_path": ".claude/settings.json",
+      "concept": "Bash permissions allow .claude",
+      "query_id": "q4"
+    },
+    {
+      "api_query": "\"Bash\" \"permissions\" \"allow\" path:.claude filename:settings.local.json",
+      "candidate_path": ".claude/settings.local.json",
+      "concept": "Bash permissions allow .claude",
+      "query_id": "q4"
+    },
+    {
+      "api_query": "\"WebSearch\" \"permissions\" \"allow\" path:.claude filename:settings.json",
+      "candidate_path": ".claude/settings.json",
+      "concept": "WebSearch permissions allow .claude",
+      "query_id": "q5"
+    },
+    {
+      "api_query": "\"WebSearch\" \"permissions\" \"allow\" path:.claude filename:settings.local.json",
+      "candidate_path": ".claude/settings.local.json",
+      "concept": "WebSearch permissions allow .claude",
+      "query_id": "q5"
+    }
+  ],
+  "selection_key_formula": "SHA256(canonical_repository_url + '\\n' + baseline_commit + '\\n' + candidate_commit + '\\n' + path)",
+  "status": "prospective_before_real_r3_discovery",
+  "supersedes": [
+    "raw public discovery ledger identity and producer binding (v2)",
+    "screening-decision byte binding and deterministic screened-ledger derivation (screened discovery v1)",
+    "canonical repository identity and repository-URL binding",
+    "contamination re-derivation from the frozen contamination identity/register",
+    "selection-key and transition-ID formulas as frozen byte identities",
+    "count definitions (RAW_ELIGIBLE_COUNT, CAP_ADMISSIBLE_COUNT, SELECTED_CASE_COUNT, SHORTFALL)",
+    "frozen target/cap/minimum and the below-minimum publication prohibition",
+    "same-study-commit inheritance across one construction chain",
+    "contract-digest binding via SHA256(exact committed contract file bytes)",
+    "canonical artifact sequence and CB-01 construction-lineage evidence"
+  ],
+  "target_case_count": 18,
+  "transition_id_formula": "\"gh-\" + selection_key[:20]"
+}
