@@ -6,7 +6,12 @@ from http.client import IncompleteRead, RemoteDisconnected
 from typing import Any
 
 import scripts.discover_r3_public_benchmark_candidates as public_discovery
-from scripts.discover_r3_benchmark_candidates import DiscoveryError, GitHubClient
+from scripts.discover_r3_benchmark_candidates import (
+    DiscoveryError,
+    GitHubClient,
+    build_search_specs,
+    selection_key,
+)
 from scripts.discover_r3_public_benchmark_candidates import PublicOnlyGitHubClient
 
 
@@ -351,3 +356,73 @@ def test_progress_snapshot_is_atomic_noncanonical_and_token_free(tmp_path) -> No
     assert payload["last_event"]["transition_count"] == 7
     assert secret not in raw
     assert not progress_path.with_name(progress_path.name + ".tmp").exists()
+
+
+def test_public_search_forwards_frozen_query_unchanged(monkeypatch) -> None:
+    seen: list[str] = []
+
+    def fake_search_code(self, query: str):
+        seen.append(query)
+        return ([_item("public/example", private=False)], 1, False)
+
+    monkeypatch.setattr(GitHubClient, "search_code", fake_search_code)
+
+    client = PublicOnlyGitHubClient(None)
+    specs = build_search_specs()
+    for spec in specs:
+        items, total_count, incomplete = client.search_code(spec.api_query)
+        assert total_count == 1
+        assert incomplete is False
+        assert [item["repository"]["full_name"] for item in items] == ["public/example"]
+
+    assert seen == [spec.api_query for spec in specs]
+
+
+def test_public_select_cli_fails_before_writing_non_frozen_artifact(tmp_path) -> None:
+    repository_url = "https://github.com/org/a"
+    path = ".claude/settings.json"
+    baseline = "1" * 40
+    candidate = "a" * 40
+    key = selection_key(repository_url, baseline, candidate, path)
+    ledger = {
+        "schema_version": "permitdiff.dev/r3-discovery-ledger/v1",
+        "plan_version": "r3-exploratory-corpus-plan-v1",
+        "discovery_complete": True,
+        "transitions": [
+            {
+                "transition_id": f"gh-{key[:20]}",
+                "repository_full_name": "org/a",
+                "repository_url": repository_url,
+                "path": path,
+                "baseline_commit": baseline,
+                "candidate_commit": candidate,
+                "baseline_blob": "1" * 40,
+                "candidate_blob": "2" * 40,
+                "baseline_sha256": "3" * 64,
+                "candidate_sha256": "4" * 64,
+                "selection_key": key,
+                "screening_status": "eligible",
+                "exclusion_reasons": [],
+                "contamination_status": "clean",
+            }
+        ],
+    }
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    output_path = tmp_path / "selection.json"
+
+    assert (
+        public_discovery.main(
+            [
+                "select",
+                "--ledger",
+                str(ledger_path),
+                "--output",
+                str(output_path),
+                "--target",
+                "17",
+            ]
+        )
+        == 1
+    )
+    assert not output_path.exists()

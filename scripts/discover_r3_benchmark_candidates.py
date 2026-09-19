@@ -28,6 +28,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from scripts.r3_pre_discovery_contract import (
+    MAX_CASES_PER_REPOSITORY,
+    TARGET_CASES,
+)
+
 PLAN_VERSION = "r3-exploratory-corpus-plan-v1"
 PROTOCOL_VERSION = "r3-benchmark-protocol-v1"
 LEDGER_SCHEMA_VERSION = "permitdiff.dev/r3-discovery-ledger/v1"
@@ -588,6 +593,14 @@ def select_public_historical(
 ) -> dict[str, Any]:
     """Select eligible transitions strictly by the preregistered SHA-256 ordering."""
 
+    if target != TARGET_CASES:
+        raise DiscoveryError(
+            f"R3 selection target must remain exactly {TARGET_CASES}"
+        )
+    if max_per_repository != MAX_CASES_PER_REPOSITORY:
+        raise DiscoveryError(
+            f"R3 per-repository cap must remain exactly {MAX_CASES_PER_REPOSITORY}"
+        )
     if ledger.get("schema_version") != LEDGER_SCHEMA_VERSION:
         raise DiscoveryError("unsupported discovery ledger schema version")
     if ledger.get("plan_version") != PLAN_VERSION:
@@ -601,6 +614,16 @@ def select_public_historical(
     if len(transitions) != len(raw_transitions):
         raise DiscoveryError("ledger contains a non-object transition")
     _validate_exclusion_reasons(transitions)
+    for item in transitions:
+        status = item.get("screening_status")
+        if status not in {"pending", "eligible", "excluded"}:
+            raise DiscoveryError(
+                f"ledger contains unsupported screening_status for {item.get('transition_id')}"
+            )
+        if status == "pending":
+            raise DiscoveryError(
+                "cannot select from a ledger with unresolved screening decisions"
+            )
 
     eligible: list[Mapping[str, Any]] = []
     for item in transitions:
@@ -608,6 +631,18 @@ def select_public_historical(
             continue
         if item.get("contamination_status") != "clean":
             raise DiscoveryError("eligible transition cannot be contaminated")
+        if any(
+            item.get(field) is None
+            for field in (
+                "baseline_blob",
+                "candidate_blob",
+                "baseline_sha256",
+                "candidate_sha256",
+            )
+        ):
+            raise DiscoveryError(
+                f"eligible transition lacks immutable artifact provenance for {item.get('transition_id')}"
+            )
         expected_key = selection_key(
             str(item["repository_url"]),
             str(item["baseline_commit"]),

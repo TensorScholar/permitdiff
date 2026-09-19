@@ -268,19 +268,29 @@ def _ledger(transitions: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def test_selection_is_key_ordered_and_enforces_repository_cap() -> None:
-    transitions = [
-        _eligible_transition("org/a", "1" * 40, "a" * 40),
-        _eligible_transition("org/a", "2" * 40, "b" * 40),
-        _eligible_transition("org/a", "3" * 40, "c" * 40),
-        _eligible_transition("org/b", "4" * 40, "d" * 40),
-        _eligible_transition("org/c", "5" * 40, "e" * 40, status="excluded"),
-    ]
-
-    result = select_public_historical(
-        _ledger(copy.deepcopy(transitions)), target=3, max_per_repository=2
+    transitions: list[dict[str, Any]] = []
+    for index in range(3):
+        transitions.append(
+            _eligible_transition(
+                "org/a", f"{index + 1:040x}", f"{index + 1001:040x}"
+            )
+        )
+    for index in range(3, 20):
+        transitions.append(
+            _eligible_transition(
+                f"org/repo-{index}", f"{index + 1:040x}", f"{index + 1001:040x}"
+            )
+        )
+    transitions.append(
+        _eligible_transition("org/c", "5" * 40, "e" * 40, status="excluded")
     )
 
-    assert result["selected_case_count"] == 3
+    result = select_public_historical(_ledger(copy.deepcopy(transitions)))
+
+    assert result["target_cases"] == 18
+    assert result["max_cases_per_repository"] == 2
+    assert result["eligible_case_count"] == 20
+    assert result["selected_case_count"] == 18
     assert result["shortfall"] == 0
     assert sum(item["repository_full_name"] == "org/a" for item in result["selected"]) <= 2
     selected_keys = [item["selection_key"] for item in result["selected"]]
@@ -315,11 +325,14 @@ def test_empty_discovery_ledger_conforms_to_machine_schema() -> None:
 
 def test_selection_output_conforms_to_machine_schema() -> None:
     transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
-    result = select_public_historical(_ledger([transition]), target=1, max_per_repository=2)
+    result = select_public_historical(_ledger([transition]))
     schema = json.loads(SELECTION_SCHEMA.read_text(encoding="utf-8"))
 
     Draft202012Validator(schema).validate(result)
+    assert result["target_cases"] == 18
+    assert result["max_cases_per_repository"] == 2
     assert result["selected_case_count"] == 1
+    assert result["shortfall"] == 17
 
 
 def test_get_json_preserves_wrapped_ssl_eof_for_retry(monkeypatch) -> None:
@@ -350,3 +363,241 @@ def test_get_json_still_wraps_nontransient_urlerror(monkeypatch) -> None:
 
     with pytest.raises(DiscoveryError, match="GitHub API request failed"):
         GitHubClient(None).get_json("/search/code", {"q": "query"})
+
+
+def test_pre_exposed_control_is_excluded_and_never_selected() -> None:
+    repository_url, baseline, candidate, path = next(iter(discovery.PRE_EXPOSED_CONTROLS))
+    repository = repository_url.replace("https://github.com/", "")
+    client = FakeClient()
+    client.histories[(repository, path)] = (
+        [
+            _commit(candidate, "2026-09-02T00:00:00Z"),
+            _commit(baseline, "2026-09-01T00:00:00Z"),
+        ],
+        False,
+    )
+    client.commits[(repository, candidate)] = {"parents": [{"sha": baseline}]}
+    client.files[(repository, path, baseline)] = _file(
+        "1" * 40, {"permissions": {"allow": []}}
+    )
+    client.files[(repository, path, candidate)] = _file(
+        "2" * 40, {"permissions": {"allow": ["Bash"]}}
+    )
+    locations = [
+        {
+            "repository_full_name": repository,
+            "repository_url": repository_url,
+            "path": path,
+            "discovered_by": [{"query_id": "q1", "candidate_path": path}],
+        }
+    ]
+
+    transitions, complete = enumerate_transitions(client, locations, max_history_commits=None)
+
+    assert complete is True
+    assert len(transitions) == 1
+    item = transitions[0]
+    assert item["contamination_status"] == "pre_exposed_engineering_control"
+    assert item["screening_status"] == "excluded"
+    assert "pre_exposed_engineering_control" in item["exclusion_reasons"]
+
+    tampered = copy.deepcopy(item)
+    tampered["screening_status"] = "eligible"
+    tampered["exclusion_reasons"] = []
+    with pytest.raises(DiscoveryError, match="cannot be contaminated"):
+        select_public_historical(_ledger([tampered]))
+
+    result = select_public_historical(
+        _ledger([copy.deepcopy(item)]), target=18, max_per_repository=2
+    )
+    assert result["eligible_case_count"] == 0
+    assert result["selected_case_count"] == 0
+    assert result["shortfall"] == 18
+
+
+def test_truncated_history_marks_incomplete_and_refuses_selection() -> None:
+    client = FakeClient()
+    specs = build_search_specs()
+    client.search_payloads[specs[0].api_query] = (
+        [_search_item("org/one", ".claude/settings.json")],
+        1,
+        False,
+    )
+    repo = "org/one"
+    path = ".claude/settings.json"
+    candidate = "c" * 40
+    baseline = "b" * 40
+    client.histories[(repo, path)] = (
+        [
+            _commit(candidate, "2026-01-02T00:00:00Z"),
+            _commit(baseline, "2026-01-01T00:00:00Z"),
+        ],
+        True,
+    )
+    client.commits[(repo, candidate)] = {"parents": [{"sha": baseline}]}
+    client.files[(repo, path, baseline)] = _file(
+        "1" * 40, {"permissions": {"allow": []}}
+    )
+    client.files[(repo, path, candidate)] = _file(
+        "2" * 40, {"permissions": {"allow": ["Bash"]}}
+    )
+
+    ledger = build_ledger(client, max_history_commits=2)
+
+    assert ledger["discovery_complete"] is False
+    with pytest.raises(DiscoveryError, match="incomplete discovery ledger"):
+        select_public_historical(ledger)
+
+
+def test_enumerate_transitions_orders_by_selection_key() -> None:
+    client = FakeClient()
+    path = ".claude/settings.json"
+    pairs = [
+        ("org/zeta", "1" * 40, "a" * 40),
+        ("org/alpha", "2" * 40, "b" * 40),
+    ]
+    locations = []
+    for repo, baseline, candidate in pairs:
+        client.histories[(repo, path)] = (
+            [
+                _commit(candidate, "2026-01-02T00:00:00Z"),
+                _commit(baseline, "2026-01-01T00:00:00Z"),
+            ],
+            False,
+        )
+        client.commits[(repo, candidate)] = {"parents": [{"sha": baseline}]}
+        client.files[(repo, path, baseline)] = _file(
+            "1" * 40, {"permissions": {"allow": []}}
+        )
+        client.files[(repo, path, candidate)] = _file(
+            "2" * 40, {"permissions": {"allow": ["Bash"]}}
+        )
+        locations.append(
+            {
+                "repository_full_name": repo,
+                "repository_url": f"https://github.com/{repo}",
+                "path": path,
+                "discovered_by": [{"query_id": "q1", "candidate_path": path}],
+            }
+        )
+
+    transitions, complete = enumerate_transitions(
+        client, list(reversed(locations)), max_history_commits=None
+    )
+
+    assert complete is True
+    assert len(transitions) == 2
+    keys = [item["selection_key"] for item in transitions]
+    assert keys == sorted(keys)
+
+
+def test_select_is_deterministic_across_runs() -> None:
+    transitions = [
+        _eligible_transition(
+            "org/a" if index < 2 else f"org/repo-{index}",
+            f"{index + 1:040x}",
+            f"{index + 1001:040x}",
+        )
+        for index in range(5)
+    ]
+
+    first = select_public_historical(_ledger(copy.deepcopy(transitions)))
+    second = select_public_historical(_ledger(copy.deepcopy(transitions)))
+
+    assert first == second
+    assert first["source_ledger_sha256"] == second["source_ledger_sha256"]
+    assert first["selected_case_count"] == 5
+    assert first["shortfall"] == 13
+
+
+def test_selection_refuses_unresolved_screening() -> None:
+    eligible = _eligible_transition("org/a", "1" * 40, "a" * 40)
+    pending = _eligible_transition("org/b", "2" * 40, "b" * 40)
+    pending["screening_status"] = "pending"
+    pending["manual_review_required"] = True
+
+    with pytest.raises(DiscoveryError, match="unresolved screening"):
+        select_public_historical(_ledger([eligible, pending]))
+
+
+def test_selection_rejects_unsupported_screening_status() -> None:
+    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
+    transition["screening_status"] = "unknown-status"
+
+    with pytest.raises(DiscoveryError, match="unsupported screening_status"):
+        select_public_historical(_ledger([transition]))
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "baseline_blob",
+        "candidate_blob",
+        "baseline_sha256",
+        "candidate_sha256",
+    ],
+)
+def test_selection_rejects_eligible_without_provenance(field: str) -> None:
+    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
+    transition[field] = None
+
+    with pytest.raises(DiscoveryError, match="immutable artifact provenance"):
+        select_public_historical(_ledger([transition]))
+
+
+def test_selection_rejects_non_frozen_parameters() -> None:
+    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
+
+    with pytest.raises(DiscoveryError, match="target must remain exactly 18"):
+        select_public_historical(
+            _ledger([copy.deepcopy(transition)]),
+            target=17,
+            max_per_repository=2,
+        )
+    with pytest.raises(DiscoveryError, match="per-repository cap must remain exactly 2"):
+        select_public_historical(
+            _ledger([copy.deepcopy(transition)]),
+            target=18,
+            max_per_repository=3,
+        )
+
+
+def test_select_cli_fails_before_writing_non_frozen_artifact(tmp_path) -> None:
+    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(
+        json.dumps(_ledger([transition]), indent=2) + "\n", encoding="utf-8"
+    )
+    output_path = tmp_path / "selection.json"
+
+    assert (
+        discovery.main(
+            [
+                "select",
+                "--ledger",
+                str(ledger_path),
+                "--output",
+                str(output_path),
+                "--target",
+                "17",
+            ]
+        )
+        == 1
+    )
+    assert not output_path.exists()
+
+    assert (
+        discovery.main(
+            [
+                "select",
+                "--ledger",
+                str(ledger_path),
+                "--output",
+                str(output_path),
+                "--max-per-repository",
+                "3",
+            ]
+        )
+        == 1
+    )
+    assert not output_path.exists()
