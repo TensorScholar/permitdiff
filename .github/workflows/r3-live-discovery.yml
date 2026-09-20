@@ -88,13 +88,35 @@ jobs:
 
           root = Path('.').resolve()
           ledger_path = root / 'validation/r3-benchmark/exploratory/live-capture-v1/discovery-ledger.json'
-          schema_path = root / 'docs/r3-discovery-ledger.schema.json'
+          schema_path = root / 'docs/r3-public-discovery-ledger-v2.schema.json'
+          contract_path = (
+              root
+              / 'validation/r3-benchmark/exploratory/cb01-corpus-construction-contract-v1.json'
+          )
 
           ledger_bytes = ledger_path.read_bytes()
           ledger = json.loads(ledger_bytes)
           schema = json.loads(schema_path.read_text(encoding='utf-8'))
           Draft202012Validator.check_schema(schema)
           Draft202012Validator(schema, format_checker=FormatChecker()).validate(ledger)
+
+          # Packet D1: CB-01 v2 bindings over exact bytes (never reserialized JSON).
+          contract_bytes = contract_path.read_bytes()
+          contract = json.loads(contract_bytes)
+          if ledger['schema_version'] != 'permitdiff.dev/r3-public-discovery-ledger/v2':
+              raise SystemExit('ledger is not a raw public discovery v2 artifact')
+          if ledger['cb01_contract_version'] != contract['contract_version']:
+              raise SystemExit('ledger cb01 contract version mismatch')
+          if ledger['cb01_contract_sha256'] != hashlib.sha256(contract_bytes).hexdigest():
+              raise SystemExit('ledger contract digest does not match exact contract bytes')
+          if ledger['producer_id'] != contract['canonical_public_producer_id']:
+              raise SystemExit('ledger producer is not the canonical public producer')
+
+          workflow_commit = subprocess.check_output(
+              ['git', 'rev-parse', 'HEAD'], text=True
+          ).strip()
+          if ledger['study_repository_commit'] != workflow_commit:
+              raise SystemExit('ledger study commit does not match the capture checkout')
 
           if ledger['discovery_complete'] is not True:
               raise SystemExit('discovery_complete is not true; capture is inadmissible for selection')
@@ -104,9 +126,6 @@ jobs:
           ):
               raise SystemExit('contaminated transition marked eligible')
 
-          workflow_commit = subprocess.check_output(
-              ['git', 'rev-parse', 'HEAD'], text=True
-          ).strip()
           summary = {
               'ledger_sha256': hashlib.sha256(ledger_bytes).hexdigest(),
               'discovered_location_count': ledger['discovered_location_count'],
@@ -116,6 +135,10 @@ jobs:
               'source': ledger['source'],
               'plan_version': ledger['plan_version'],
               'protocol_version': ledger['protocol_version'],
+              'schema_version': ledger['schema_version'],
+              'producer_id': ledger['producer_id'],
+              'cb01_contract_sha256': ledger['cb01_contract_sha256'],
+              'study_repository_commit': ledger['study_repository_commit'],
               'workflow_commit': workflow_commit,
               'merged_discovery_base_commit': os.environ['DISCOVERY_BASE_COMMIT'],
           }
