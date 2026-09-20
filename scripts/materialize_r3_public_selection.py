@@ -9,7 +9,6 @@ import json
 import shutil
 import sys
 import tempfile
-from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from http.client import IncompleteRead, RemoteDisconnected
@@ -19,17 +18,29 @@ from urllib.parse import quote
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
+from scripts import r3_cb01_corpus_construction as _cb01
 from scripts.discover_r3_benchmark_candidates import (
     PLAN_VERSION,
     PROTOCOL_VERSION,
-    SELECTION_SCHEMA_VERSION,
     DiscoveryError,
     _resolve_token,
-    selection_key,
 )
 from scripts.discover_r3_public_benchmark_candidates import PublicOnlyGitHubClient
 
+# Retained v1 identity for downstream CB-02+ readers (review packets, scenario
+# channels, adjudications, locks), which still consume v1-shaped fixtures and
+# import this constant. They migrate in their own packets; B5 must not break them.
 MATERIALIZATION_SCHEMA_VERSION = "permitdiff.dev/r3-public-materialization/v1"
+MATERIALIZATION_V2_SCHEMA_VERSION = "permitdiff.dev/r3-public-materialization/v2"
+SELECTION_SCHEMA_VERSION = _cb01.SELECTION_SCHEMA_VERSION
+LINEAGE_SCHEMA_VERSION = _cb01.LINEAGE_SCHEMA_VERSION
+DEFAULT_CB01_CONTRACT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "validation"
+    / "r3-benchmark"
+    / "exploratory"
+    / "cb01-corpus-construction-contract-v1.json"
+)
 
 
 class MaterializationError(ValueError):
@@ -84,63 +95,80 @@ def _validate_against_schema(payload: dict[str, Any], schema_path: Path, *, labe
         )
 
 
-def _validate_selection(selection: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    if selection.get("schema_version") != SELECTION_SCHEMA_VERSION:
-        raise MaterializationError("unsupported public selection schema version")
-    if selection.get("plan_version") != PLAN_VERSION:
-        raise MaterializationError("selection plan version mismatch")
-    if selection.get("protocol_version") != PROTOCOL_VERSION:
-        raise MaterializationError("selection protocol version mismatch")
+def _load_contract_bytes(
+    contract_path: Path | None = None,
+) -> tuple[dict[str, Any], bytes]:
+    """Load exact CB-01 contract bytes; hashing must use these exact bytes."""
 
-    raw_selected = selection.get("selected")
-    if not isinstance(raw_selected, list) or not all(
-        isinstance(case, Mapping) for case in raw_selected
+    path = contract_path or DEFAULT_CB01_CONTRACT_PATH
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise MaterializationError(f"failed to read CB-01 contract {path}: {exc}") from exc
+    try:
+        contract = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise MaterializationError(f"CB-01 contract is not valid JSON: {path}: {exc}") from exc
+    if not isinstance(contract, dict):
+        raise MaterializationError(f"CB-01 contract must contain a JSON object: {path}")
+    try:
+        _cb01.validate_contract_binding(contract, raw)
+    except _cb01.CB01ConstructionError as exc:
+        raise MaterializationError(f"invalid CB-01 contract: {exc}") from exc
+    return contract, raw
+
+
+def _validate_selection(
+    selection: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    contract_bytes: bytes,
+) -> list[Mapping[str, Any]]:
+    """Validate selection v2 via the CB-01 single source of truth (no duplication)."""
+
+    try:
+        _cb01.validate_selection_v2(selection, contract, contract_bytes)
+    except _cb01.CB01ConstructionError as exc:
+        raise MaterializationError(str(exc)) from exc
+    selected = selection.get("selected")
+    assert isinstance(selected, list)
+    return list(selected)
+
+
+def _validate_lineage_gate(
+    selection: Mapping[str, Any],
+    selection_bytes: bytes,
+    lineage: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    contract_bytes: bytes,
+) -> Mapping[str, Any]:
+    """Gate fetching on selection v2 + lineage v1 consistency (before first fetch)."""
+
+    if lineage.get("schema_version") != LINEAGE_SCHEMA_VERSION:
+        raise MaterializationError("unsupported CB-01 construction lineage version")
+    if lineage.get("cb01_contract_version") != _cb01.CB01_CONTRACT_VERSION:
+        raise MaterializationError("lineage cb01 contract version mismatch")
+    expected_contract_digest = _sha256_bytes(contract_bytes)
+    if lineage.get("cb01_contract_sha256") != expected_contract_digest:
+        raise MaterializationError("lineage contract digest does not match exact bytes")
+    if lineage.get("public_selection_sha256") != _sha256_bytes(selection_bytes):
+        raise MaterializationError("lineage is not bound to the supplied selection bytes")
+    if lineage.get("study_repository_commit") != selection.get("study_repository_commit"):
+        raise MaterializationError("lineage study commit does not match selection")
+    for field in (
+        "raw_eligible_count",
+        "cap_admissible_count",
+        "selected_case_count",
+        "shortfall",
+        "target_case_count",
+        "maximum_cases_per_repository",
+        "minimum_viable_case_count",
     ):
-        raise MaterializationError("selection selected field must contain only objects")
-    selected = list(raw_selected)
-
-    if selection.get("selected_case_count") != len(selected):
-        raise MaterializationError("selected_case_count does not match selected cases")
-    target = selection.get("target_cases")
-    if not isinstance(target, int) or target < 1 or len(selected) > target:
-        raise MaterializationError("selection target/count invariant failed")
-    if selection.get("shortfall") != max(0, target - len(selected)):
-        raise MaterializationError("selection shortfall does not match target and selected count")
-
-    expected_ranks = list(range(1, len(selected) + 1))
-    actual_ranks = [case.get("rank") for case in selected]
-    if actual_ranks != expected_ranks:
-        raise MaterializationError("selected case ranks must be contiguous and ordered")
-
-    seen_ids: set[str] = set()
-    repository_counts: Counter[str] = Counter()
-    max_per_repository = selection.get("max_cases_per_repository")
-    if not isinstance(max_per_repository, int) or max_per_repository < 1:
-        raise MaterializationError("invalid max_cases_per_repository")
-
-    for case in selected:
-        transition_id = str(case.get("transition_id"))
-        if transition_id in seen_ids:
-            raise MaterializationError(f"duplicate selected transition_id: {transition_id}")
-        seen_ids.add(transition_id)
-
-        repository = str(case.get("repository_full_name"))
-        repository_counts[repository] += 1
-        if repository_counts[repository] > max_per_repository:
+        if lineage.get(field) != selection.get(field):
             raise MaterializationError(
-                f"repository case cap exceeded for selected repository: {repository}"
+                f"lineage {field} does not match selection: "
+                f"{lineage.get(field)!r} != {selection.get(field)!r}"
             )
-
-        expected_key = selection_key(
-            str(case.get("repository_url")),
-            str(case.get("baseline_commit")),
-            str(case.get("candidate_commit")),
-            str(case.get("path")),
-        )
-        if case.get("selection_key") != expected_key:
-            raise MaterializationError(f"selection key mismatch for {transition_id}")
-
-    return selected
+    return lineage
 
 
 def _exact_source_url(repository: str, commit: str, path: str) -> str:
@@ -222,16 +250,27 @@ def _fetch_role(
 
 def materialize_selection(
     selection_path: Path,
+    lineage_path: Path,
     output_dir: Path,
     selection_schema_path: Path,
+    lineage_schema_path: Path,
     materialization_schema_path: Path,
+    contract_path: Path | None,
     client: PublicOnlyGitHubClient,
 ) -> dict[str, Any]:
-    """Fetch and verify exact selected source bytes without executing PermitDiff."""
+    """Fetch and verify exact selected source bytes without executing PermitDiff.
+
+    Packet B5: validates selection v2 + lineage v1 gates before the first
+    source fetch. No fetch may occur unless all gates pass.
+    """
 
     selection, selection_bytes = _read_json_object_bytes(selection_path, label="public selection")
+    lineage, _lineage_bytes = _read_json_object_bytes(lineage_path, label="CB-01 lineage")
+    contract, contract_bytes = _load_contract_bytes(contract_path)
     _validate_against_schema(selection, selection_schema_path, label="public selection")
-    selected = _validate_selection(selection)
+    _validate_against_schema(lineage, lineage_schema_path, label="CB-01 lineage")
+    selected = _validate_selection(selection, contract, contract_bytes)
+    _validate_lineage_gate(selection, selection_bytes, lineage, contract, contract_bytes)
 
     output_dir = output_dir.resolve()
     if output_dir.exists():
@@ -285,10 +324,12 @@ def materialize_selection(
             )
 
         index = {
-            "schema_version": MATERIALIZATION_SCHEMA_VERSION,
+            "schema_version": MATERIALIZATION_V2_SCHEMA_VERSION,
             "plan_version": PLAN_VERSION,
             "protocol_version": PROTOCOL_VERSION,
             "source_selection_sha256": _sha256_bytes(selection_bytes),
+            "source_cb01_lineage_sha256": _sha256_bytes(_lineage_bytes),
+            "study_repository_commit": selection["study_repository_commit"],
             "generated_at": _utc_now(),
             "selected_case_count": len(materialized_cases),
             "cases": materialized_cases,
@@ -308,27 +349,44 @@ def materialize_selection(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--selection", type=Path, required=True)
+    parser.add_argument("--lineage", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument(
         "--selection-schema",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "docs" / "r3-public-selection.schema.json",
+        default=Path(__file__).resolve().parents[1] / "docs" / "r3-public-selection-v2.schema.json",
+    )
+    parser.add_argument(
+        "--lineage-schema",
+        type=Path,
+        default=Path(__file__).resolve().parents[1]
+        / "docs"
+        / "r3-cb01-corpus-construction-lineage.schema.json",
     )
     parser.add_argument(
         "--materialization-schema",
         type=Path,
         default=Path(__file__).resolve().parents[1]
         / "docs"
-        / "r3-public-materialization.schema.json",
+        / "r3-public-materialization-v2.schema.json",
+    )
+    parser.add_argument(
+        "--contract",
+        type=Path,
+        default=None,
+        help="CB-01 contract file; defaults to the committed contract",
     )
     args = parser.parse_args(argv)
 
     try:
         materialize_selection(
             args.selection,
+            args.lineage,
             args.output_dir,
             args.selection_schema,
+            args.lineage_schema,
             args.materialization_schema,
+            args.contract,
             PublicOnlyGitHubClient(_resolve_token()),
         )
     except (DiscoveryError, IncompleteRead, MaterializationError, RemoteDisconnected) as exc:

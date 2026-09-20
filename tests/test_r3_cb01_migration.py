@@ -356,9 +356,20 @@ def test_b0_producers_not_yet_migrated() -> None:
     assert discover.LEDGER_SCHEMA_VERSION == "permitdiff.dev/r3-discovery-ledger/v1"
     assert discover.SELECTION_SCHEMA_VERSION == "permitdiff.dev/r3-public-selection/v1"
     assert screen.SCREENING_SCHEMA_VERSION == "permitdiff.dev/r3-screening-decisions/v1"
+    # B5: materialization index is v2 (lineage-gated); the v1 index constant
+    # is retained for downstream CB-02+ readers until their own migration.
+    # Selection v1 consts above are retained history for the deprecated shape.
+    assert (
+        materialize.MATERIALIZATION_V2_SCHEMA_VERSION
+        == "permitdiff.dev/r3-public-materialization/v2"
+    )
     assert (
         materialize.MATERIALIZATION_SCHEMA_VERSION
         == "permitdiff.dev/r3-public-materialization/v1"
+    )
+    assert (
+        materialize.SELECTION_SCHEMA_VERSION
+        == "permitdiff.dev/r3-public-selection/v2"
     )
 
 
@@ -956,3 +967,120 @@ def test_b4_below_minimum_no_output_both_mains(tmp_path: Path) -> None:
             == 1
         )
         assert not output_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# B5 — Lineage-gated materialization CLI (synthetic, no network/tokens)
+#
+# Failure paths exit non-zero with no output directory. Gate failures occur
+# before any source fetch, so these CLI tests never touch the network even
+# though main() constructs a real client object (no calls are made).
+# ---------------------------------------------------------------------------
+
+
+def _b5_cli_pair(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Write a valid synthetic selection+lineage pair under tmp_path."""
+    contract, contract_bytes = _load_contract()
+    raw, raw_bytes, decisions, decisions_bytes = _make_chain()
+    screened = cb01.derive_screened_ledger(
+        raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+    )
+    screened_bytes = _canonical_bytes(screened)
+    selection = cb01.derive_selection_v2(screened, screened_bytes, contract, contract_bytes)
+    selection_bytes = _canonical_bytes(selection)
+    lineage = cb01.derive_lineage_v1(
+        raw,
+        raw_bytes,
+        decisions,
+        decisions_bytes,
+        screened,
+        screened_bytes,
+        selection,
+        selection_bytes,
+        contract,
+        contract_bytes,
+    )
+    selection_path = tmp_path / "selection.json"
+    lineage_path = tmp_path / "lineage.json"
+    selection_path.write_bytes(selection_bytes)
+    lineage_path.write_bytes(_canonical_bytes(lineage))
+    return selection_path, lineage_path, CONTRACT_PATH
+
+
+def test_b5_cli_missing_lineage_no_output(tmp_path: Path) -> None:
+    import scripts.materialize_r3_public_selection as _materialize
+
+    selection_path, _, _ = _b5_cli_pair(tmp_path)
+    output_dir = tmp_path / "materialized"
+    assert (
+        _materialize.main(
+            [
+                "--selection",
+                str(selection_path),
+                "--lineage",
+                str(tmp_path / "missing-lineage.json"),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+    assert not output_dir.exists()
+
+
+def test_b5_cli_tampered_lineage_no_output(tmp_path: Path) -> None:
+    import scripts.materialize_r3_public_selection as _materialize
+
+    selection_path, lineage_path, _ = _b5_cli_pair(tmp_path)
+    lineage = json.loads(lineage_path.read_bytes())
+    lineage["public_selection_sha256"] = "0" * 64
+    lineage_path.write_bytes(_canonical_bytes(lineage))
+    output_dir = tmp_path / "materialized"
+    assert (
+        _materialize.main(
+            [
+                "--selection",
+                str(selection_path),
+                "--lineage",
+                str(lineage_path),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+    assert not output_dir.exists()
+
+
+def test_b5_cli_below_minimum_no_output(tmp_path: Path) -> None:
+    import scripts.materialize_r3_public_selection as _materialize
+
+    contract, contract_bytes = _load_contract()
+    raw, raw_bytes, decisions, decisions_bytes = _make_chain(count=5)
+    screened = cb01.derive_screened_ledger(
+        raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+    )
+    assert len([t for t in screened["transitions"] if t["screening_status"] == "eligible"]) == 5
+    # Below-minimum selections cannot exist canonically; emulate a truncated
+    # payload to prove the gate refuses before any fetch.
+    selection_path, lineage_path, _ = _b5_cli_pair(tmp_path)
+    selection = json.loads(selection_path.read_bytes())
+    selection["selected"] = selection["selected"][:5]
+    selection["selected_case_count"] = 5
+    selection["shortfall"] = 13
+    selection_path.write_bytes(_canonical_bytes(selection))
+    output_dir = tmp_path / "materialized"
+    assert (
+        _materialize.main(
+            [
+                "--selection",
+                str(selection_path),
+                "--lineage",
+                str(lineage_path),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+    assert not output_dir.exists()
