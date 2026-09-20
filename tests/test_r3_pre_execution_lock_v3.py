@@ -72,9 +72,7 @@ def _queries_from_contract(contract: dict[str, Any]) -> list[dict[str, Any]]:
     return queries
 
 
-def _valid_chain(
-    count: int = 12, *, repos: list[str] | None = None
-) -> dict[str, Any]:
+def _valid_chain(count: int = 12, *, repos: list[str] | None = None) -> dict[str, Any]:
     """Build raw/decisions/screened/selection/lineage/materialization (synthetic)."""
     contract, contract_bytes = _load_contract()
     transitions: list[dict[str, Any]] = []

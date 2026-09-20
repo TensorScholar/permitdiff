@@ -218,9 +218,7 @@ def test_unchanged_permissions_remain_pending_for_outside_projection_review() ->
     ]
 
     contract, _ = _load_cb01_contract()
-    transitions, _ = enumerate_transitions(
-        client, locations, contract, max_history_commits=None
-    )
+    transitions, _ = enumerate_transitions(client, locations, contract, max_history_commits=None)
 
     assert transitions[0]["screening_status"] == "pending"
     assert transitions[0]["permissions_changed"] is False
@@ -250,9 +248,7 @@ def test_merge_transition_is_excluded_as_ambiguous() -> None:
     ]
 
     contract, _ = _load_cb01_contract()
-    transitions, _ = enumerate_transitions(
-        client, locations, contract, max_history_commits=None
-    )
+    transitions, _ = enumerate_transitions(client, locations, contract, max_history_commits=None)
 
     assert transitions[0]["screening_status"] == "excluded"
     assert "ambiguous_parent_transition" in transitions[0]["exclusion_reasons"]
@@ -414,9 +410,7 @@ def test_selection_refuses_tampered_screened_ledger() -> None:
     tampered = copy.deepcopy(screened)
     tampered["transitions"][0]["selection_key"] = "0" * 64
     with pytest.raises(DiscoveryError, match=r"selection_key mismatch"):
-        select_public_historical(
-            tampered, _canonical_bytes(tampered), contract, contract_bytes
-        )
+        select_public_historical(tampered, _canonical_bytes(tampered), contract, contract_bytes)
     stale = copy.deepcopy(screened)
     with pytest.raises(DiscoveryError, match=r"does not match exact screened bytes"):
         select_public_historical(stale, b'{"tampered": true}', contract, contract_bytes)
@@ -451,10 +445,7 @@ def test_selection_output_conforms_to_machine_schema() -> None:
     assert result["cap_admissible_count"] == 12
     assert result["selected_case_count"] == 12
     assert result["shortfall"] == 6
-    assert (
-        result["source_screened_ledger_sha256"]
-        == hashlib.sha256(screened_bytes).hexdigest()
-    )
+    assert result["source_screened_ledger_sha256"] == hashlib.sha256(screened_bytes).hexdigest()
 
 
 def test_get_json_preserves_wrapped_ssl_eof_for_retry(monkeypatch) -> None:
@@ -499,9 +490,7 @@ def test_pre_exposed_control_is_excluded_and_never_selected() -> None:
         False,
     )
     client.commits[(repository, candidate)] = {"parents": [{"sha": baseline}]}
-    client.files[(repository, path, baseline)] = _file(
-        "1" * 40, {"permissions": {"allow": []}}
-    )
+    client.files[(repository, path, baseline)] = _file("1" * 40, {"permissions": {"allow": []}})
     client.files[(repository, path, candidate)] = _file(
         "2" * 40, {"permissions": {"allow": ["Bash"]}}
     )
@@ -530,9 +519,7 @@ def test_pre_exposed_control_is_excluded_and_never_selected() -> None:
     tampered = copy.deepcopy(screened)
     tampered["transitions"][0]["contamination_status"] = "pre_exposed_engineering_control"
     with pytest.raises(DiscoveryError, match="cannot be contaminated"):
-        select_public_historical(
-            tampered, _canonical_bytes(tampered), contract, contract_bytes
-        )
+        select_public_historical(tampered, _canonical_bytes(tampered), contract, contract_bytes)
 
     # A screened ledger with no eligible cases is below minimum: refuse output.
     contract2, contract_bytes2 = _load_cb01_contract()
@@ -592,12 +579,8 @@ def test_truncated_history_marks_incomplete_and_refuses_selection() -> None:
         True,
     )
     client.commits[(repo, candidate)] = {"parents": [{"sha": baseline}]}
-    client.files[(repo, path, baseline)] = _file(
-        "1" * 40, {"permissions": {"allow": []}}
-    )
-    client.files[(repo, path, candidate)] = _file(
-        "2" * 40, {"permissions": {"allow": ["Bash"]}}
-    )
+    client.files[(repo, path, baseline)] = _file("1" * 40, {"permissions": {"allow": []}})
+    client.files[(repo, path, candidate)] = _file("2" * 40, {"permissions": {"allow": ["Bash"]}})
 
     contract, contract_bytes = _load_cb01_contract()
     ledger = build_ledger(
@@ -629,9 +612,7 @@ def test_enumerate_transitions_orders_by_selection_key() -> None:
             False,
         )
         client.commits[(repo, candidate)] = {"parents": [{"sha": baseline}]}
-        client.files[(repo, path, baseline)] = _file(
-            "1" * 40, {"permissions": {"allow": []}}
-        )
+        client.files[(repo, path, baseline)] = _file("1" * 40, {"permissions": {"allow": []}})
         client.files[(repo, path, candidate)] = _file(
             "2" * 40, {"permissions": {"allow": ["Bash"]}}
         )
@@ -679,9 +660,7 @@ def test_selection_refuses_unresolved_screening() -> None:
     tampered = copy.deepcopy(screened)
     tampered["transitions"][0]["screening_status"] = "pending"
     with pytest.raises(DiscoveryError, match=r"must never contain pending"):
-        select_public_historical(
-            tampered, _canonical_bytes(tampered), contract, contract_bytes
-        )
+        select_public_historical(tampered, _canonical_bytes(tampered), contract, contract_bytes)
 
 
 def test_selection_rejects_unsupported_screening_status() -> None:
@@ -689,9 +668,7 @@ def test_selection_rejects_unsupported_screening_status() -> None:
     tampered = copy.deepcopy(screened)
     tampered["transitions"][0]["screening_status"] = "unknown-status"
     with pytest.raises(DiscoveryError, match=r"must never contain pending"):
-        select_public_historical(
-            tampered, _canonical_bytes(tampered), contract, contract_bytes
-        )
+        select_public_historical(tampered, _canonical_bytes(tampered), contract, contract_bytes)
 
 
 @pytest.mark.parametrize(
@@ -711,9 +688,7 @@ def test_selection_rejects_eligible_without_provenance(field: str) -> None:
             item[field] = None
             break
     with pytest.raises(DiscoveryError, match="lacks provenance"):
-        select_public_historical(
-            tampered, _canonical_bytes(tampered), contract, contract_bytes
-        )
+        select_public_historical(tampered, _canonical_bytes(tampered), contract, contract_bytes)
 
 
 def test_b4_count_semantics_table() -> None:
@@ -746,10 +721,7 @@ def test_b4_below_minimum_cli_creates_no_output(tmp_path) -> None:
     ledger_path.write_bytes(screened_bytes)
     output_path = tmp_path / "selection.json"
     assert (
-        discovery.main(
-            ["select", "--ledger", str(ledger_path), "--output", str(output_path)]
-        )
-        == 1
+        discovery.main(["select", "--ledger", str(ledger_path), "--output", str(output_path)]) == 1
     )
     assert not output_path.exists()
 

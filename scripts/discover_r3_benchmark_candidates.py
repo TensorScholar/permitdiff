@@ -785,9 +785,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         if args.target != TARGET_CASES:
-            raise DiscoveryError(
-                f"R3 selection target must remain exactly {TARGET_CASES}"
-            )
+            raise DiscoveryError(f"R3 selection target must remain exactly {TARGET_CASES}")
         if args.max_per_repository != MAX_CASES_PER_REPOSITORY:
             raise DiscoveryError(
                 f"R3 per-repository cap must remain exactly {MAX_CASES_PER_REPOSITORY}"

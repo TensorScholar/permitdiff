@@ -206,9 +206,7 @@ def _build(
 # ---------------------------------------------------------------------------
 
 
-def _packet_c_manifest_paths(
-    tmp_path: Path, label: str
-) -> tuple[Path, Path, Path, Path]:
+def _packet_c_manifest_paths(tmp_path: Path, label: str) -> tuple[Path, Path, Path, Path]:
     corpus = tmp_path / label
     materialization_path, packet_path = _fixtures(corpus)
     adjudications_path = _decided(packet_path, tmp_path)
@@ -233,8 +231,8 @@ def test_packet_c_rejects_malformed_lineage_or_study(tmp_path: Path) -> None:
         ("source_cb01_lineage_sha256", "not-a-digest"),
         ("study_repository_commit", "Z" * 40),
     ):
-        materialization_path, packet_path, adjudications_path, output = (
-            _packet_c_manifest_paths(tmp_path, field)
+        materialization_path, packet_path, adjudications_path, output = _packet_c_manifest_paths(
+            tmp_path, field
         )
         index = json.loads(materialization_path.read_text(encoding="utf-8"))
         index[field] = bad

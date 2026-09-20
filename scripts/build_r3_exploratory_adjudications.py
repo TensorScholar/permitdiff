@@ -29,6 +29,7 @@ def _require_hex_field(value: Any, *, length: int, field: str) -> None:
     ):
         raise AdjudicationError(f"materialization has an invalid {field}")
 
+
 ADJUDICATION_SCHEMA_VERSION = "permitdiff.dev/r3-adjudications/v2"
 MANIFEST_SCHEMA_VERSION = "permitdiff.dev/r3-benchmark-case-manifest/v2"
 MEASUREMENT_CONTRACT_VERSION = "r3-exploratory-measurement-contract-v2"

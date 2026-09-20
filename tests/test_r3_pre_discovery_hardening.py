@@ -356,14 +356,10 @@ def test_frozen_selection_target_and_cap_rejected_when_non_default() -> None:
         "shortfall": 0,
     }
     bad_target = dict(base, target_cases=17)
-    with pytest.raises(
-        PreDiscoveryContractError, match="target case count must remain exactly 18"
-    ):
+    with pytest.raises(PreDiscoveryContractError, match="target case count must remain exactly 18"):
         validate_selection_shape(bad_target)
     bad_cap = dict(base, max_cases_per_repository=3)
-    with pytest.raises(
-        PreDiscoveryContractError, match="per-repository cap must remain exactly 2"
-    ):
+    with pytest.raises(PreDiscoveryContractError, match="per-repository cap must remain exactly 2"):
         validate_selection_shape(bad_cap)
 
 

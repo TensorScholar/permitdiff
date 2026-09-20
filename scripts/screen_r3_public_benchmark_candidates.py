@@ -142,9 +142,7 @@ def _decision_stub(transition: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def prepare_screening(
-    ledger_path: Path, contract_path: Path | None = None
-) -> dict[str, Any]:
+def prepare_screening(ledger_path: Path, contract_path: Path | None = None) -> dict[str, Any]:
     """Create an output-blind worksheet for every manually pending transition."""
 
     ledger, ledger_bytes = _read_json_bytes(ledger_path, label="discovery ledger")
@@ -186,9 +184,7 @@ def apply_screening(
     """
 
     ledger, ledger_bytes = _read_json_bytes(ledger_path, label="discovery ledger")
-    decisions, decisions_bytes = _read_json_bytes(
-        decisions_path, label="screening decisions"
-    )
+    decisions, decisions_bytes = _read_json_bytes(decisions_path, label="screening decisions")
     _validate_schema(decisions, schema_path)
     contract, contract_bytes = _load_contract_bytes(contract_path)
     try:

@@ -247,9 +247,7 @@ def _validate_selection(
     # definitions (viability on SELECTED_CASE_COUNT); the derive-equality and
     # minimum checks below enforce the frozen 18/2/12 invariants strictly.
     try:
-        expected = select_public_historical(
-            ledger, ledger_bytes, contract, contract_bytes
-        )
+        expected = select_public_historical(ledger, ledger_bytes, contract, contract_bytes)
     except (DiscoveryError, ValueError, KeyError) as exc:
         raise V3LockError(f"selection derivation failed: {exc}") from exc
     if expected != selection:

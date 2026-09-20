@@ -47,9 +47,7 @@ def _write_atomic(output: Path, payload: Mapping[str, Any]) -> None:
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(
-                json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-            )
+            handle.write(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp_name, output)

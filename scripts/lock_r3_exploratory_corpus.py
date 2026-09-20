@@ -39,6 +39,7 @@ def _require_hex_field(value: Any, *, length: int, field: str) -> None:
     ):
         raise PreExecutionLockError(f"materialization has an invalid {field}")
 
+
 _FORBIDDEN_PRODUCT_OUTPUT_NAMES = {
     "permitdiff-result.json",
     "permitdiff-results.json",

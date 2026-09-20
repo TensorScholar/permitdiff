@@ -114,9 +114,7 @@ def _build_chain(
             + b"\n"
         )
         candidate_raw = (
-            json.dumps(
-                {"permissions": {"allow": ["Bash"]}, "case": index}, sort_keys=True
-            ).encode()
+            json.dumps({"permissions": {"allow": ["Bash"]}, "case": index}, sort_keys=True).encode()
             + b"\n"
         )
         baseline_blob = f"{index + 500:040x}"
@@ -244,12 +242,12 @@ def test_b5_valid_v2_selection_and_lineage_succeeds(tmp_path: Path) -> None:
     assert index["study_repository_commit"] == _STUDY
     assert index["selected_case_count"] == 12
     assert len(index["cases"]) == 12
-    assert index["source_selection_sha256"] == hashlib.sha256(
-        selection_path.read_bytes()
-    ).hexdigest()
-    assert index["source_cb01_lineage_sha256"] == hashlib.sha256(
-        lineage_path.read_bytes()
-    ).hexdigest()
+    assert (
+        index["source_selection_sha256"] == hashlib.sha256(selection_path.read_bytes()).hexdigest()
+    )
+    assert (
+        index["source_cb01_lineage_sha256"] == hashlib.sha256(lineage_path.read_bytes()).hexdigest()
+    )
     assert json.loads((output_dir / "materialization.json").read_text()) == index
     first = index["cases"][0]
     tid = first["transition_id"]

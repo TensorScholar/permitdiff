@@ -441,13 +441,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         if args.target != FROZEN_TARGET:
-            raise DiscoveryError(
-                f"R3 selection target must remain exactly {FROZEN_TARGET}"
-            )
+            raise DiscoveryError(f"R3 selection target must remain exactly {FROZEN_TARGET}")
         if args.max_per_repository != FROZEN_CAP:
-            raise DiscoveryError(
-                f"R3 per-repository cap must remain exactly {FROZEN_CAP}"
-            )
+            raise DiscoveryError(f"R3 per-repository cap must remain exactly {FROZEN_CAP}")
         screened, screened_bytes = _read_json_bytes(args.ledger)
         contract, contract_bytes = _load_contract_bytes(args.contract)
         result = select_public_historical(

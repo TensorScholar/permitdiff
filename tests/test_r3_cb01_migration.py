@@ -364,13 +364,9 @@ def test_b0_producers_not_yet_migrated() -> None:
         == "permitdiff.dev/r3-public-materialization/v2"
     )
     assert (
-        materialize.MATERIALIZATION_SCHEMA_VERSION
-        == "permitdiff.dev/r3-public-materialization/v1"
+        materialize.MATERIALIZATION_SCHEMA_VERSION == "permitdiff.dev/r3-public-materialization/v1"
     )
-    assert (
-        materialize.SELECTION_SCHEMA_VERSION
-        == "permitdiff.dev/r3-public-selection/v2"
-    )
+    assert materialize.SELECTION_SCHEMA_VERSION == "permitdiff.dev/r3-public-selection/v2"
 
 
 # ---------------------------------------------------------------------------
@@ -391,12 +387,14 @@ def test_b1_valid_chain_builds_lineage(tmp_path: Path) -> None:
     assert paths["output"].exists()
     assert json.loads(paths["output"].read_bytes()) == lineage
     assert lineage["schema_version"] == "permitdiff.dev/r3-cb01-corpus-construction-lineage/v1"
-    assert lineage["raw_discovery_ledger_sha256"] == hashlib.sha256(
-        paths["raw"].read_bytes()
-    ).hexdigest()
-    assert lineage["screening_decisions_sha256"] == hashlib.sha256(
-        paths["decisions"].read_bytes()
-    ).hexdigest()
+    assert (
+        lineage["raw_discovery_ledger_sha256"]
+        == hashlib.sha256(paths["raw"].read_bytes()).hexdigest()
+    )
+    assert (
+        lineage["screening_decisions_sha256"]
+        == hashlib.sha256(paths["decisions"].read_bytes()).hexdigest()
+    )
 
 
 def test_b1_main_success_and_help(tmp_path: Path) -> None:
@@ -597,17 +595,13 @@ def _b2_seeded_client() -> _FakeDiscoveryClient:
     )
     client.commits[(repo, candidate)] = {"parents": [{"sha": baseline}]}
     client.files[(repo, path, baseline)] = _b2_file("1" * 40, {"permissions": {"allow": []}})
-    client.files[(repo, path, candidate)] = _b2_file(
-        "2" * 40, {"permissions": {"allow": ["Bash"]}}
-    )
+    client.files[(repo, path, candidate)] = _b2_file("2" * 40, {"permissions": {"allow": ["Bash"]}})
     return client
 
 
 def _b2_build_valid() -> tuple[dict[str, Any], bytes, dict[str, Any], bytes]:
     contract, contract_bytes = _load_contract()
-    ledger = _discover.build_ledger(
-        _b2_seeded_client(), contract, contract_bytes, _B2_STUDY
-    )
+    ledger = _discover.build_ledger(_b2_seeded_client(), contract, contract_bytes, _B2_STUDY)
     ledger_bytes = _canonical_bytes(ledger)
     return ledger, ledger_bytes, contract, contract_bytes
 
@@ -632,18 +626,14 @@ def test_b2_contract_binding_exact_bytes() -> None:
     ledger, _, _, _ = _b2_build_valid()
     assert ledger["cb01_contract_sha256"] == hashlib.sha256(contract_bytes).hexdigest()
     # Same semantics, different whitespace => different digest (exact bytes matter).
-    reformatted = (
-        json.dumps(contract, sort_keys=True, separators=(",", ":")).encode() + b"\n"
-    )
+    reformatted = json.dumps(contract, sort_keys=True, separators=(",", ":")).encode() + b"\n"
     assert json.loads(reformatted) == contract
     assert hashlib.sha256(reformatted).hexdigest() != ledger["cb01_contract_sha256"]
     # Mismatched dict/bytes pair fails closed.
     tampered_bytes = bytearray(contract_bytes)
     tampered_bytes[-2] = ord("X") if tampered_bytes[-2] != ord("X") else ord("Y")
     with pytest.raises(DiscoveryError, match=r"invalid CB-01 contract"):
-        _discover.build_ledger(
-            _b2_seeded_client(), contract, bytes(tampered_bytes), _B2_STUDY
-        )
+        _discover.build_ledger(_b2_seeded_client(), contract, bytes(tampered_bytes), _B2_STUDY)
 
 
 def test_b2_study_commit_clean_and_dirty(monkeypatch: Any, tmp_path: Path) -> None:
@@ -651,9 +641,7 @@ def test_b2_study_commit_clean_and_dirty(monkeypatch: Any, tmp_path: Path) -> No
     # Invalid study commits fail closed without touching git.
     for bad in ("A" * 40, "a" * 39, "", "zz" + "a" * 38):
         with pytest.raises(DiscoveryError, match=r"study repository commit"):
-            _discover.build_ledger(
-                _b2_seeded_client(), contract, contract_bytes, bad
-            )
+            _discover.build_ledger(_b2_seeded_client(), contract, contract_bytes, bad)
     # Fake git states: clean accepted, dirty/missing rejected (no real git).
 
     def _clean(cmd: Any, **kwargs: Any) -> str:
@@ -688,9 +676,7 @@ def test_b2_producer_identity_required() -> None:
     tampered = copy.deepcopy(ledger)
     tampered["producer_id"] = "legacy-producer"
     with pytest.raises(CB01ConstructionError, match=r"producer_id"):
-        cb01.validate_raw_ledger(
-            tampered, _canonical_bytes(tampered), contract, contract_bytes
-        )
+        cb01.validate_raw_ledger(tampered, _canonical_bytes(tampered), contract, contract_bytes)
 
 
 def test_b2_identity_formulas_match_cb01_and_register() -> None:
@@ -701,24 +687,23 @@ def test_b2_identity_formulas_match_cb01_and_register() -> None:
     baseline = item["baseline_commit"]
     candidate = item["candidate_commit"]
     path = item["path"]
-    expected_key = hashlib.sha256(
-        f"{url}\n{baseline}\n{candidate}\n{path}".encode()
-    ).hexdigest()
+    expected_key = hashlib.sha256(f"{url}\n{baseline}\n{candidate}\n{path}".encode()).hexdigest()
     assert item["selection_key"] == expected_key
     assert item["transition_id"] == "gh-" + expected_key[:20]
     assert item["repository_url"] == f"https://github.com/{item['repository_full_name']}"
     # Contamination comes from the frozen contract register.
     entry = contract["contamination_register"][0]
-    assert _discover._control_status(
-        entry["repository_url"],
-        entry["baseline_commit"],
-        entry["candidate_commit"],
-        entry["path"],
-        contract,
-    ) == "pre_exposed_engineering_control"
     assert (
-        _discover._control_status(url, baseline, candidate, path, contract) == "clean"
+        _discover._control_status(
+            entry["repository_url"],
+            entry["baseline_commit"],
+            entry["candidate_commit"],
+            entry["path"],
+            contract,
+        )
+        == "pre_exposed_engineering_control"
     )
+    assert _discover._control_status(url, baseline, candidate, path, contract) == "clean"
     assert item["contamination_status"] == "clean"
 
 
@@ -736,10 +721,7 @@ def test_b2_regression_transition_identities_stable() -> None:
     # Query strings, ordering, and paths unchanged; match frozen contract frame.
     specs = build_search_specs()
     assert len(specs) == 10
-    frame = {
-        (e["query_id"], e["candidate_path"]): e["api_query"]
-        for e in contract["search_frame"]
-    }
+    frame = {(e["query_id"], e["candidate_path"]): e["api_query"] for e in contract["search_frame"]}
     for spec in specs:
         assert spec.api_query == frame[(spec.query_id, spec.path)]
     assert _discover.CANDIDATE_PATHS == _discover._cb01.CANDIDATE_PATHS
@@ -747,14 +729,12 @@ def test_b2_regression_transition_identities_stable() -> None:
 
 
 def test_b2_no_network_in_discovery_migration() -> None:
-    text = (
-        ROOT / "scripts" / "discover_r3_benchmark_candidates.py"
-    ).read_text(encoding="utf-8")
+    text = (ROOT / "scripts" / "discover_r3_benchmark_candidates.py").read_text(encoding="utf-8")
     assert "import requests" not in text
     assert "import socket" not in text or "ssl.SSLEOFError" in text
-    public_text = (
-        ROOT / "scripts" / "discover_r3_public_benchmark_candidates.py"
-    ).read_text(encoding="utf-8")
+    public_text = (ROOT / "scripts" / "discover_r3_public_benchmark_candidates.py").read_text(
+        encoding="utf-8"
+    )
     assert "import requests" not in public_text
     # New helpers perform file + git reads only (subprocess git is allowed in
     # scripts per ruff per-file-ignores S603); migration tests never resolve
@@ -880,27 +860,18 @@ def test_b4_exact_screened_byte_digest(tmp_path: Path) -> None:
     screened_path.write_bytes(screened_bytes)
     output_path = tmp_path / "selection.json"
     assert (
-        _discover.main(
-            ["select", "--ledger", str(screened_path), "--output", str(output_path)]
-        )
+        _discover.main(["select", "--ledger", str(screened_path), "--output", str(output_path)])
         == 0
     )
     output = json.loads(output_path.read_bytes())
     assert output["source_screened_ledger_sha256"] == hashlib.sha256(screened_bytes).hexdigest()
     # Same semantics, different whitespace => different digest, binding fails.
-    reformatted = (
-        json.dumps(screened, sort_keys=True, separators=(",", ":")).encode() + b"\n"
-    )
+    reformatted = json.dumps(screened, sort_keys=True, separators=(",", ":")).encode() + b"\n"
     assert json.loads(reformatted) == screened
     assert hashlib.sha256(reformatted).hexdigest() != output["source_screened_ledger_sha256"]
     screened_path.write_bytes(reformatted)
     output2 = tmp_path / "selection2.json"
-    assert (
-        _discover.main(
-            ["select", "--ledger", str(screened_path), "--output", str(output2)]
-        )
-        == 0
-    )
+    assert _discover.main(["select", "--ledger", str(screened_path), "--output", str(output2)]) == 0
     assert (
         json.loads(output2.read_bytes())["source_screened_ledger_sha256"]
         == hashlib.sha256(reformatted).hexdigest()
@@ -915,10 +886,7 @@ def test_b4_public_cli_valid_selection(tmp_path: Path) -> None:
     screened_path.write_bytes(screened_bytes)
     output_path = tmp_path / "selection.json"
     assert (
-        _public.main(
-            ["select", "--ledger", str(screened_path), "--output", str(output_path)]
-        )
-        == 0
+        _public.main(["select", "--ledger", str(screened_path), "--output", str(output_path)]) == 0
     )
     output = json.loads(output_path.read_bytes())
     assert output["schema_version"] == "permitdiff.dev/r3-public-selection/v2"
@@ -961,9 +929,7 @@ def test_b4_below_minimum_no_output_both_mains(tmp_path: Path) -> None:
     for entrypoint in (_discover.main, _public.main):
         output_path = tmp_path / f"below-{entrypoint.__module__}.json"
         assert (
-            entrypoint(
-                ["select", "--ledger", str(screened_path), "--output", str(output_path)]
-            )
+            entrypoint(["select", "--ledger", str(screened_path), "--output", str(output_path)])
             == 1
         )
         assert not output_path.exists()

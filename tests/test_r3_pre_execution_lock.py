@@ -405,13 +405,12 @@ def test_packet_c_rejects_malformed_lineage_or_study(tmp_path: Path) -> None:
         ("source_cb01_lineage_sha256", "not-a-digest"),
         ("study_repository_commit", "Z" * 40),
     ):
+
         def _mutate(index: dict, field: str = field, bad: str = bad) -> None:
             index[field] = bad
 
         root = tmp_path / field
         materialization, output = _packet_c_mutated_index(root, _mutate)
-        with pytest.raises(
-            PreExecutionLockError, match=r"schema validation failed|invalid"
-        ):
+        with pytest.raises(PreExecutionLockError, match=r"schema validation failed|invalid"):
             _packet_c_lock(materialization, output)
         assert not output.exists()

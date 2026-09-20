@@ -28,6 +28,7 @@ def _require_hex_field(value: Any, *, length: int, field: str) -> None:
     ):
         raise ScenarioChannelError(f"materialization has an invalid {field}")
 
+
 SCENARIO_CHANNEL_SET_SCHEMA_VERSION = "permitdiff.dev/r3-scenario-channel-set/v1"
 MEASUREMENT_CONTRACT_VERSION = "r3-exploratory-measurement-contract-v2"
 

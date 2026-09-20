@@ -1358,9 +1358,9 @@ def _a1_make_decisions(
     return payload, _canonical_bytes(payload)
 
 
-def _a1_valid_pending_pair() -> (
-    tuple[dict[str, Any], bytes, dict[str, Any], bytes, dict[str, Any], bytes]
-):
+def _a1_valid_pending_pair() -> tuple[
+    dict[str, Any], bytes, dict[str, Any], bytes, dict[str, Any], bytes
+]:
     contract, contract_bytes = _load_contract()
     raw, raw_bytes = _a1_make_raw(contract, contract_bytes, [_a1_make_transition()])
     decisions, decisions_bytes = _a1_make_decisions(raw, raw_bytes)
@@ -1571,9 +1571,7 @@ def test_a1_rejects_duplicate_exclusion_reasons_in_raw() -> None:
         (_A1_REVIEWER, "x" * 10001),
     ],
 )
-def test_a1_rejects_invalid_reviewer_rationale_for_eligible(
-    reviewer: Any, rationale: Any
-) -> None:
+def test_a1_rejects_invalid_reviewer_rationale_for_eligible(reviewer: Any, rationale: Any) -> None:
     _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
     contract, contract_bytes = _load_contract()
     decisions, decisions_bytes = _a1_make_decisions(
@@ -1594,9 +1592,7 @@ def test_a1_rejects_invalid_reviewer_rationale_for_eligible(
         (_A1_REVIEWER, ""),
     ],
 )
-def test_a1_rejects_invalid_reviewer_rationale_for_excluded(
-    reviewer: Any, rationale: Any
-) -> None:
+def test_a1_rejects_invalid_reviewer_rationale_for_excluded(reviewer: Any, rationale: Any) -> None:
     _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
     contract, contract_bytes = _load_contract()
     decisions, decisions_bytes = _a1_make_decisions(
@@ -1631,9 +1627,7 @@ def test_a1_rejects_eligible_decision_with_exclusion_reasons() -> None:
 def test_a1_rejects_excluded_decision_without_reasons() -> None:
     _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
     contract, contract_bytes = _load_contract()
-    decisions, decisions_bytes = _a1_make_decisions(
-        raw, raw_bytes, decision="excluded", reasons=[]
-    )
+    decisions, decisions_bytes = _a1_make_decisions(raw, raw_bytes, decision="excluded", reasons=[])
     with pytest.raises(CB01ConstructionError, match="requires an exclusion reason"):
         cb01.derive_screened_ledger(
             raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
@@ -1671,9 +1665,7 @@ def test_a1_rejects_duplicate_exclusion_in_decisions() -> None:
 def test_a1_rejects_invalid_instructions(bad_instructions: Any) -> None:
     _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
     contract, contract_bytes = _load_contract()
-    decisions, decisions_bytes = _a1_make_decisions(
-        raw, raw_bytes, instructions=bad_instructions
-    )
+    decisions, decisions_bytes = _a1_make_decisions(raw, raw_bytes, instructions=bad_instructions)
     with pytest.raises(CB01ConstructionError, match="instructions"):
         cb01.derive_screened_ledger(
             raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
@@ -1701,9 +1693,7 @@ def test_a1_screened_rejects_manually_flipped_manual_review() -> None:
         repo = f"org/a1-sel-{index:03d}"
         baseline = f"{index + 1:040x}"
         candidate = f"{index + 1001:040x}"
-        transitions.append(
-            _a1_make_transition(repo=repo, baseline=baseline, candidate=candidate)
-        )
+        transitions.append(_a1_make_transition(repo=repo, baseline=baseline, candidate=candidate))
     raw, raw_bytes = _a1_make_raw(contract, contract_bytes, transitions)
     decisions, decisions_bytes = _a1_make_decisions(raw, raw_bytes, decision="eligible")
     screened = cb01.derive_screened_ledger(

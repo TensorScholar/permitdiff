@@ -411,7 +411,8 @@ def test_b3_no_generated_at_and_deterministic_bytes(tmp_path) -> None:
     assert "generated_at" not in first
     assert first["schema_version"] == "permitdiff.dev/r3-screened-discovery-ledger/v1"
     assert all(
-        t.get("screening_status") != "pending" for t in first["transitions"]  # type: ignore[union-attr]
+        t.get("screening_status") != "pending"
+        for t in first["transitions"]  # type: ignore[union-attr]
     )
     second = apply_screening(ledger_path, decisions_path, SCHEMA)
     assert json.dumps(first, indent=2, sort_keys=True) == json.dumps(
@@ -421,9 +422,7 @@ def test_b3_no_generated_at_and_deterministic_bytes(tmp_path) -> None:
 
 def test_b3_output_blindness_no_product_imports() -> None:
     text = (
-        Path(__file__).resolve().parents[1]
-        / "scripts"
-        / "screen_r3_public_benchmark_candidates.py"
+        Path(__file__).resolve().parents[1] / "scripts" / "screen_r3_public_benchmark_candidates.py"
     ).read_text(encoding="utf-8")
     for forbidden in ("from permitdiff", "import permitdiff", "src.permitdiff"):
         assert forbidden not in text.replace("permitdiff.dev", "")

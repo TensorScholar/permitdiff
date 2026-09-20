@@ -183,9 +183,7 @@ def _validate_commit_sha1(value: Any, field: str, transition_id: Any) -> str:
     """Require a lowercase 40-hex commit SHA."""
 
     if not _is_strict_sha1(value):
-        raise CB01ConstructionError(
-            f"transition has an invalid {field} for {transition_id}"
-        )
+        raise CB01ConstructionError(f"transition has an invalid {field} for {transition_id}")
     assert isinstance(value, str)
     return value
 
@@ -194,9 +192,7 @@ def _validate_transition_path(path: Any, transition_id: Any) -> str:
     """Require a frozen candidate path."""
 
     if path not in CANDIDATE_PATH_SET:
-        raise CB01ConstructionError(
-            f"transition has an invalid path for {transition_id}"
-        )
+        raise CB01ConstructionError(f"transition has an invalid path for {transition_id}")
     assert isinstance(path, str)
     return path
 
@@ -220,13 +216,10 @@ def _validate_exclusion_list(reasons: Any, transition_id: Any) -> list[str]:
     unknown = set(reasons) - FIXED_EXCLUSION_REASONS
     if unknown:
         raise CB01ConstructionError(
-            f"transition {transition_id} uses non-preregistered "
-            f"exclusions: {sorted(unknown)}"
+            f"transition {transition_id} uses non-preregistered exclusions: {sorted(unknown)}"
         )
     if len(set(reasons)) != len(reasons):
-        raise CB01ConstructionError(
-            f"transition {transition_id} has duplicate exclusion_reasons"
-        )
+        raise CB01ConstructionError(f"transition {transition_id} has duplicate exclusion_reasons")
     return list(reasons)
 
 
@@ -272,13 +265,9 @@ def _validate_reviewer(reviewer: Any, transition_id: Any, *, required: bool) -> 
             )
         return
     if not isinstance(reviewer, str) or not reviewer.strip():
-        raise CB01ScreeningError(
-            f"screening decision for {transition_id} requires a reviewer"
-        )
+        raise CB01ScreeningError(f"screening decision for {transition_id} requires a reviewer")
     if len(reviewer) > _MAX_REVIEWER_LENGTH:
-        raise CB01ScreeningError(
-            f"screening decision for {transition_id} has an overlong reviewer"
-        )
+        raise CB01ScreeningError(f"screening decision for {transition_id} has an overlong reviewer")
 
 
 def _validate_rationale(rationale: Any, transition_id: Any, *, required: bool) -> None:
@@ -291,9 +280,7 @@ def _validate_rationale(rationale: Any, transition_id: Any, *, required: bool) -
             )
         return
     if not isinstance(rationale, str) or not rationale.strip():
-        raise CB01ScreeningError(
-            f"screening decision for {transition_id} requires a rationale"
-        )
+        raise CB01ScreeningError(f"screening decision for {transition_id} requires a rationale")
     if len(rationale) > _MAX_RATIONALE_LENGTH:
         raise CB01ScreeningError(
             f"screening decision for {transition_id} has an overlong rationale"
@@ -533,9 +520,7 @@ def validate_raw_ledger(
             )
         _validate_manual_review_raw(item)
         try:
-            _validate_exclusion_list(
-                item.get("exclusion_reasons"), item.get("transition_id")
-            )
+            _validate_exclusion_list(item.get("exclusion_reasons"), item.get("transition_id"))
         except CB01ConstructionError as exc:
             raise CB01RawLedgerError(str(exc)) from exc
         try:
@@ -562,9 +547,7 @@ def _validate_screening_decision_entry(entry: Mapping[str, Any]) -> Mapping[str,
             f"screening decision has an invalid repository_url for {transition_id}"
         )
     if entry.get("path") not in CANDIDATE_PATH_SET:
-        raise CB01ScreeningError(
-            f"screening decision has an invalid path for {transition_id}"
-        )
+        raise CB01ScreeningError(f"screening decision has an invalid path for {transition_id}")
     if not _is_strict_sha1(entry.get("baseline_commit")):
         raise CB01ScreeningError(
             f"screening decision has an invalid baseline_commit for {transition_id}"
@@ -583,9 +566,7 @@ def _validate_screening_decision_entry(entry: Mapping[str, Any]) -> Mapping[str,
         )
     outcome = entry.get("decision")
     if outcome not in {"pending", "eligible", "excluded"}:
-        raise CB01ScreeningError(
-            f"invalid screening decision for {transition_id}: {outcome!r}"
-        )
+        raise CB01ScreeningError(f"invalid screening decision for {transition_id}: {outcome!r}")
     reasons = entry.get("exclusion_reasons")
     if not isinstance(reasons, list) or not all(isinstance(reason, str) for reason in reasons):
         raise CB01ScreeningError(
@@ -594,13 +575,10 @@ def _validate_screening_decision_entry(entry: Mapping[str, Any]) -> Mapping[str,
     unknown = set(reasons) - FIXED_EXCLUSION_REASONS
     if unknown:
         raise CB01ScreeningError(
-            f"transition {transition_id} uses non-preregistered "
-            f"exclusions: {sorted(unknown)}"
+            f"transition {transition_id} uses non-preregistered exclusions: {sorted(unknown)}"
         )
     if len(set(reasons)) != len(reasons):
-        raise CB01ScreeningError(
-            f"transition {transition_id} has duplicate exclusion_reasons"
-        )
+        raise CB01ScreeningError(f"transition {transition_id} has duplicate exclusion_reasons")
     if outcome == "pending":
         if reasons:
             raise CB01ScreeningError(
@@ -837,9 +815,7 @@ def validate_screened_ledger(
         if item.get("manual_review_required") is not False:
             raise CB01ScreeningError("screened ledger must not require manual review")
         reasons = item.get("exclusion_reasons")
-        if not isinstance(reasons, list) or not all(
-            isinstance(reason, str) for reason in reasons
-        ):
+        if not isinstance(reasons, list) or not all(isinstance(reason, str) for reason in reasons):
             raise CB01ScreeningError("screened ledger has malformed exclusion reasons")
         unknown = set(reasons) - FIXED_EXCLUSION_REASONS
         if unknown:
@@ -1022,19 +998,13 @@ def validate_selection_v2(
             raise CB01SelectionError(f"repository case cap exceeded for {repository}")
         repository_url = item.get("repository_url")
         if not isinstance(repository_url, str) or _REPO_URL_RE.match(repository_url) is None:
-            raise CB01SelectionError(
-                f"repository_url/full-name mismatch for {transition_id}"
-            )
+            raise CB01SelectionError(f"repository_url/full-name mismatch for {transition_id}")
         expected_url = canonical_repository_url(repository)
         if repository_url != expected_url:
             raise CB01SelectionError(f"repository_url/full-name mismatch for {transition_id}")
         try:
-            _validate_commit_sha1(
-                item.get("baseline_commit"), "baseline_commit", transition_id
-            )
-            _validate_commit_sha1(
-                item.get("candidate_commit"), "candidate_commit", transition_id
-            )
+            _validate_commit_sha1(item.get("baseline_commit"), "baseline_commit", transition_id)
+            _validate_commit_sha1(item.get("candidate_commit"), "candidate_commit", transition_id)
             _validate_transition_path(item.get("path"), transition_id)
         except CB01ConstructionError as exc:
             raise CB01SelectionError(str(exc)) from exc
