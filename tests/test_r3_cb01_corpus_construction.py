@@ -1202,3 +1202,549 @@ def test_raw_schema_rejects_malformed(mutate: Any) -> None:
     mutate(raw)
     errors = list(Draft202012Validator(_load_json(RAW_SCHEMA_PATH)).iter_errors(raw))
     assert errors
+
+
+# ---------------------------------------------------------------------------
+# Packet A.1 Hardening — independent-oracle adversarial tests
+#
+# These tests MUST NOT call cb01.canonical_repository_url,
+# cb01.selection_key_for, cb01.transition_id_for, or
+# cb01.contamination_status_for to build fixtures. Expected values are
+# derived independently from frozen contract/schema formulas:
+# - selection_key_formula from cb01-corpus-construction-contract-v1.json:
+#   SHA256(canonical_repository_url + '\n' + baseline + '\n' + candidate + '\n' + path)
+# - transition_id_formula: "gh-" + selection_key[:20]
+# - canonical_repository_url_rule: https://github.com/<full_name>
+# - allowed paths from r3-public-discovery-ledger-v2.schema.json path enum
+#   and contract candidate_paths.
+# - exclusion vocabulary from r3-screening-decisions.schema.json.
+# ---------------------------------------------------------------------------
+
+# Frozen values (sources noted above; duplicated here so tests do not import
+# the implementation under test as their oracle).
+_A1_ALLOWED_PATHS = (".claude/settings.json", ".claude/settings.local.json")
+_A1_VALID_BASELINE = "a" * 40
+_A1_VALID_CANDIDATE = "b" * 40
+_A1_VALID_REPO = "org/a1-valid"
+_A1_VALID_STUDY = "0123456789abcdef0123456789abcdef01234567"
+_A1_REVIEWER = "a1-reviewer"
+_A1_RATIONALE = "a1 output-blind rationale with sufficient semantics"
+_A1_INSTRUCTIONS = "a1 synthetic instructions"
+
+
+def _a1_frozen_url(repo: str) -> str:
+    return f"https://github.com/{repo}"
+
+
+def _a1_frozen_key(url: str, baseline: str, candidate: str, path: str) -> str:
+    return hashlib.sha256(f"{url}\n{baseline}\n{candidate}\n{path}".encode()).hexdigest()
+
+
+def _a1_frozen_tid(url: str, baseline: str, candidate: str, path: str) -> str:
+    return "gh-" + _a1_frozen_key(url, baseline, candidate, path)[:20]
+
+
+_A1_MANUAL_DEFAULT: Any = object()
+
+
+def _a1_make_transition(
+    *,
+    repo: str = _A1_VALID_REPO,
+    baseline: str = _A1_VALID_BASELINE,
+    candidate: str = _A1_VALID_CANDIDATE,
+    path: str = ".claude/settings.json",
+    status: str = "pending",
+    reasons: list[str] | None = None,
+    permissions_changed: Any = True,
+    manual_review: Any = _A1_MANUAL_DEFAULT,
+    contamination: str = "clean",
+) -> dict[str, Any]:
+    url = _a1_frozen_url(repo)
+    key = _a1_frozen_key(url, baseline, candidate, path)
+    tid = _a1_frozen_tid(url, baseline, candidate, path)
+    if manual_review is _A1_MANUAL_DEFAULT:
+        manual_review = status == "pending"
+    return {
+        "transition_id": tid,
+        "discovered_by": [{"query_id": "q1", "candidate_path": ".claude/settings.json"}],
+        "repository_full_name": repo,
+        "repository_url": url,
+        "path": path,
+        "baseline_commit": baseline,
+        "candidate_commit": candidate,
+        "baseline_blob": "c" * 40,
+        "candidate_blob": "d" * 40,
+        "baseline_sha256": "e" * 64,
+        "candidate_sha256": "f" * 64,
+        "baseline_size_bytes": 100,
+        "candidate_size_bytes": 120,
+        "candidate_commit_timestamp": "2026-09-01T00:00:00Z",
+        "candidate_parent_count": 1,
+        "permissions_changed": permissions_changed,
+        "screening_status": status,
+        "exclusion_reasons": [] if reasons is None else list(reasons),
+        "contamination_status": contamination,
+        "selection_key": key,
+        "manual_review_required": manual_review,
+    }
+
+
+def _a1_make_raw(
+    contract: dict[str, Any],
+    contract_bytes: bytes,
+    transitions: list[dict[str, Any]],
+) -> tuple[dict[str, Any], bytes]:
+    raw = {
+        "schema_version": "permitdiff.dev/r3-public-discovery-ledger/v2",
+        "plan_version": "r3-exploratory-corpus-plan-v1",
+        "protocol_version": "r3-benchmark-protocol-v1",
+        "cb01_contract_version": "r3-cb01-corpus-construction-v1",
+        "cb01_contract_sha256": hashlib.sha256(contract_bytes).hexdigest(),
+        "study_repository_commit": _A1_VALID_STUDY,
+        "producer_id": "permitdiff-r3-canonical-public-discovery-v2",
+        "source": "github-rest-code-search-and-commit-history",
+        "generated_at": "2026-09-01T00:00:00Z",
+        "discovery_complete": True,
+        "limitations": ["a1 synthetic fixture"],
+        "queries": _queries_from_contract(contract),
+        "discovered_location_count": 1,
+        "transition_count": len(transitions),
+        "transitions": copy.deepcopy(transitions),
+    }
+    return raw, _canonical_bytes(raw)
+
+
+def _a1_make_decisions(
+    raw: dict[str, Any],
+    raw_bytes: bytes,
+    *,
+    decision: str = "eligible",
+    reasons: list[str] | None = None,
+    reviewer: Any = _A1_REVIEWER,
+    rationale: Any = _A1_RATIONALE,
+    instructions: Any = _A1_INSTRUCTIONS,
+) -> tuple[dict[str, Any], bytes]:
+    if reasons is None:
+        reasons = [] if decision == "eligible" else ["insufficient_public_semantics"]
+    decisions_list = []
+    for item in raw["transitions"]:
+        assert isinstance(item, dict)
+        if item["screening_status"] != "pending":
+            continue
+        decisions_list.append(
+            {
+                "transition_id": item["transition_id"],
+                "repository_url": item["repository_url"],
+                "path": item["path"],
+                "baseline_commit": item["baseline_commit"],
+                "candidate_commit": item["candidate_commit"],
+                "permissions_changed": item["permissions_changed"],
+                "contamination_status": item["contamination_status"],
+                "decision": decision,
+                "exclusion_reasons": list(reasons),
+                "rationale": rationale,
+                "reviewer": reviewer,
+            }
+        )
+    payload = {
+        "schema_version": "permitdiff.dev/r3-screening-decisions/v1",
+        "plan_version": "r3-exploratory-corpus-plan-v1",
+        "protocol_version": "r3-benchmark-protocol-v1",
+        "source_ledger_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+        "generated_at": "2026-09-02T00:00:00Z",
+        "instructions": instructions,
+        "decisions": decisions_list,
+    }
+    return payload, _canonical_bytes(payload)
+
+
+def _a1_valid_pending_pair() -> (
+    tuple[dict[str, Any], bytes, dict[str, Any], bytes, dict[str, Any], bytes]
+):
+    contract, contract_bytes = _load_contract()
+    raw, raw_bytes = _a1_make_raw(contract, contract_bytes, [_a1_make_transition()])
+    decisions, decisions_bytes = _a1_make_decisions(raw, raw_bytes)
+    return contract, contract_bytes, raw, raw_bytes, decisions, decisions_bytes
+
+
+@pytest.mark.parametrize(
+    "bad_repo",
+    [
+        "no-slash",
+        "",
+        "a/b/c",
+        "/leading",
+        "trailing/",
+        "org//repo",
+        "org/repo/extra",
+        "a/b/c/d",
+    ],
+)
+def test_a1_rejects_invalid_repository_full_name(bad_repo: str) -> None:
+    contract, contract_bytes = _load_contract()
+    url = _a1_frozen_url(bad_repo)
+    key = _a1_frozen_key(url, _A1_VALID_BASELINE, _A1_VALID_CANDIDATE, _A1_ALLOWED_PATHS[0])
+    tid = "gh-" + key[:20]
+    transition = _a1_make_transition(repo=_A1_VALID_REPO)
+    # Retarget identity to the invalid repo while keeping key/tid consistent
+    # with the invalid identity so only the repo-shape check can trigger.
+    transition["repository_full_name"] = bad_repo
+    transition["repository_url"] = url
+    transition["selection_key"] = key
+    transition["transition_id"] = tid
+    raw, raw_bytes = _a1_make_raw(contract, contract_bytes, [transition])
+    with pytest.raises(CB01ConstructionError, match=r"repository_full_name|repository_url"):
+        cb01.validate_raw_ledger(raw, raw_bytes, contract, contract_bytes)
+
+
+@pytest.mark.parametrize(
+    "bad_commit",
+    [
+        "A" * 40,  # uppercase must fail (schema requires lowercase)
+        "a" * 39,  # too short
+        "a" * 41,  # too long
+        "g" * 40,  # non-hex
+        "",
+        "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "ABCDEF1234567890abcdef1234567890ABCDEF12",
+    ],
+)
+def test_a1_rejects_invalid_baseline_commit(bad_commit: str) -> None:
+    contract, contract_bytes = _load_contract()
+    url = _a1_frozen_url(_A1_VALID_REPO)
+    key = _a1_frozen_key(url, bad_commit, _A1_VALID_CANDIDATE, _A1_ALLOWED_PATHS[0])
+    transition = _a1_make_transition()
+    transition["baseline_commit"] = bad_commit
+    transition["selection_key"] = key
+    transition["transition_id"] = "gh-" + key[:20]
+    raw, raw_bytes = _a1_make_raw(contract, contract_bytes, [transition])
+    with pytest.raises(CB01ConstructionError, match="baseline_commit"):
+        cb01.validate_raw_ledger(raw, raw_bytes, contract, contract_bytes)
+
+
+@pytest.mark.parametrize(
+    "bad_commit",
+    [
+        "B" * 40,
+        "b" * 39,
+        "b" * 41,
+        "x" * 40,
+        "",
+    ],
+)
+def test_a1_rejects_invalid_candidate_commit(bad_commit: str) -> None:
+    contract, contract_bytes = _load_contract()
+    url = _a1_frozen_url(_A1_VALID_REPO)
+    key = _a1_frozen_key(url, _A1_VALID_BASELINE, bad_commit, _A1_ALLOWED_PATHS[0])
+    transition = _a1_make_transition()
+    transition["candidate_commit"] = bad_commit
+    transition["selection_key"] = key
+    transition["transition_id"] = "gh-" + key[:20]
+    raw, raw_bytes = _a1_make_raw(contract, contract_bytes, [transition])
+    with pytest.raises(CB01ConstructionError, match="candidate_commit"):
+        cb01.validate_raw_ledger(raw, raw_bytes, contract, contract_bytes)
+
+
+@pytest.mark.parametrize(
+    "bad_path",
+    [
+        ".claude/other.json",
+        "settings.json",
+        "",
+        ".claude/settings.json ",
+        "../evil",
+        ".claude/settings.local.json.bak",
+        ".CLAUDE/settings.json",
+    ],
+)
+def test_a1_rejects_invalid_transition_path(bad_path: str) -> None:
+    contract, contract_bytes = _load_contract()
+    url = _a1_frozen_url(_A1_VALID_REPO)
+    key = _a1_frozen_key(url, _A1_VALID_BASELINE, _A1_VALID_CANDIDATE, bad_path)
+    transition = _a1_make_transition()
+    transition["path"] = bad_path
+    transition["selection_key"] = key
+    transition["transition_id"] = "gh-" + key[:20]
+    # Keep discovered_by marker valid so only the transition path check fires.
+    transition["discovered_by"] = [{"query_id": "q1", "candidate_path": _A1_ALLOWED_PATHS[0]}]
+    raw, raw_bytes = _a1_make_raw(contract, contract_bytes, [transition])
+    with pytest.raises(CB01ConstructionError, match="invalid path"):
+        cb01.validate_raw_ledger(raw, raw_bytes, contract, contract_bytes)
+
+
+@pytest.mark.parametrize("bad_value", ["yes", "1", 1, 0, [], {}, 1.0])
+def test_a1_rejects_invalid_permissions_changed_in_raw(bad_value: Any) -> None:
+    contract, contract_bytes = _load_contract()
+    raw, raw_bytes = _a1_make_raw(
+        contract, contract_bytes, [_a1_make_transition(permissions_changed=bad_value)]
+    )
+    with pytest.raises(CB01ConstructionError, match="permissions_changed"):
+        cb01.validate_raw_ledger(raw, raw_bytes, contract, contract_bytes)
+
+
+@pytest.mark.parametrize("bad_value", ["yes", 1, 0, [], {}])
+def test_a1_rejects_invalid_permissions_changed_in_decisions(bad_value: Any) -> None:
+    contract, contract_bytes, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    decisions, decisions_bytes = _a1_make_decisions(raw, raw_bytes)
+    # Tamper decisions value; raw stays valid so the decisions-type check fires.
+    decisions["decisions"][0]["permissions_changed"] = bad_value
+    decisions_bytes = _canonical_bytes(decisions)
+    with pytest.raises(CB01ConstructionError, match=r"permissions_changed|metadata mismatch"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+@pytest.mark.parametrize(
+    ("status", "manual"),
+    [
+        ("pending", False),
+        ("pending", None),
+        ("pending", 1),
+        ("pending", "true"),
+        ("excluded", True),
+        ("excluded", None),
+        ("excluded", 0),
+        ("excluded", "false"),
+    ],
+)
+def test_a1_rejects_invalid_manual_review_in_raw(status: str, manual: Any) -> None:
+    contract, contract_bytes = _load_contract()
+    reasons: list[str] | None = [] if status == "pending" else ["artifact_parse_failure"]
+    raw, raw_bytes = _a1_make_raw(
+        contract,
+        contract_bytes,
+        [_a1_make_transition(status=status, reasons=reasons, manual_review=manual)],
+    )
+    with pytest.raises(CB01ConstructionError, match=r"manual review|manual_review"):
+        cb01.validate_raw_ledger(raw, raw_bytes, contract, contract_bytes)
+
+
+@pytest.mark.parametrize(
+    "bad_reasons",
+    [
+        ["bogus_reason"],
+        ["insufficient_public_semantics", "bogus_reason"],
+        ["INSUFFICIENT_PUBLIC_SEMANTICS"],
+        [""],
+    ],
+)
+def test_a1_rejects_invalid_exclusion_vocabulary_in_raw(bad_reasons: list[str]) -> None:
+    contract, contract_bytes = _load_contract()
+    raw, raw_bytes = _a1_make_raw(
+        contract,
+        contract_bytes,
+        [_a1_make_transition(status="excluded", reasons=bad_reasons, manual_review=False)],
+    )
+    with pytest.raises(CB01ConstructionError, match=r"preregistered|unknown exclusions"):
+        cb01.validate_raw_ledger(raw, raw_bytes, contract, contract_bytes)
+
+
+def test_a1_rejects_duplicate_exclusion_reasons_in_raw() -> None:
+    contract, contract_bytes = _load_contract()
+    raw, raw_bytes = _a1_make_raw(
+        contract,
+        contract_bytes,
+        [
+            _a1_make_transition(
+                status="excluded",
+                reasons=["insufficient_public_semantics", "insufficient_public_semantics"],
+                manual_review=False,
+            )
+        ],
+    )
+    with pytest.raises(CB01ConstructionError, match="duplicate exclusion"):
+        cb01.validate_raw_ledger(raw, raw_bytes, contract, contract_bytes)
+
+
+@pytest.mark.parametrize(
+    ("reviewer", "rationale"),
+    [
+        (None, _A1_RATIONALE),
+        (_A1_REVIEWER, None),
+        (None, None),
+        ("", _A1_RATIONALE),
+        (_A1_REVIEWER, ""),
+        ("   ", _A1_RATIONALE),
+        (_A1_REVIEWER, "   "),
+        ("x" * 129, _A1_RATIONALE),
+        (_A1_REVIEWER, "x" * 10001),
+    ],
+)
+def test_a1_rejects_invalid_reviewer_rationale_for_eligible(
+    reviewer: Any, rationale: Any
+) -> None:
+    _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    contract, contract_bytes = _load_contract()
+    decisions, decisions_bytes = _a1_make_decisions(
+        raw, raw_bytes, decision="eligible", reviewer=reviewer, rationale=rationale
+    )
+    with pytest.raises(CB01ConstructionError, match=r"reviewer|rationale"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+@pytest.mark.parametrize(
+    ("reviewer", "rationale"),
+    [
+        (None, _A1_RATIONALE),
+        (_A1_REVIEWER, None),
+        ("", _A1_RATIONALE),
+        (_A1_REVIEWER, ""),
+    ],
+)
+def test_a1_rejects_invalid_reviewer_rationale_for_excluded(
+    reviewer: Any, rationale: Any
+) -> None:
+    _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    contract, contract_bytes = _load_contract()
+    decisions, decisions_bytes = _a1_make_decisions(
+        raw,
+        raw_bytes,
+        decision="excluded",
+        reasons=["insufficient_public_semantics"],
+        reviewer=reviewer,
+        rationale=rationale,
+    )
+    with pytest.raises(CB01ConstructionError, match=r"reviewer|rationale"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+def test_a1_rejects_eligible_decision_with_exclusion_reasons() -> None:
+    _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    contract, contract_bytes = _load_contract()
+    decisions, decisions_bytes = _a1_make_decisions(
+        raw,
+        raw_bytes,
+        decision="eligible",
+        reasons=["insufficient_public_semantics"],
+    )
+    with pytest.raises(CB01ConstructionError, match="cannot have exclusion"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+def test_a1_rejects_excluded_decision_without_reasons() -> None:
+    _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    contract, contract_bytes = _load_contract()
+    decisions, decisions_bytes = _a1_make_decisions(
+        raw, raw_bytes, decision="excluded", reasons=[]
+    )
+    with pytest.raises(CB01ConstructionError, match="requires an exclusion reason"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+def test_a1_rejects_bogus_exclusion_in_decisions() -> None:
+    _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    contract, contract_bytes = _load_contract()
+    decisions, decisions_bytes = _a1_make_decisions(
+        raw, raw_bytes, decision="excluded", reasons=["bogus_reason"]
+    )
+    with pytest.raises(CB01ConstructionError, match="preregistered"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+def test_a1_rejects_duplicate_exclusion_in_decisions() -> None:
+    _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    contract, contract_bytes = _load_contract()
+    decisions, decisions_bytes = _a1_make_decisions(
+        raw,
+        raw_bytes,
+        decision="excluded",
+        reasons=["insufficient_public_semantics", "insufficient_public_semantics"],
+    )
+    with pytest.raises(CB01ConstructionError, match="duplicate exclusion"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+@pytest.mark.parametrize("bad_instructions", ["", "   ", None, 123, [], {}])
+def test_a1_rejects_invalid_instructions(bad_instructions: Any) -> None:
+    _, _, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    contract, contract_bytes = _load_contract()
+    decisions, decisions_bytes = _a1_make_decisions(
+        raw, raw_bytes, instructions=bad_instructions
+    )
+    with pytest.raises(CB01ConstructionError, match="instructions"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+def test_a1_rejects_pending_decision_with_reviewer_set() -> None:
+    contract, contract_bytes, raw, raw_bytes, _, _ = _a1_valid_pending_pair()
+    decisions, _ = _a1_make_decisions(raw, raw_bytes)
+    decisions["decisions"][0]["decision"] = "pending"
+    decisions["decisions"][0]["reviewer"] = _A1_REVIEWER
+    decisions["decisions"][0]["rationale"] = None
+    decisions["decisions"][0]["exclusion_reasons"] = []
+    decisions_bytes = _canonical_bytes(decisions)
+    with pytest.raises(CB01ConstructionError, match=r"must not have|remains pending"):
+        cb01.derive_screened_ledger(
+            raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+        )
+
+
+def test_a1_screened_rejects_manually_flipped_manual_review() -> None:
+    contract, contract_bytes = _load_contract()
+    transitions = []
+    for index in range(2):
+        repo = f"org/a1-sel-{index:03d}"
+        baseline = f"{index + 1:040x}"
+        candidate = f"{index + 1001:040x}"
+        transitions.append(
+            _a1_make_transition(repo=repo, baseline=baseline, candidate=candidate)
+        )
+    raw, raw_bytes = _a1_make_raw(contract, contract_bytes, transitions)
+    decisions, decisions_bytes = _a1_make_decisions(raw, raw_bytes, decision="eligible")
+    screened = cb01.derive_screened_ledger(
+        raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+    )
+    screened["transitions"][0]["manual_review_required"] = True
+    with pytest.raises(CB01ConstructionError, match="manual review"):
+        cb01.validate_screened_ledger(screened, contract, contract_bytes)
+
+
+def test_a1_selection_rejects_invalid_repo_path_commits_and_blobs() -> None:
+    contract, contract_bytes = _load_contract()
+    transitions = []
+    for index in range(12):
+        repo = f"org/a1-sr-{index:03d}"
+        baseline = f"{index + 5000:040x}"
+        candidate = f"{index + 9000:040x}"
+        path = _A1_ALLOWED_PATHS[index % 2]
+        transitions.append(
+            _a1_make_transition(repo=repo, baseline=baseline, candidate=candidate, path=path)
+        )
+    raw, raw_bytes = _a1_make_raw(contract, contract_bytes, transitions)
+    decisions, decisions_bytes = _a1_make_decisions(raw, raw_bytes, decision="eligible")
+    screened = cb01.derive_screened_ledger(
+        raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+    )
+    screened_bytes = _canonical_bytes(screened)
+    selection = cb01.derive_selection_v2(screened, screened_bytes, contract, contract_bytes)
+    bad = copy.deepcopy(selection)
+    bad["selected"][0]["repository_full_name"] = "bad-repo-no-slash"
+    with pytest.raises(CB01ConstructionError, match="repository_full_name"):
+        cb01.validate_selection_v2(bad, contract, contract_bytes)
+    bad = copy.deepcopy(selection)
+    bad["selected"][0]["path"] = ".claude/evil.json"
+    with pytest.raises(CB01ConstructionError, match="invalid path"):
+        cb01.validate_selection_v2(bad, contract, contract_bytes)
+    bad = copy.deepcopy(selection)
+    bad["selected"][0]["baseline_commit"] = "Z" * 40
+    with pytest.raises(CB01ConstructionError, match="baseline_commit"):
+        cb01.validate_selection_v2(bad, contract, contract_bytes)
+    bad = copy.deepcopy(selection)
+    bad["selected"][0]["baseline_blob"] = "not-a-sha"
+    with pytest.raises(CB01ConstructionError, match="baseline_blob"):
+        cb01.validate_selection_v2(bad, contract, contract_bytes)

@@ -20,6 +20,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from collections import defaultdict
 from collections.abc import Mapping
 from typing import Any
@@ -42,6 +43,16 @@ MAX_CASES_PER_REPOSITORY = 2
 MINIMUM_VIABLE_SELECTED_CASE_COUNT = 12
 
 CANDIDATE_PATHS = (".claude/settings.json", ".claude/settings.local.json")
+CANDIDATE_PATH_SET = frozenset(CANDIDATE_PATHS)
+
+_SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_REPO_FULL_NAME_RE = re.compile(r"^[^/]+/[^/]+$")
+_TRANSITION_ID_RE = re.compile(r"^gh-[0-9a-f]{20}$")
+_REPO_URL_RE = re.compile(r"^https://github\.com/[^/]+/[^/]+$")
+
+_MAX_REVIEWER_LENGTH = 128
+_MAX_RATIONALE_LENGTH = 10000
 
 FIXED_EXCLUSION_REASONS = frozenset(
     {
@@ -146,6 +157,149 @@ def contamination_status_for(
     return "clean"
 
 
+def _is_strict_sha1(value: Any) -> bool:
+    """Return True when value is a lowercase 40-hex SHA-1."""
+
+    return isinstance(value, str) and _SHA1_RE.match(value) is not None
+
+
+def _is_strict_sha256(value: Any) -> bool:
+    """Return True when value is a lowercase 64-hex SHA-256."""
+
+    return isinstance(value, str) and _SHA256_RE.match(value) is not None
+
+
+def _validate_repository_full_name(full_name: Any, transition_id: Any) -> str:
+    """Require strict owner/repository form with exactly one slash."""
+
+    if not isinstance(full_name, str) or _REPO_FULL_NAME_RE.match(full_name) is None:
+        raise CB01ConstructionError(
+            f"transition has an invalid repository_full_name for {transition_id}"
+        )
+    return full_name
+
+
+def _validate_commit_sha1(value: Any, field: str, transition_id: Any) -> str:
+    """Require a lowercase 40-hex commit SHA."""
+
+    if not _is_strict_sha1(value):
+        raise CB01ConstructionError(
+            f"transition has an invalid {field} for {transition_id}"
+        )
+    assert isinstance(value, str)
+    return value
+
+
+def _validate_transition_path(path: Any, transition_id: Any) -> str:
+    """Require a frozen candidate path."""
+
+    if path not in CANDIDATE_PATH_SET:
+        raise CB01ConstructionError(
+            f"transition has an invalid path for {transition_id}"
+        )
+    assert isinstance(path, str)
+    return path
+
+
+def _validate_permissions_changed(value: Any, transition_id: Any) -> None:
+    """Require permissions_changed to be bool or null (never int/str)."""
+
+    if value is not None and not isinstance(value, bool):
+        raise CB01ConstructionError(
+            f"transition has an invalid permissions_changed for {transition_id}"
+        )
+
+
+def _validate_exclusion_list(reasons: Any, transition_id: Any) -> list[str]:
+    """Require a list of preregistered unique exclusion reasons."""
+
+    if not isinstance(reasons, list) or not all(isinstance(reason, str) for reason in reasons):
+        raise CB01ConstructionError(
+            f"transition has malformed exclusion_reasons for {transition_id}"
+        )
+    unknown = set(reasons) - FIXED_EXCLUSION_REASONS
+    if unknown:
+        raise CB01ConstructionError(
+            f"transition {transition_id} uses non-preregistered "
+            f"exclusions: {sorted(unknown)}"
+        )
+    if len(set(reasons)) != len(reasons):
+        raise CB01ConstructionError(
+            f"transition {transition_id} has duplicate exclusion_reasons"
+        )
+    return list(reasons)
+
+
+def _validate_manual_review_raw(transition: Mapping[str, Any]) -> None:
+    """Require pending->True and resolved->False manual-review semantics."""
+
+    status = transition.get("screening_status")
+    manual = transition.get("manual_review_required")
+    transition_id = transition.get("transition_id")
+    if status == "pending":
+        if manual is not True:
+            raise CB01RawLedgerError(
+                f"pending transition {transition_id} must require manual review"
+            )
+    elif status in {"excluded"}:
+        if manual is not False:
+            raise CB01RawLedgerError(
+                f"resolved transition {transition_id} cannot require manual review"
+            )
+    else:
+        # Unknown status is reported by the status check itself; still
+        # require an exact boolean so truthy stand-ins cannot pass.
+        if manual is not True and manual is not False:
+            raise CB01RawLedgerError(
+                f"transition {transition_id} has an invalid manual_review_required"
+            )
+
+
+def _validate_instructions(instructions: Any) -> None:
+    """Require a non-empty instructions string."""
+
+    if not isinstance(instructions, str) or not instructions.strip():
+        raise CB01ScreeningError("screening decisions have invalid instructions")
+
+
+def _validate_reviewer(reviewer: Any, transition_id: Any, *, required: bool) -> None:
+    """Validate reviewer presence, type, and length bounds."""
+
+    if not required:
+        if reviewer is not None:
+            raise CB01ScreeningError(
+                f"screening decision for {transition_id} must not have a reviewer"
+            )
+        return
+    if not isinstance(reviewer, str) or not reviewer.strip():
+        raise CB01ScreeningError(
+            f"screening decision for {transition_id} requires a reviewer"
+        )
+    if len(reviewer) > _MAX_REVIEWER_LENGTH:
+        raise CB01ScreeningError(
+            f"screening decision for {transition_id} has an overlong reviewer"
+        )
+
+
+def _validate_rationale(rationale: Any, transition_id: Any, *, required: bool) -> None:
+    """Validate rationale presence, type, and length bounds."""
+
+    if not required:
+        if rationale is not None:
+            raise CB01ScreeningError(
+                f"screening decision for {transition_id} must not have a rationale"
+            )
+        return
+    if not isinstance(rationale, str) or not rationale.strip():
+        raise CB01ScreeningError(
+            f"screening decision for {transition_id} requires a rationale"
+        )
+    if len(rationale) > _MAX_RATIONALE_LENGTH:
+        raise CB01ScreeningError(
+            f"screening decision for {transition_id} has an overlong rationale"
+        )
+
+
 def _check_contract_versions(contract: Mapping[str, Any]) -> None:
     if contract.get("schema_version") != CB01_SCHEMA_VERSION:
         raise CB01ContractError("unsupported CB-01 contract schema version")
@@ -247,20 +401,28 @@ def validate_transition_identity(
 ) -> Mapping[str, Any]:
     """Recompute and require exact canonical transition identity."""
 
-    full_name = transition.get("repository_full_name")
+    transition_id = transition.get("transition_id")
+    full_name = _validate_repository_full_name(
+        transition.get("repository_full_name"), transition_id
+    )
     repository_url = transition.get("repository_url")
-    baseline = transition.get("baseline_commit")
-    candidate = transition.get("candidate_commit")
-    path = transition.get("path")
-    if not isinstance(full_name, str) or "/" not in full_name:
-        raise CB01ConstructionError("transition has an invalid repository_full_name")
+    baseline = _validate_commit_sha1(
+        transition.get("baseline_commit"), "baseline_commit", transition_id
+    )
+    candidate = _validate_commit_sha1(
+        transition.get("candidate_commit"), "candidate_commit", transition_id
+    )
+    path = _validate_transition_path(transition.get("path"), transition_id)
+    if not isinstance(repository_url, str) or _REPO_URL_RE.match(repository_url) is None:
+        raise CB01ConstructionError(
+            f"repository_url/full-name mismatch for {transition.get('transition_id')}"
+        )
     expected_url = canonical_repository_url(full_name)
     if repository_url != expected_url:
         raise CB01ConstructionError(
             f"repository_url/full-name mismatch for {transition.get('transition_id')}"
         )
-    if not isinstance(baseline, str) or not isinstance(candidate, str) or not isinstance(path, str):
-        raise CB01ConstructionError("transition has invalid immutable identity fields")
+    _validate_permissions_changed(transition.get("permissions_changed"), transition_id)
     expected_key = selection_key_for(str(repository_url), baseline, candidate, path)
     if transition.get("selection_key") != expected_key:
         raise CB01ConstructionError(f"selection_key mismatch for {transition.get('transition_id')}")
@@ -347,12 +509,8 @@ def validate_raw_ledger(
         raise CB01RawLedgerError("raw ledger protocol version mismatch")
     _require_contract_digest(raw, contract, contract_bytes, context="raw ledger")
     study_commit = raw.get("study_repository_commit")
-    if not isinstance(study_commit, str) or len(study_commit) != 40:
+    if not _is_strict_sha1(study_commit):
         raise CB01RawLedgerError("raw ledger has an invalid study_repository_commit")
-    try:
-        int(study_commit, 16)
-    except ValueError as exc:
-        raise CB01RawLedgerError("raw ledger study_repository_commit is not hex") from exc
     if raw.get("producer_id") != CANONICAL_PUBLIC_PRODUCER_ID:
         raise CB01RawLedgerError("raw ledger producer_id is not the canonical public producer")
     validate_query_frame(raw.get("queries"), contract)
@@ -373,18 +531,98 @@ def validate_raw_ledger(
             raise CB01RawLedgerError(
                 f"raw transition {item.get('transition_id')} has an unsupported status"
             )
-        reasons = item.get("exclusion_reasons")
-        if not isinstance(reasons, list) or not all(isinstance(reason, str) for reason in reasons):
-            raise CB01RawLedgerError("raw ledger has malformed exclusion reasons")
-        unknown = set(reasons) - FIXED_EXCLUSION_REASONS
-        if unknown:
-            raise CB01RawLedgerError(
-                f"raw ledger uses non-preregistered exclusions: {sorted(unknown)}"
+        _validate_manual_review_raw(item)
+        try:
+            _validate_exclusion_list(
+                item.get("exclusion_reasons"), item.get("transition_id")
             )
-        validate_transition_identity(item, contract)
+        except CB01ConstructionError as exc:
+            raise CB01RawLedgerError(str(exc)) from exc
+        try:
+            validate_transition_identity(item, contract)
+        except CB01ConstructionError as exc:
+            # Preserve specific identity messages while reporting raw context.
+            raise CB01RawLedgerError(str(exc)) from exc
         _validate_discovery_markers(item)
     _check_duplicates(typed, context="raw")
     return raw
+
+
+def _validate_screening_decision_entry(entry: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Validate one screening decision against the frozen v1 vocabulary."""
+
+    transition_id = entry.get("transition_id")
+    if not isinstance(transition_id, str) or _TRANSITION_ID_RE.match(transition_id) is None:
+        raise CB01ScreeningError(
+            f"screening decision has an invalid transition_id for {transition_id}"
+        )
+    repository_url = entry.get("repository_url")
+    if not isinstance(repository_url, str) or _REPO_URL_RE.match(repository_url) is None:
+        raise CB01ScreeningError(
+            f"screening decision has an invalid repository_url for {transition_id}"
+        )
+    if entry.get("path") not in CANDIDATE_PATH_SET:
+        raise CB01ScreeningError(
+            f"screening decision has an invalid path for {transition_id}"
+        )
+    if not _is_strict_sha1(entry.get("baseline_commit")):
+        raise CB01ScreeningError(
+            f"screening decision has an invalid baseline_commit for {transition_id}"
+        )
+    if not _is_strict_sha1(entry.get("candidate_commit")):
+        raise CB01ScreeningError(
+            f"screening decision has an invalid candidate_commit for {transition_id}"
+        )
+    try:
+        _validate_permissions_changed(entry.get("permissions_changed"), transition_id)
+    except CB01ConstructionError as exc:
+        raise CB01ScreeningError(str(exc)) from exc
+    if entry.get("contamination_status") not in {"clean", "pre_exposed_engineering_control"}:
+        raise CB01ScreeningError(
+            f"screening decision has an invalid contamination_status for {transition_id}"
+        )
+    outcome = entry.get("decision")
+    if outcome not in {"pending", "eligible", "excluded"}:
+        raise CB01ScreeningError(
+            f"invalid screening decision for {transition_id}: {outcome!r}"
+        )
+    reasons = entry.get("exclusion_reasons")
+    if not isinstance(reasons, list) or not all(isinstance(reason, str) for reason in reasons):
+        raise CB01ScreeningError(
+            f"screening decision has malformed exclusion_reasons for {transition_id}"
+        )
+    unknown = set(reasons) - FIXED_EXCLUSION_REASONS
+    if unknown:
+        raise CB01ScreeningError(
+            f"transition {transition_id} uses non-preregistered "
+            f"exclusions: {sorted(unknown)}"
+        )
+    if len(set(reasons)) != len(reasons):
+        raise CB01ScreeningError(
+            f"transition {transition_id} has duplicate exclusion_reasons"
+        )
+    if outcome == "pending":
+        if reasons:
+            raise CB01ScreeningError(
+                f"pending decision for {transition_id} cannot have exclusion_reasons"
+            )
+        _validate_reviewer(entry.get("reviewer"), transition_id, required=False)
+        _validate_rationale(entry.get("rationale"), transition_id, required=False)
+    elif outcome == "eligible":
+        if reasons:
+            raise CB01ScreeningError(
+                f"eligible decision for {transition_id} cannot have exclusion_reasons"
+            )
+        _validate_reviewer(entry.get("reviewer"), transition_id, required=True)
+        _validate_rationale(entry.get("rationale"), transition_id, required=True)
+    else:  # excluded
+        if not reasons:
+            raise CB01ScreeningError(
+                f"excluded decision for {transition_id} requires an exclusion reason"
+            )
+        _validate_reviewer(entry.get("reviewer"), transition_id, required=True)
+        _validate_rationale(entry.get("rationale"), transition_id, required=True)
+    return entry
 
 
 def _validate_decisions_object(
@@ -406,12 +644,18 @@ def _validate_decisions_object(
         raise CB01ScreeningError("screening decisions protocol version mismatch")
     if decisions.get("source_ledger_sha256") != sha256_bytes(raw_bytes):
         raise CB01ScreeningError("screening decisions are not bound to the supplied raw bytes")
+    if not _is_strict_sha256(decisions.get("source_ledger_sha256")):
+        raise CB01ScreeningError("screening decisions have an invalid source_ledger_sha256")
+    _validate_instructions(decisions.get("instructions"))
     raw_decisions = decisions.get("decisions")
     if not isinstance(raw_decisions, list) or not all(
         isinstance(item, Mapping) for item in raw_decisions
     ):
         raise CB01ScreeningError("screening decisions must be a list of objects")
-    return list(raw_decisions)  # type: ignore[return-value]
+    typed: list[Mapping[str, Any]] = list(raw_decisions)  # type: ignore[arg-type]
+    for entry in typed:
+        _validate_screening_decision_entry(entry)
+    return list(typed)
 
 
 def derive_screened_ledger(
@@ -485,6 +729,10 @@ def derive_screened_ledger(
         if outcome not in {"eligible", "excluded"}:
             raise CB01ScreeningError(f"invalid screening decision for {transition_id}: {outcome!r}")
         if outcome == "eligible":
+            if decision.get("exclusion_reasons"):
+                raise CB01ScreeningError(
+                    f"eligible decision for {transition_id} cannot have exclusion_reasons"
+                )
             recomputed = contamination_status_for(
                 str(source.get("repository_url")),
                 str(source.get("baseline_commit")),
@@ -518,6 +766,10 @@ def derive_screened_ledger(
                 raise CB01ScreeningError(
                     f"transition {transition_id} uses non-preregistered "
                     f"exclusions: {sorted(unknown)}"
+                )
+            if len(set(str(reason) for reason in reasons)) != len(reasons):
+                raise CB01ScreeningError(
+                    f"transition {transition_id} has duplicate exclusion_reasons"
                 )
             target["screening_status"] = "excluded"
             target["exclusion_reasons"] = sorted({str(reason) for reason in reasons})
@@ -569,7 +821,7 @@ def validate_screened_ledger(
     if "generated_at" in screened:
         raise CB01ScreeningError("screened ledger must not contain generated_at")
     study_commit = screened.get("study_repository_commit")
-    if not isinstance(study_commit, str) or len(study_commit) != 40:
+    if not _is_strict_sha1(study_commit):
         raise CB01ScreeningError("screened ledger has an invalid study_repository_commit")
     transitions = screened.get("transitions")
     if not isinstance(transitions, list) or not all(
@@ -585,11 +837,17 @@ def validate_screened_ledger(
         if item.get("manual_review_required") is not False:
             raise CB01ScreeningError("screened ledger must not require manual review")
         reasons = item.get("exclusion_reasons")
-        if not isinstance(reasons, list):
+        if not isinstance(reasons, list) or not all(
+            isinstance(reason, str) for reason in reasons
+        ):
             raise CB01ScreeningError("screened ledger has malformed exclusion reasons")
-        unknown = {str(reason) for reason in reasons} - FIXED_EXCLUSION_REASONS
+        unknown = set(reasons) - FIXED_EXCLUSION_REASONS
         if unknown:
             raise CB01ScreeningError(f"screened ledger uses unknown exclusions: {sorted(unknown)}")
+        if len(set(reasons)) != len(reasons):
+            raise CB01ScreeningError(
+                f"screened transition {item.get('transition_id')} has duplicate exclusion_reasons"
+            )
         if item.get("screening_status") == "eligible":
             if reasons:
                 raise CB01ScreeningError("eligible screened transition cannot have exclusions")
@@ -598,7 +856,10 @@ def validate_screened_ledger(
             for field in ("baseline_blob", "candidate_blob", "baseline_sha256", "candidate_sha256"):
                 if item.get(field) is None:
                     raise CB01ScreeningError("eligible screened transition lacks provenance")
-        validate_transition_identity(item, contract)
+        try:
+            validate_transition_identity(item, contract)
+        except CB01ConstructionError as exc:
+            raise CB01ScreeningError(str(exc)) from exc
     _check_duplicates(typed, context="screened")
     return screened
 
@@ -742,17 +1003,57 @@ def validate_selection_v2(
     seen: set[str] = set()
     repo_counts: dict[str, int] = defaultdict(int)
     for item in typed:
-        transition_id = str(item.get("transition_id"))
+        transition_id = item.get("transition_id")
+        if not isinstance(transition_id, str) or _TRANSITION_ID_RE.match(transition_id) is None:
+            raise CB01SelectionError(
+                f"selected case has an invalid transition_id for {transition_id}"
+            )
         if transition_id in seen:
             raise CB01SelectionError(f"duplicate selected transition_id: {transition_id}")
         seen.add(transition_id)
-        repository = str(item.get("repository_full_name"))
+        try:
+            repository = _validate_repository_full_name(
+                item.get("repository_full_name"), transition_id
+            )
+        except CB01ConstructionError as exc:
+            raise CB01SelectionError(str(exc)) from exc
         repo_counts[repository] += 1
         if repo_counts[repository] > MAX_CASES_PER_REPOSITORY:
             raise CB01SelectionError(f"repository case cap exceeded for {repository}")
+        repository_url = item.get("repository_url")
+        if not isinstance(repository_url, str) or _REPO_URL_RE.match(repository_url) is None:
+            raise CB01SelectionError(
+                f"repository_url/full-name mismatch for {transition_id}"
+            )
         expected_url = canonical_repository_url(repository)
-        if item.get("repository_url") != expected_url:
+        if repository_url != expected_url:
             raise CB01SelectionError(f"repository_url/full-name mismatch for {transition_id}")
+        try:
+            _validate_commit_sha1(
+                item.get("baseline_commit"), "baseline_commit", transition_id
+            )
+            _validate_commit_sha1(
+                item.get("candidate_commit"), "candidate_commit", transition_id
+            )
+            _validate_transition_path(item.get("path"), transition_id)
+        except CB01ConstructionError as exc:
+            raise CB01SelectionError(str(exc)) from exc
+        if not _is_strict_sha1(item.get("baseline_blob")):
+            raise CB01SelectionError(
+                f"selected case has an invalid baseline_blob for {transition_id}"
+            )
+        if not _is_strict_sha1(item.get("candidate_blob")):
+            raise CB01SelectionError(
+                f"selected case has an invalid candidate_blob for {transition_id}"
+            )
+        if not _is_strict_sha256(item.get("baseline_sha256")):
+            raise CB01SelectionError(
+                f"selected case has an invalid baseline_sha256 for {transition_id}"
+            )
+        if not _is_strict_sha256(item.get("candidate_sha256")):
+            raise CB01SelectionError(
+                f"selected case has an invalid candidate_sha256 for {transition_id}"
+            )
         expected_key = selection_key_for(
             str(item.get("repository_url")),
             str(item.get("baseline_commit")),
