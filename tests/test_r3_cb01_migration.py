@@ -21,12 +21,15 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
 import pytest
+import scripts.discover_r3_benchmark_candidates as _discover
 import scripts.r3_cb01_corpus_construction as cb01
 from scripts.build_r3_cb01_lineage import build_lineage, main
+from scripts.discover_r3_benchmark_candidates import DiscoveryError
 from scripts.r3_cb01_corpus_construction import CB01ConstructionError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -340,11 +343,16 @@ def test_b0_legacy_fields_fail_where_v2_expected(field: str) -> None:
 
 
 def test_b0_producers_not_yet_migrated() -> None:
-    """Document B0+B1 scope: operational producers still emit v1 shapes."""
+    """Document B0+B1 scope: operational producers still emit v1 shapes.
+
+    Updated in B2: raw discovery now emits v2 while v1 selection is
+    retained until B4 (known intermediate incompatibility, fail-closed).
+    """
     import scripts.discover_r3_benchmark_candidates as discover
     import scripts.materialize_r3_public_selection as materialize
     import scripts.screen_r3_public_benchmark_candidates as screen
 
+    assert discover.RAW_LEDGER_SCHEMA_VERSION == "permitdiff.dev/r3-public-discovery-ledger/v2"
     assert discover.LEDGER_SCHEMA_VERSION == "permitdiff.dev/r3-discovery-ledger/v1"
     assert discover.SELECTION_SCHEMA_VERSION == "permitdiff.dev/r3-public-selection/v1"
     assert screen.SCREENING_SCHEMA_VERSION == "permitdiff.dev/r3-screening-decisions/v1"
@@ -504,3 +512,242 @@ def test_b1_no_generated_at_and_no_partial_output(tmp_path: Path) -> None:
         != 0
     )
     assert not output2.exists()
+
+
+# ---------------------------------------------------------------------------
+# B2 — Raw discovery ledger v2 migration (synthetic, no network/tokens)
+# ---------------------------------------------------------------------------
+
+_B2_STUDY = "1" * 40
+_B2_V2_SCHEMA_PATH = ROOT / "docs" / "r3-public-discovery-ledger-v2.schema.json"
+
+
+class _FakeDiscoveryClient:
+    """Minimal mocked GitHub client: search/history/commit/file only, no network."""
+
+    def __init__(self) -> None:
+        self.search_payloads: dict[str, tuple[list[dict[str, Any]], int, bool]] = {}
+        self.histories: dict[tuple[str, str], tuple[list[dict[str, Any]], bool]] = {}
+        self.commits: dict[tuple[str, str], dict[str, Any]] = {}
+        self.files: dict[tuple[str, str, str], tuple[dict[str, Any], bytes]] = {}
+
+    def search_code(self, query: str) -> tuple[list[dict[str, Any]], int, bool]:
+        return self.search_payloads.get(query, ([], 0, False))
+
+    def list_path_commits(
+        self, repository: str, path: str, *, max_commits: int | None = None
+    ) -> tuple[list[dict[str, Any]], bool]:
+        commits, truncated = self.histories[(repository, path)]
+        if max_commits is not None and len(commits) > max_commits:
+            return commits[:max_commits], True
+        return commits, truncated
+
+    def get_commit(self, repository: str, commit: str) -> dict[str, Any]:
+        return self.commits[(repository, commit)]
+
+    def get_file(self, repository: str, path: str, ref: str) -> tuple[dict[str, Any], bytes]:
+        return self.files[(repository, path, ref)]
+
+
+def _b2_commit(sha: str) -> dict[str, Any]:
+    return {"sha": sha, "commit": {"committer": {"date": "2026-01-02T00:00:00Z"}}}
+
+
+def _b2_file(blob: str, payload: dict[str, Any]) -> tuple[dict[str, Any], bytes]:
+    raw = json.dumps(payload, sort_keys=True).encode()
+    return ({"sha": blob, "type": "file", "encoding": "base64"}, raw)
+
+
+def _b2_seeded_client() -> _FakeDiscoveryClient:
+    """Seed one public location with one adjacent transition (no network)."""
+    from scripts.discover_r3_benchmark_candidates import build_search_specs
+
+    client = _FakeDiscoveryClient()
+    specs = build_search_specs()
+    repo = "org/b2-public"
+    path = ".claude/settings.json"
+    baseline = "b" * 40
+    candidate = "c" * 40
+    client.search_payloads[specs[0].api_query] = (
+        [
+            {
+                "path": path,
+                "sha": "a" * 40,
+                "html_url": f"https://github.com/{repo}/blob/main/{path}",
+                "repository": {"full_name": repo},
+            }
+        ],
+        1,
+        False,
+    )
+    client.histories[(repo, path)] = (
+        [_b2_commit(candidate), _b2_commit(baseline)],
+        False,
+    )
+    client.commits[(repo, candidate)] = {"parents": [{"sha": baseline}]}
+    client.files[(repo, path, baseline)] = _b2_file("1" * 40, {"permissions": {"allow": []}})
+    client.files[(repo, path, candidate)] = _b2_file(
+        "2" * 40, {"permissions": {"allow": ["Bash"]}}
+    )
+    return client
+
+
+def _b2_build_valid() -> tuple[dict[str, Any], bytes, dict[str, Any], bytes]:
+    contract, contract_bytes = _load_contract()
+    ledger = _discover.build_ledger(
+        _b2_seeded_client(), contract, contract_bytes, _B2_STUDY
+    )
+    ledger_bytes = _canonical_bytes(ledger)
+    return ledger, ledger_bytes, contract, contract_bytes
+
+
+def test_b2_valid_mocked_discovery_produces_raw_v2() -> None:
+    from jsonschema import Draft202012Validator
+
+    ledger, ledger_bytes, contract, contract_bytes = _b2_build_valid()
+    assert ledger["schema_version"] == "permitdiff.dev/r3-public-discovery-ledger/v2"
+    assert ledger["producer_id"] == "permitdiff-r3-canonical-public-discovery-v2"
+    assert ledger["cb01_contract_version"] == "r3-cb01-corpus-construction-v1"
+    assert ledger["cb01_contract_sha256"] == hashlib.sha256(contract_bytes).hexdigest()
+    assert ledger["study_repository_commit"] == _B2_STUDY
+    assert ledger["transition_count"] == 1
+    schema = json.loads(_B2_V2_SCHEMA_PATH.read_text(encoding="utf-8"))
+    Draft202012Validator(schema).validate(ledger)
+    cb01.validate_raw_ledger(ledger, ledger_bytes, contract, contract_bytes)
+
+
+def test_b2_contract_binding_exact_bytes() -> None:
+    contract, contract_bytes = _load_contract()
+    ledger, _, _, _ = _b2_build_valid()
+    assert ledger["cb01_contract_sha256"] == hashlib.sha256(contract_bytes).hexdigest()
+    # Same semantics, different whitespace => different digest (exact bytes matter).
+    reformatted = (
+        json.dumps(contract, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+    )
+    assert json.loads(reformatted) == contract
+    assert hashlib.sha256(reformatted).hexdigest() != ledger["cb01_contract_sha256"]
+    # Mismatched dict/bytes pair fails closed.
+    tampered_bytes = bytearray(contract_bytes)
+    tampered_bytes[-2] = ord("X") if tampered_bytes[-2] != ord("X") else ord("Y")
+    with pytest.raises(DiscoveryError, match=r"invalid CB-01 contract"):
+        _discover.build_ledger(
+            _b2_seeded_client(), contract, bytes(tampered_bytes), _B2_STUDY
+        )
+
+
+def test_b2_study_commit_clean_and_dirty(monkeypatch: Any, tmp_path: Path) -> None:
+    contract, contract_bytes = _load_contract()
+    # Invalid study commits fail closed without touching git.
+    for bad in ("A" * 40, "a" * 39, "", "zz" + "a" * 38):
+        with pytest.raises(DiscoveryError, match=r"study repository commit"):
+            _discover.build_ledger(
+                _b2_seeded_client(), contract, contract_bytes, bad
+            )
+    # Fake git states: clean accepted, dirty/missing rejected (no real git).
+
+    def _clean(cmd: Any, **kwargs: Any) -> str:
+        assert cmd[0].endswith("git")
+        if cmd[1:3] == ["rev-parse", "HEAD"]:
+            return _B2_STUDY + "\n"
+        return ""
+
+    monkeypatch.setattr(subprocess, "check_output", _clean)
+    assert _discover._study_repository_commit(tmp_path) == _B2_STUDY
+
+    def _dirty(cmd: Any, **kwargs: Any) -> str:
+        if cmd[1:3] == ["rev-parse", "HEAD"]:
+            return _B2_STUDY + "\n"
+        return " M some/file.py\n"
+
+    monkeypatch.setattr(subprocess, "check_output", _dirty)
+    with pytest.raises(DiscoveryError, match=r"dirty"):
+        _discover._study_repository_commit(tmp_path)
+
+    def _missing(cmd: Any, **kwargs: Any) -> str:
+        raise FileNotFoundError("no git")
+
+    monkeypatch.setattr(subprocess, "check_output", _missing)
+    with pytest.raises(DiscoveryError, match=r"cannot record"):
+        _discover._study_repository_commit(tmp_path)
+
+
+def test_b2_producer_identity_required() -> None:
+    ledger, _, contract, contract_bytes = _b2_build_valid()
+    assert ledger["producer_id"] == "permitdiff-r3-canonical-public-discovery-v2"
+    tampered = copy.deepcopy(ledger)
+    tampered["producer_id"] = "legacy-producer"
+    with pytest.raises(CB01ConstructionError, match=r"producer_id"):
+        cb01.validate_raw_ledger(
+            tampered, _canonical_bytes(tampered), contract, contract_bytes
+        )
+
+
+def test_b2_identity_formulas_match_cb01_and_register() -> None:
+    contract, _contract_bytes = _load_contract()
+    ledger, _, _, _ = _b2_build_valid()
+    item = ledger["transitions"][0]
+    url = item["repository_url"]
+    baseline = item["baseline_commit"]
+    candidate = item["candidate_commit"]
+    path = item["path"]
+    expected_key = hashlib.sha256(
+        f"{url}\n{baseline}\n{candidate}\n{path}".encode()
+    ).hexdigest()
+    assert item["selection_key"] == expected_key
+    assert item["transition_id"] == "gh-" + expected_key[:20]
+    assert item["repository_url"] == f"https://github.com/{item['repository_full_name']}"
+    # Contamination comes from the frozen contract register.
+    entry = contract["contamination_register"][0]
+    assert _discover._control_status(
+        entry["repository_url"],
+        entry["baseline_commit"],
+        entry["candidate_commit"],
+        entry["path"],
+        contract,
+    ) == "pre_exposed_engineering_control"
+    assert (
+        _discover._control_status(url, baseline, candidate, path, contract) == "clean"
+    )
+    assert item["contamination_status"] == "clean"
+
+
+def test_b2_regression_transition_identities_stable() -> None:
+    from scripts.discover_r3_benchmark_candidates import build_search_specs
+
+    ledger, _, contract, _ = _b2_build_valid()
+    item = ledger["transitions"][0]
+    assert (
+        item["repository_full_name"],
+        item["baseline_commit"],
+        item["candidate_commit"],
+        item["path"],
+    ) == ("org/b2-public", "b" * 40, "c" * 40, ".claude/settings.json")
+    # Query strings, ordering, and paths unchanged; match frozen contract frame.
+    specs = build_search_specs()
+    assert len(specs) == 10
+    frame = {
+        (e["query_id"], e["candidate_path"]): e["api_query"]
+        for e in contract["search_frame"]
+    }
+    for spec in specs:
+        assert spec.api_query == frame[(spec.query_id, spec.path)]
+    assert _discover.CANDIDATE_PATHS == _discover._cb01.CANDIDATE_PATHS
+    assert _discover.FIXED_EXCLUSION_REASONS == _discover._cb01.FIXED_EXCLUSION_REASONS
+
+
+def test_b2_no_network_in_discovery_migration() -> None:
+    text = (
+        ROOT / "scripts" / "discover_r3_benchmark_candidates.py"
+    ).read_text(encoding="utf-8")
+    assert "import requests" not in text
+    assert "import socket" not in text or "ssl.SSLEOFError" in text
+    public_text = (
+        ROOT / "scripts" / "discover_r3_public_benchmark_candidates.py"
+    ).read_text(encoding="utf-8")
+    assert "import requests" not in public_text
+    # New helpers perform file + git reads only (subprocess git is allowed in
+    # scripts per ruff per-file-ignores S603); migration tests never resolve
+    # real GitHub tokens (split literals avoid self-matching this guard).
+    own_text = Path(__file__).read_text(encoding="utf-8")
+    assert ("GH_" + "TOKEN") not in own_text.replace('"' + "GH_" + 'TOKEN"', "")
+    assert ("monkeypatch." + "setenv") not in own_text

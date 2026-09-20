@@ -30,8 +30,10 @@ from typing import Any
 from scripts.discover_r3_benchmark_candidates import (
     DiscoveryError,
     GitHubClient,
+    _load_contract_bytes,
     _read_json,
     _resolve_token,
+    _study_repository_commit,
     _write_json,
     build_ledger,
     build_search_specs,
@@ -370,6 +372,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=int,
         help="debug-only cap per path; any cap reached marks the ledger incomplete",
     )
+    discover.add_argument(
+        "--contract",
+        type=Path,
+        default=None,
+        help="CB-01 contract file; defaults to the committed contract",
+    )
+    discover.add_argument(
+        "--study-commit",
+        type=str,
+        default=None,
+        help="study repository commit; defaults to clean git rev-parse HEAD",
+    )
 
     select = subparsers.add_parser("select", help="select from a fully screened ledger")
     select.add_argument("--ledger", type=Path, required=True)
@@ -385,8 +399,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise DiscoveryError("--max-history-commits must be at least 2")
             client = PublicOnlyGitHubClient(_resolve_token(), progress_path=args.progress_output)
             client._progress("run_started", output=str(args.output))
+            contract, contract_bytes = _load_contract_bytes(args.contract)
+            study_commit = args.study_commit or _study_repository_commit()
             ledger = build_ledger(
                 client,
+                contract,
+                contract_bytes,
+                study_commit,
                 max_history_commits=args.max_history_commits,
             )
             _write_json(args.output, ledger)

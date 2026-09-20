@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import hashlib
 import json
 import ssl
 from pathlib import Path
@@ -9,8 +10,8 @@ from typing import Any
 from urllib.error import URLError
 
 import pytest
-from jsonschema import Draft202012Validator
 import scripts.discover_r3_benchmark_candidates as discovery
+from jsonschema import Draft202012Validator
 from scripts.discover_r3_benchmark_candidates import (
     LEDGER_SCHEMA_VERSION,
     PLAN_VERSION,
@@ -27,6 +28,22 @@ from scripts.discover_r3_benchmark_candidates import (
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER_SCHEMA = ROOT / "docs" / "r3-discovery-ledger.schema.json"
 SELECTION_SCHEMA = ROOT / "docs" / "r3-public-selection.schema.json"
+RAW_V2_SCHEMA = ROOT / "docs" / "r3-public-discovery-ledger-v2.schema.json"
+CB01_CONTRACT_PATH = (
+    ROOT
+    / "validation"
+    / "r3-benchmark"
+    / "exploratory"
+    / "cb01-corpus-construction-contract-v1.json"
+)
+_SYNTHETIC_STUDY_COMMIT = "0" * 40
+
+
+def _load_cb01_contract() -> tuple[dict[str, Any], bytes]:
+    raw_bytes = CB01_CONTRACT_PATH.read_bytes()
+    contract = json.loads(raw_bytes)
+    assert isinstance(contract, dict)
+    return contract, raw_bytes
 
 
 class FakeClient:
@@ -162,7 +179,10 @@ def test_transition_enumeration_performs_only_prelabel_mechanical_screening() ->
         }
     ]
 
-    transitions, complete = enumerate_transitions(client, locations, max_history_commits=None)
+    contract, _ = _load_cb01_contract()
+    transitions, complete = enumerate_transitions(
+        client, locations, contract, max_history_commits=None
+    )
 
     assert complete is True
     assert len(transitions) == 1
@@ -198,7 +218,10 @@ def test_unchanged_permissions_remain_pending_for_outside_projection_review() ->
         }
     ]
 
-    transitions, _ = enumerate_transitions(client, locations, max_history_commits=None)
+    contract, _ = _load_cb01_contract()
+    transitions, _ = enumerate_transitions(
+        client, locations, contract, max_history_commits=None
+    )
 
     assert transitions[0]["screening_status"] == "pending"
     assert transitions[0]["permissions_changed"] is False
@@ -227,7 +250,10 @@ def test_merge_transition_is_excluded_as_ambiguous() -> None:
         }
     ]
 
-    transitions, _ = enumerate_transitions(client, locations, max_history_commits=None)
+    contract, _ = _load_cb01_contract()
+    transitions, _ = enumerate_transitions(
+        client, locations, contract, max_history_commits=None
+    )
 
     assert transitions[0]["screening_status"] == "excluded"
     assert "ambiguous_parent_transition" in transitions[0]["exclusion_reasons"]
@@ -314,11 +340,16 @@ def test_selection_refuses_incomplete_or_tampered_ledger() -> None:
 
 def test_empty_discovery_ledger_conforms_to_machine_schema() -> None:
     client = FakeClient()
+    contract, contract_bytes = _load_cb01_contract()
 
-    ledger = build_ledger(client)
-    schema = json.loads(LEDGER_SCHEMA.read_text(encoding="utf-8"))
+    ledger = build_ledger(client, contract, contract_bytes, _SYNTHETIC_STUDY_COMMIT)
+    schema = json.loads(RAW_V2_SCHEMA.read_text(encoding="utf-8"))
 
     Draft202012Validator(schema).validate(ledger)
+    assert ledger["schema_version"] == "permitdiff.dev/r3-public-discovery-ledger/v2"
+    assert ledger["producer_id"] == "permitdiff-r3-canonical-public-discovery-v2"
+    assert ledger["cb01_contract_sha256"] == hashlib.sha256(contract_bytes).hexdigest()
+    assert ledger["study_repository_commit"] == _SYNTHETIC_STUDY_COMMIT
     assert ledger["discovery_complete"] is True
     assert ledger["queries"] and len(ledger["queries"]) == 10
 
@@ -392,7 +423,10 @@ def test_pre_exposed_control_is_excluded_and_never_selected() -> None:
         }
     ]
 
-    transitions, complete = enumerate_transitions(client, locations, max_history_commits=None)
+    contract, _ = _load_cb01_contract()
+    transitions, complete = enumerate_transitions(
+        client, locations, contract, max_history_commits=None
+    )
 
     assert complete is True
     assert len(transitions) == 1
@@ -442,10 +476,16 @@ def test_truncated_history_marks_incomplete_and_refuses_selection() -> None:
         "2" * 40, {"permissions": {"allow": ["Bash"]}}
     )
 
-    ledger = build_ledger(client, max_history_commits=2)
+    contract, contract_bytes = _load_cb01_contract()
+    ledger = build_ledger(
+        client, contract, contract_bytes, _SYNTHETIC_STUDY_COMMIT, max_history_commits=2
+    )
 
     assert ledger["discovery_complete"] is False
-    with pytest.raises(DiscoveryError, match="incomplete discovery ledger"):
+    assert ledger["schema_version"] == "permitdiff.dev/r3-public-discovery-ledger/v2"
+    # B2 intermediate: v1 selection rejects v2 raw (schema mismatch) fail-closed.
+    # Full v2 selection arrives in B4.
+    with pytest.raises(DiscoveryError, match="unsupported discovery ledger schema version"):
         select_public_historical(ledger)
 
 
@@ -481,8 +521,9 @@ def test_enumerate_transitions_orders_by_selection_key() -> None:
             }
         )
 
+    contract, _ = _load_cb01_contract()
     transitions, complete = enumerate_transitions(
-        client, list(reversed(locations)), max_history_commits=None
+        client, list(reversed(locations)), contract, max_history_commits=None
     )
 
     assert complete is True

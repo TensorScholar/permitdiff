@@ -14,7 +14,10 @@ import binascii
 import hashlib
 import json
 import os
+import re
+import shutil
 import ssl
+import subprocess
 import sys
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
@@ -28,6 +31,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from scripts import r3_cb01_corpus_construction as _cb01
 from scripts.r3_pre_discovery_contract import (
     MAX_CASES_PER_REPOSITORY,
     TARGET_CASES,
@@ -37,12 +41,22 @@ PLAN_VERSION = "r3-exploratory-corpus-plan-v1"
 PROTOCOL_VERSION = "r3-benchmark-protocol-v1"
 LEDGER_SCHEMA_VERSION = "permitdiff.dev/r3-discovery-ledger/v1"
 SELECTION_SCHEMA_VERSION = "permitdiff.dev/r3-public-selection/v1"
+RAW_LEDGER_SCHEMA_VERSION = _cb01.RAW_LEDGER_SCHEMA_VERSION
+CB01_CONTRACT_VERSION = _cb01.CB01_CONTRACT_VERSION
+CANONICAL_PUBLIC_PRODUCER_ID = _cb01.CANONICAL_PUBLIC_PRODUCER_ID
+DEFAULT_CB01_CONTRACT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "validation"
+    / "r3-benchmark"
+    / "exploratory"
+    / "cb01-corpus-construction-contract-v1.json"
+)
 GITHUB_API_VERSION = "2022-11-28"
 API_BASE = "https://api.github.com"
 SEARCH_PAGE_SIZE = 100
 SEARCH_RESULT_CAP = 1000
 
-CANDIDATE_PATHS = (".claude/settings.json", ".claude/settings.local.json")
+CANDIDATE_PATHS = _cb01.CANDIDATE_PATHS
 QUERY_CONCEPTS = (
     ("q1", "defaultMode dontAsk permissions allow"),
     ("q2", "permissions allow ask deny .claude settings"),
@@ -50,19 +64,10 @@ QUERY_CONCEPTS = (
     ("q4", "Bash permissions allow .claude"),
     ("q5", "WebSearch permissions allow .claude"),
 )
-FIXED_EXCLUSION_REASONS = frozenset(
-    {
-        "unavailable_provenance",
-        "ambiguous_parent_transition",
-        "artifact_parse_failure",
-        "no_authorization_relevant_change",
-        "duplicate_transition",
-        "insufficient_public_semantics",
-        "private_or_sensitive_content",
-        "non_project_or_unscoped_settings",
-        "pre_exposed_engineering_control",
-    }
-)
+FIXED_EXCLUSION_REASONS = _cb01.FIXED_EXCLUSION_REASONS
+# Deprecated Packet B2: frozen pre-exposed control retained only so existing
+# v1 selection tests keep importing it. The canonical contamination source is
+# the CB-01 contract register via ``contamination_status_for``.
 PRE_EXPOSED_CONTROLS = frozenset(
     {
         (
@@ -114,26 +119,95 @@ def sha256_bytes(payload: bytes) -> str:
 
 
 def canonical_repository_url(full_name: str) -> str:
-    """Return the canonical public GitHub repository URL used by the selection key."""
+    """Return the canonical public GitHub repository URL used by the selection key.
 
-    return f"https://github.com/{full_name}"
+    Packet B2: thin alias; the semantic authority is
+    ``scripts.r3_cb01_corpus_construction.canonical_repository_url``.
+    """
+
+    return _cb01.canonical_repository_url(full_name)
 
 
 def selection_key(
     repository_url: str, baseline_commit: str, candidate_commit: str, path: str
 ) -> str:
-    """Compute the preregistered deterministic public-case selection key."""
+    """Compute the preregistered deterministic public-case selection key.
 
-    material = f"{repository_url}\n{baseline_commit}\n{candidate_commit}\n{path}".encode()
-    return sha256_bytes(material)
+    Packet B2: thin alias; the semantic authority is
+    ``scripts.r3_cb01_corpus_construction.selection_key_for``.
+    """
+
+    return _cb01.selection_key_for(repository_url, baseline_commit, candidate_commit, path)
 
 
 def transition_id(
     repository_url: str, baseline_commit: str, candidate_commit: str, path: str
 ) -> str:
-    """Return a stable identifier that is independent of discovery order."""
+    """Return a stable identifier that is independent of discovery order.
 
-    return "gh-" + selection_key(repository_url, baseline_commit, candidate_commit, path)[:20]
+    Packet B2: thin alias; the semantic authority is
+    ``scripts.r3_cb01_corpus_construction.transition_id_for``.
+    """
+
+    return _cb01.transition_id_for(repository_url, baseline_commit, candidate_commit, path)
+
+
+def _repo_root() -> Path:
+    """Return the study repository root without modifying repository state."""
+
+    return Path(__file__).resolve().parents[1]
+
+
+def _load_contract_bytes(
+    contract_path: Path | None = None,
+) -> tuple[dict[str, Any], bytes]:
+    """Load exact CB-01 contract bytes; hashing must use these exact bytes."""
+
+    path = contract_path or DEFAULT_CB01_CONTRACT_PATH
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise DiscoveryError(f"failed to read CB-01 contract {path}: {exc}") from exc
+    try:
+        contract = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise DiscoveryError(f"CB-01 contract is not valid JSON: {path}: {exc}") from exc
+    if not isinstance(contract, dict):
+        raise DiscoveryError(f"CB-01 contract must contain a JSON object: {path}")
+    try:
+        _cb01.validate_contract_binding(contract, raw)
+    except _cb01.CB01ConstructionError as exc:
+        raise DiscoveryError(f"invalid CB-01 contract: {exc}") from exc
+    return contract, raw
+
+
+def _study_repository_commit(repo_root: Path | None = None) -> str:
+    """Record ``git rev-parse HEAD`` for a clean tree; fail closed otherwise."""
+
+    root = repo_root or _repo_root()
+    git = shutil.which("git")
+    if git is None:
+        raise DiscoveryError("cannot record clean study repository commit: git not found")
+    try:
+        head = subprocess.check_output(
+            [git, "rev-parse", "HEAD"],
+            cwd=str(root),
+            stderr=subprocess.STDOUT,
+            text=True,
+        ).strip()
+        status = subprocess.check_output(
+            [git, "status", "--porcelain", "--untracked-files=all"],
+            cwd=str(root),
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as exc:
+        raise DiscoveryError(f"cannot record clean study repository commit: {exc}") from exc
+    if status.strip():
+        raise DiscoveryError("study repository tree is dirty; refuse to record study commit")
+    if re.fullmatch(r"[0-9a-f]{40}", head) is None:
+        raise DiscoveryError("study repository commit is not a lowercase 40-hex SHA")
+    return head
 
 
 def _query_terms(concept: str) -> str:
@@ -418,15 +492,23 @@ def _candidate_parent_count(client: GitHubClient, repository: str, commit: str) 
 
 
 def _control_status(
-    repository_url: str, baseline_commit: str, candidate_commit: str, path: str
+    repository_url: str,
+    baseline_commit: str,
+    candidate_commit: str,
+    path: str,
+    contract: Mapping[str, Any],
 ) -> str:
-    key = (repository_url, baseline_commit, candidate_commit, path)
-    return "pre_exposed_engineering_control" if key in PRE_EXPOSED_CONTROLS else "clean"
+    """Recompute contamination from the CB-01 contract register (never trust stored)."""
+
+    return _cb01.contamination_status_for(
+        repository_url, baseline_commit, candidate_commit, path, contract
+    )
 
 
 def enumerate_transitions(
     client: GitHubClient,
     locations: Sequence[Mapping[str, Any]],
+    contract: Mapping[str, Any],
     *,
     max_history_commits: int | None,
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -486,7 +568,9 @@ def enumerate_transitions(
                 else:
                     permissions_changed = _permissions_changed(baseline_json, candidate_json)
 
-            contamination = _control_status(repository_url, baseline_commit, candidate_commit, path)
+            contamination = _control_status(
+                repository_url, baseline_commit, candidate_commit, path, contract
+            )
             if contamination == "pre_exposed_engineering_control":
                 screening_status = "excluded"
                 if "pre_exposed_engineering_control" not in exclusion_reasons:
@@ -494,7 +578,7 @@ def enumerate_transitions(
 
             transitions.append(
                 {
-                    "transition_id": transition_id(
+                    "transition_id": _cb01.transition_id_for(
                         repository_url, baseline_commit, candidate_commit, path
                     ),
                     "discovered_by": location.get("discovered_by", []),
@@ -521,7 +605,7 @@ def enumerate_transitions(
                     "screening_status": screening_status,
                     "exclusion_reasons": sorted(set(exclusion_reasons)),
                     "contamination_status": contamination,
-                    "selection_key": selection_key(
+                    "selection_key": _cb01.selection_key_for(
                         repository_url, baseline_commit, candidate_commit, path
                     ),
                     "manual_review_required": screening_status == "pending",
@@ -532,21 +616,38 @@ def enumerate_transitions(
     return transitions, complete
 
 
-def build_ledger(client: GitHubClient, *, max_history_commits: int | None = None) -> dict[str, Any]:
-    """Collect a discovery ledger without executing PermitDiff."""
+def build_ledger(
+    client: GitHubClient,
+    contract: Mapping[str, Any],
+    contract_bytes: bytes,
+    study_repository_commit: str,
+    *,
+    max_history_commits: int | None = None,
+) -> dict[str, Any]:
+    """Collect a raw public discovery v2 ledger without executing PermitDiff."""
 
+    try:
+        _cb01.validate_contract_binding(contract, contract_bytes)
+    except _cb01.CB01ConstructionError as exc:
+        raise DiscoveryError(f"invalid CB-01 contract: {exc}") from exc
+    if re.fullmatch(r"[0-9a-f]{40}", study_repository_commit) is None:
+        raise DiscoveryError("study repository commit is not a lowercase 40-hex SHA")
     started_at = utc_now()
     locations, queries, search_complete = discover_locations(client)
     transitions, history_complete = enumerate_transitions(
-        client, locations, max_history_commits=max_history_commits
+        client, locations, contract, max_history_commits=max_history_commits
     )
     complete = search_complete and history_complete
     return {
-        "schema_version": LEDGER_SCHEMA_VERSION,
+        "schema_version": RAW_LEDGER_SCHEMA_VERSION,
         "plan_version": PLAN_VERSION,
         "protocol_version": PROTOCOL_VERSION,
-        "generated_at": started_at,
+        "cb01_contract_version": CB01_CONTRACT_VERSION,
+        "cb01_contract_sha256": _cb01.sha256_bytes(contract_bytes),
+        "study_repository_commit": study_repository_commit,
+        "producer_id": CANONICAL_PUBLIC_PRODUCER_ID,
         "source": "github-rest-code-search-and-commit-history",
+        "generated_at": started_at,
         "discovery_complete": complete,
         "limitations": [
             "GitHub code search discovers paths indexed on repository default branches; deleted or "
@@ -641,7 +742,8 @@ def select_public_historical(
             )
         ):
             raise DiscoveryError(
-                f"eligible transition lacks immutable artifact provenance for {item.get('transition_id')}"
+                "eligible transition lacks immutable artifact provenance for "
+                f"{item.get('transition_id')}"
             )
         expected_key = selection_key(
             str(item["repository_url"]),
@@ -719,6 +821,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=int,
         help="debug-only cap per path; any cap reached marks the ledger incomplete",
     )
+    discover.add_argument(
+        "--contract",
+        type=Path,
+        default=None,
+        help="CB-01 contract file; defaults to the committed contract",
+    )
+    discover.add_argument(
+        "--study-commit",
+        type=str,
+        default=None,
+        help="study repository commit; defaults to clean git rev-parse HEAD",
+    )
 
     select = subparsers.add_parser("select", help="select from a fully screened ledger")
     select.add_argument("--ledger", type=Path, required=True)
@@ -731,8 +845,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "discover":
             if args.max_history_commits is not None and args.max_history_commits < 2:
                 raise DiscoveryError("--max-history-commits must be at least 2")
+            contract, contract_bytes = _load_contract_bytes(args.contract)
+            study_commit = args.study_commit or _study_repository_commit()
             ledger = build_ledger(
                 GitHubClient(_resolve_token()),
+                contract,
+                contract_bytes,
+                study_commit,
                 max_history_commits=args.max_history_commits,
             )
             _write_json(args.output, ledger)
