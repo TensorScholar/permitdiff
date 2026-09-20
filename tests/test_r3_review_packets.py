@@ -12,7 +12,7 @@ from scripts.build_r3_blinded_review_packets import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization.schema.json"
+MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization-v2.schema.json"
 CONTEXT_SCHEMA = ROOT / "docs" / "r3-review-context.schema.json"
 PACKET_SET_SCHEMA = ROOT / "docs" / "r3-review-packet-set.schema.json"
 
@@ -34,10 +34,12 @@ def _materialization(root: Path) -> Path:
     (case_root / "baseline.json").write_bytes(baseline)
     (case_root / "candidate.json").write_bytes(candidate)
     index = {
-        "schema_version": "permitdiff.dev/r3-public-materialization/v1",
+        "schema_version": "permitdiff.dev/r3-public-materialization/v2",
         "plan_version": "r3-exploratory-corpus-plan-v1",
         "protocol_version": "r3-benchmark-protocol-v1",
         "source_selection_sha256": "9" * 64,
+        "source_cb01_lineage_sha256": "b" * 64,
+        "study_repository_commit": "1" * 40,
         "generated_at": "2026-09-01T00:00:00Z",
         "selected_case_count": 1,
         "cases": [
@@ -255,3 +257,39 @@ def test_build_review_packets_refuses_to_overwrite_packet_directory(tmp_path) ->
             CONTEXT_SCHEMA,
             PACKET_SET_SCHEMA,
         )
+
+
+# ---------------------------------------------------------------------------
+# Packet C — materialization v2 + lineage/study gates (synthetic, no network)
+# ---------------------------------------------------------------------------
+
+
+def test_packet_c_rejects_v1_materialization(tmp_path) -> None:
+    materialization_path = _materialization(tmp_path / "source")
+    index = json.loads(materialization_path.read_text(encoding="utf-8"))
+    index["schema_version"] = "permitdiff.dev/r3-public-materialization/v1"
+    del index["source_cb01_lineage_sha256"]
+    del index["study_repository_commit"]
+    materialization_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(
+        ReviewPacketError, match=r"schema validation failed|unsupported public materialization"
+    ):
+        prepare_context(materialization_path, MATERIALIZATION_SCHEMA)
+
+
+def test_packet_c_rejects_malformed_lineage_digest(tmp_path) -> None:
+    materialization_path = _materialization(tmp_path / "source")
+    index = json.loads(materialization_path.read_text(encoding="utf-8"))
+    index["source_cb01_lineage_sha256"] = "not-a-digest"
+    materialization_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(ReviewPacketError, match=r"schema validation failed|invalid"):
+        prepare_context(materialization_path, MATERIALIZATION_SCHEMA)
+
+
+def test_packet_c_rejects_malformed_study_commit(tmp_path) -> None:
+    materialization_path = _materialization(tmp_path / "source")
+    index = json.loads(materialization_path.read_text(encoding="utf-8"))
+    index["study_repository_commit"] = "Z" * 40
+    materialization_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(ReviewPacketError, match=r"schema validation failed|invalid"):
+        prepare_context(materialization_path, MATERIALIZATION_SCHEMA)

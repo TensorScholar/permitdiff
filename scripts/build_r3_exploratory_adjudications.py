@@ -16,7 +16,18 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 from scripts.build_r3_blinded_review_packets import REVIEW_PACKET_SET_SCHEMA_VERSION
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
-from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
+from scripts.materialize_r3_public_selection import MATERIALIZATION_V2_SCHEMA_VERSION
+
+
+def _require_hex_field(value: Any, *, length: int, field: str) -> None:
+    """Require a lowercase hex digest field (Packet C lineage/study binding)."""
+
+    if (
+        not isinstance(value, str)
+        or len(value) != length
+        or any(char not in "0123456789abcdef" for char in value)
+    ):
+        raise AdjudicationError(f"materialization has an invalid {field}")
 
 ADJUDICATION_SCHEMA_VERSION = "permitdiff.dev/r3-adjudications/v2"
 MANIFEST_SCHEMA_VERSION = "permitdiff.dev/r3-benchmark-case-manifest/v2"
@@ -311,12 +322,22 @@ def build_manifest(
         materialization_path, label="public materialization"
     )
     _validate_schema(materialization, materialization_schema_path, label="public materialization")
-    if materialization.get("schema_version") != MATERIALIZATION_SCHEMA_VERSION:
+    if materialization.get("schema_version") != MATERIALIZATION_V2_SCHEMA_VERSION:
         raise AdjudicationError("unsupported materialization schema version")
     if materialization.get("plan_version") != PLAN_VERSION:
         raise AdjudicationError("materialization plan version mismatch")
     if materialization.get("protocol_version") != PROTOCOL_VERSION:
         raise AdjudicationError("materialization protocol version mismatch")
+    _require_hex_field(
+        materialization.get("source_cb01_lineage_sha256"),
+        length=64,
+        field="source_cb01_lineage_sha256",
+    )
+    _require_hex_field(
+        materialization.get("study_repository_commit"),
+        length=40,
+        field="study_repository_commit",
+    )
 
     packet_set, packet_bytes = _read_json_object_bytes(
         review_packet_set_path, label="review packet set"
@@ -438,7 +459,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     build.add_argument(
         "--materialization-schema",
         type=Path,
-        default=root / "docs" / "r3-public-materialization.schema.json",
+        default=root / "docs" / "r3-public-materialization-v2.schema.json",
     )
     build.add_argument(
         "--packet-schema",

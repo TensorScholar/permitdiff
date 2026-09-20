@@ -15,17 +15,18 @@ from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
-from scripts.discover_r3_benchmark_candidates import select_public_historical
+from scripts.discover_r3_benchmark_candidates import (
+    DiscoveryError,
+    select_public_historical,
+)
 from scripts.lock_r3_exploratory_corpus import PreExecutionLockError
 from scripts.lock_r3_exploratory_corpus_v2 import create_complete_pre_execution_lock
 from scripts.r3_documentation_snapshots import documentation_set_digest, validate_manifest
 from scripts.r3_execution_environment import load_lock as load_environment_lock
 from scripts.r3_execution_environment import validate_source_artifacts
 from scripts.r3_pre_discovery_contract import (
-    MAX_CASES_PER_REPOSITORY,
     MINIMUM_CASES,
     TARGET_CASES,
-    validate_selection_shape,
 )
 from scripts.r3_review_assignment import validate_balance
 
@@ -209,21 +210,82 @@ def _primary_scenario_sha(case: Mapping[str, Any]) -> str | None:
     return str(artifact["sha256"])
 
 
-def _validate_selection(
-    ledger: dict[str, Any], selection: dict[str, Any], selection_bytes: bytes
-) -> None:
-    validate_selection_shape(selection)
-    expected = select_public_historical(
-        ledger,
-        target=TARGET_CASES,
-        max_per_repository=MAX_CASES_PER_REPOSITORY,
+def _read_contract_bytes(contract_path: Path | None = None) -> tuple[dict[str, Any], bytes]:
+    """Load exact CB-01 contract bytes; hashing must use these exact bytes."""
+
+    root = Path(__file__).resolve().parents[1]
+    path = contract_path or (
+        root
+        / "validation"
+        / "r3-benchmark"
+        / "exploratory"
+        / "cb01-corpus-construction-contract-v1.json"
     )
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise V3LockError(f"failed to read CB-01 contract {path}: {exc}") from exc
+    try:
+        contract = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise V3LockError(f"CB-01 contract is not valid JSON: {path}: {exc}") from exc
+    if not isinstance(contract, dict):
+        raise V3LockError(f"CB-01 contract must contain a JSON object: {path}")
+    return contract, raw
+
+
+def _validate_selection(
+    ledger: dict[str, Any],
+    ledger_bytes: bytes,
+    selection: dict[str, Any],
+    selection_bytes: bytes,
+    contract: dict[str, Any],
+    contract_bytes: bytes,
+) -> None:
+    # Packet C: v1 shape validation (target_cases/eligible_case_count) cannot
+    # apply to selection v2. The adopted CB-01 amendment supersedes count
+    # definitions (viability on SELECTED_CASE_COUNT); the derive-equality and
+    # minimum checks below enforce the frozen 18/2/12 invariants strictly.
+    try:
+        expected = select_public_historical(
+            ledger, ledger_bytes, contract, contract_bytes
+        )
+    except (DiscoveryError, ValueError, KeyError) as exc:
+        raise V3LockError(f"selection derivation failed: {exc}") from exc
     if expected != selection:
         raise V3LockError("selection is not the exact frozen deterministic selection")
-    if selection["eligible_case_count"] < MINIMUM_CASES:
+    if selection["selected_case_count"] < MINIMUM_CASES:
         raise V3LockError("natural corpus is below the frozen minimum viable count")
     if not selection_bytes.endswith(b"\n"):
         raise V3LockError("selection artifact must use canonical newline-terminated JSON evidence")
+
+
+def _validate_lineage_binding(
+    *,
+    selection: Mapping[str, Any],
+    selection_bytes: bytes,
+    lineage: Mapping[str, Any],
+    lineage_bytes: bytes,
+    materialization: Mapping[str, Any],
+) -> None:
+    """Verify materialization↔selection↔lineage digest and study binding (pure).
+
+    Packet C hardening: extracted verbatim from ``create_v3_lock`` so the
+    binding logic is unit-testable without a git repository. No semantics
+    changed: exact-byte digests, study equality across all three artifacts.
+    """
+
+    if materialization.get("source_selection_sha256") != _sha256(selection_bytes):
+        raise V3LockError("materialization is not bound to the exact selection bytes")
+    if materialization.get("source_cb01_lineage_sha256") != _sha256(lineage_bytes):
+        raise V3LockError("materialization is not bound to the exact lineage bytes")
+    for label, payload in (
+        ("selection", selection),
+        ("lineage", lineage),
+        ("materialization", materialization),
+    ):
+        if payload.get("study_repository_commit") != selection.get("study_repository_commit"):
+            raise V3LockError(f"{label} study commit does not match selection")
 
 
 def create_v3_lock(
@@ -231,6 +293,7 @@ def create_v3_lock(
     repo: Path,
     screened_ledger_path: Path,
     selection_path: Path,
+    lineage_path: Path,
     manifest_path: Path,
     materialization_path: Path,
     review_packet_set_path: Path,
@@ -245,6 +308,7 @@ def create_v3_lock(
     hardening_contract_path: Path,
     product_wheel_path: Path,
     output_path: Path,
+    contract_path: Path | None = None,
 ) -> dict[str, Any]:
     """Validate all pre-result contracts and return deterministic v3 lock content."""
 
@@ -252,13 +316,20 @@ def create_v3_lock(
     head = _assert_clean_repo(repo)
     methodology = _methodology_digests(repo, head)
 
+    contract, contract_bytes = _read_contract_bytes(contract_path)
     ledger, ledger_bytes = _read_json(screened_ledger_path, "screened discovery ledger")
     selection, selection_bytes = _read_json(selection_path, "public selection")
-    _validate_selection(ledger, selection, selection_bytes)
+    _validate_selection(ledger, ledger_bytes, selection, selection_bytes, contract, contract_bytes)
 
+    lineage, lineage_bytes = _read_json(lineage_path, "CB-01 lineage")
     materialization, materialization_bytes = _read_json(materialization_path, "materialization")
-    if materialization.get("source_selection_sha256") != _sha256(selection_bytes):
-        raise V3LockError("materialization is not bound to the exact selection bytes")
+    _validate_lineage_binding(
+        selection=selection,
+        selection_bytes=selection_bytes,
+        lineage=lineage,
+        lineage_bytes=lineage_bytes,
+        materialization=materialization,
+    )
 
     with tempfile.TemporaryDirectory(prefix="r3-v3-v2-validation-") as temp:
         root = repo
@@ -271,7 +342,7 @@ def create_v3_lock(
             scenario_channel_set_path=scenario_channel_set_path,
             output_dir=Path(temp) / "v2",
             manifest_schema_path=root / "docs/r3-benchmark-case-manifest-v2.schema.json",
-            materialization_schema_path=root / "docs/r3-public-materialization.schema.json",
+            materialization_schema_path=root / "docs/r3-public-materialization-v2.schema.json",
             packet_schema_path=root / "docs/r3-review-packet-set.schema.json",
             adjudication_schema_path=root / "docs/r3-adjudications.schema.json",
             measurement_contract_schema_path=root / "docs/r3-measurement-contract.schema.json",
@@ -470,6 +541,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--repo", type=Path, default=root)
     parser.add_argument("--screened-ledger", type=Path, required=True)
     parser.add_argument("--selection", type=Path, required=True)
+    parser.add_argument("--lineage", type=Path, required=True)
+    parser.add_argument(
+        "--contract",
+        type=Path,
+        default=None,
+        help="CB-01 contract file; defaults to the committed contract",
+    )
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--materialization", type=Path, required=True)
     parser.add_argument("--review-packets", type=Path, required=True)
@@ -508,6 +586,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             repo=args.repo,
             screened_ledger_path=args.screened_ledger,
             selection_path=args.selection,
+            lineage_path=args.lineage,
+            contract_path=args.contract,
             manifest_path=args.manifest,
             materialization_path=args.materialization,
             review_packet_set_path=args.review_packets,

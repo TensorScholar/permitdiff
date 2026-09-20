@@ -12,7 +12,7 @@ from scripts.build_r3_scenario_channels import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization.schema.json"
+MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization-v2.schema.json"
 SCENARIO_SCHEMA = ROOT / "docs" / "r3-scenario-channel-set.schema.json"
 
 
@@ -34,10 +34,12 @@ def _materialization(root: Path) -> Path:
     (case_root / "baseline.json").write_bytes(baseline)
     (case_root / "candidate.json").write_bytes(candidate)
     payload = {
-        "schema_version": "permitdiff.dev/r3-public-materialization/v1",
+        "schema_version": "permitdiff.dev/r3-public-materialization/v2",
         "plan_version": "r3-exploratory-corpus-plan-v1",
         "protocol_version": "r3-benchmark-protocol-v1",
         "source_selection_sha256": "a" * 64,
+        "source_cb01_lineage_sha256": "d" * 64,
+        "study_repository_commit": "3" * 40,
         "generated_at": "2026-09-01T00:00:00Z",
         "selected_case_count": 1,
         "cases": [
@@ -269,3 +271,36 @@ def test_tampered_scenario_artifact_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ScenarioChannelError, match="SHA-256 mismatch"):
         _validate(materialization, scenario_path)
+
+
+# ---------------------------------------------------------------------------
+# Packet C — materialization v2 + lineage/study gates (synthetic, no network)
+# ---------------------------------------------------------------------------
+
+
+def test_packet_c_rejects_v1_materialization(tmp_path: Path) -> None:
+    root = tmp_path / "corpus"
+    materialization = _materialization(root)
+    index = json.loads(materialization.read_bytes())
+    index["schema_version"] = "permitdiff.dev/r3-public-materialization/v1"
+    del index["source_cb01_lineage_sha256"]
+    del index["study_repository_commit"]
+    materialization.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(
+        ScenarioChannelError, match=r"schema validation failed|unsupported materialization"
+    ):
+        prepare_scenario_channels(materialization, MATERIALIZATION_SCHEMA)
+
+
+def test_packet_c_rejects_malformed_lineage_or_study(tmp_path: Path) -> None:
+    for field, bad in (
+        ("source_cb01_lineage_sha256", "not-a-digest"),
+        ("study_repository_commit", "Z" * 40),
+    ):
+        root = tmp_path / field
+        materialization = _materialization(root)
+        index = json.loads(materialization.read_bytes())
+        index[field] = bad
+        materialization.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+        with pytest.raises(ScenarioChannelError, match=r"schema validation failed|invalid"):
+            prepare_scenario_channels(materialization, MATERIALIZATION_SCHEMA)

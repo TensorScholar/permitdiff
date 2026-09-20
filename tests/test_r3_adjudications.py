@@ -12,7 +12,7 @@ from scripts.build_r3_exploratory_adjudications import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization.schema.json"
+MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization-v2.schema.json"
 PACKET_SCHEMA = ROOT / "docs" / "r3-review-packet-set.schema.json"
 ADJUDICATION_SCHEMA = ROOT / "docs" / "r3-adjudications.schema.json"
 LEGACY_MANIFEST_SCHEMA = ROOT / "docs" / "r3-benchmark-case-manifest.schema.json"
@@ -38,10 +38,12 @@ def _fixtures(root: Path) -> tuple[Path, Path]:
     (cases / "candidate.json").write_bytes(candidate)
 
     materialization = {
-        "schema_version": "permitdiff.dev/r3-public-materialization/v1",
+        "schema_version": "permitdiff.dev/r3-public-materialization/v2",
         "plan_version": "r3-exploratory-corpus-plan-v1",
         "protocol_version": "r3-benchmark-protocol-v1",
         "source_selection_sha256": "a" * 64,
+        "source_cb01_lineage_sha256": "c" * 64,
+        "study_repository_commit": "2" * 40,
         "generated_at": "2026-09-01T00:00:00Z",
         "selected_case_count": 1,
         "cases": [
@@ -197,6 +199,48 @@ def _build(
         manifest_schema_path=MANIFEST_V2_SCHEMA,
         corpus_id="r3-exploratory-public-historical-v1",
     )
+
+
+# ---------------------------------------------------------------------------
+# Packet C — materialization v2 + lineage/study gates (synthetic, no network)
+# ---------------------------------------------------------------------------
+
+
+def _packet_c_manifest_paths(
+    tmp_path: Path, label: str
+) -> tuple[Path, Path, Path, Path]:
+    corpus = tmp_path / label
+    materialization_path, packet_path = _fixtures(corpus)
+    adjudications_path = _decided(packet_path, tmp_path)
+    return materialization_path, packet_path, adjudications_path, corpus / "manifest.json"
+
+
+def test_packet_c_rejects_v1_materialization(tmp_path: Path) -> None:
+    materialization_path, packet_path, adjudications_path, output = _packet_c_manifest_paths(
+        tmp_path, "corpus"
+    )
+    index = json.loads(materialization_path.read_text(encoding="utf-8"))
+    index["schema_version"] = "permitdiff.dev/r3-public-materialization/v1"
+    del index["source_cb01_lineage_sha256"]
+    del index["study_repository_commit"]
+    materialization_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(AdjudicationError, match=r"schema validation failed|unsupported"):
+        _build(materialization_path, packet_path, adjudications_path, output)
+
+
+def test_packet_c_rejects_malformed_lineage_or_study(tmp_path: Path) -> None:
+    for field, bad in (
+        ("source_cb01_lineage_sha256", "not-a-digest"),
+        ("study_repository_commit", "Z" * 40),
+    ):
+        materialization_path, packet_path, adjudications_path, output = (
+            _packet_c_manifest_paths(tmp_path, field)
+        )
+        index = json.loads(materialization_path.read_text(encoding="utf-8"))
+        index[field] = bad
+        materialization_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+        with pytest.raises(AdjudicationError, match=r"schema validation failed|invalid"):
+            _build(materialization_path, packet_path, adjudications_path, output)
 
 
 def test_prepare_adjudications_is_bound_multidimensional_and_output_blind(tmp_path: Path) -> None:

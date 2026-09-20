@@ -23,10 +23,21 @@ from scripts.build_r3_exploratory_adjudications import (
     MEASUREMENT_CONTRACT_VERSION,
 )
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
-from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
+from scripts.materialize_r3_public_selection import MATERIALIZATION_V2_SCHEMA_VERSION
 from scripts.validate_r3_benchmark_manifest import validate_manifest
 
 LOCK_SCHEMA_VERSION = "permitdiff.dev/r3-pre-execution-lock/v1"
+
+
+def _require_hex_field(value: Any, *, length: int, field: str) -> None:
+    """Require a lowercase hex digest field (Packet C lineage/study binding)."""
+
+    if (
+        not isinstance(value, str)
+        or len(value) != length
+        or any(char not in "0123456789abcdef" for char in value)
+    ):
+        raise PreExecutionLockError(f"materialization has an invalid {field}")
 
 _FORBIDDEN_PRODUCT_OUTPUT_NAMES = {
     "permitdiff-result.json",
@@ -159,8 +170,18 @@ def _validate_linkage(
     materialization_bytes: bytes,
     packet_bytes: bytes,
 ) -> int:
-    if materialization.get("schema_version") != MATERIALIZATION_SCHEMA_VERSION:
+    if materialization.get("schema_version") != MATERIALIZATION_V2_SCHEMA_VERSION:
         raise PreExecutionLockError("unsupported materialization schema version")
+    _require_hex_field(
+        materialization.get("source_cb01_lineage_sha256"),
+        length=64,
+        field="source_cb01_lineage_sha256",
+    )
+    _require_hex_field(
+        materialization.get("study_repository_commit"),
+        length=40,
+        field="study_repository_commit",
+    )
     if packet_set.get("schema_version") != REVIEW_PACKET_SET_SCHEMA_VERSION:
         raise PreExecutionLockError("unsupported review packet set schema version")
     if adjudications.get("schema_version") != ADJUDICATION_SCHEMA_VERSION:
@@ -335,7 +356,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--materialization-schema",
         type=Path,
-        default=root / "docs" / "r3-public-materialization.schema.json",
+        default=root / "docs" / "r3-public-materialization-v2.schema.json",
     )
     parser.add_argument(
         "--packet-schema",

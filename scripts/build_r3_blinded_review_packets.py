@@ -18,7 +18,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
-from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
+from scripts.materialize_r3_public_selection import MATERIALIZATION_V2_SCHEMA_VERSION
 
 REVIEW_CONTEXT_SCHEMA_VERSION = "permitdiff.dev/r3-review-context/v1"
 REVIEW_PACKET_SET_SCHEMA_VERSION = "permitdiff.dev/r3-review-packet-set/v2"
@@ -123,13 +123,30 @@ def _validate_schema(payload: dict[str, Any], schema_path: Path, *, label: str) 
         )
 
 
+def _require_hex_field(value: Any, *, length: int, field: str) -> None:
+    """Require a lowercase hex digest field (Packet C lineage/study binding)."""
+
+    if (
+        not isinstance(value, str)
+        or len(value) != length
+        or any(char not in "0123456789abcdef" for char in value)
+    ):
+        raise ReviewPacketError(f"materialization has an invalid {field}")
+
+
 def _validate_materialization(index: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    if index.get("schema_version") != MATERIALIZATION_SCHEMA_VERSION:
+    if index.get("schema_version") != MATERIALIZATION_V2_SCHEMA_VERSION:
         raise ReviewPacketError("unsupported public materialization schema version")
     if index.get("plan_version") != PLAN_VERSION:
         raise ReviewPacketError("materialization plan version mismatch")
     if index.get("protocol_version") != PROTOCOL_VERSION:
         raise ReviewPacketError("materialization protocol version mismatch")
+    _require_hex_field(
+        index.get("source_cb01_lineage_sha256"), length=64, field="source_cb01_lineage_sha256"
+    )
+    _require_hex_field(
+        index.get("study_repository_commit"), length=40, field="study_repository_commit"
+    )
     raw_cases = index.get("cases")
     if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
         raise ReviewPacketError("materialization cases must contain only objects")
@@ -475,7 +492,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare.add_argument(
         "--materialization-schema",
         type=Path,
-        default=root / "docs" / "r3-public-materialization.schema.json",
+        default=root / "docs" / "r3-public-materialization-v2.schema.json",
     )
 
     build = subparsers.add_parser("build", help="build self-contained blinded packets")
@@ -485,7 +502,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     build.add_argument(
         "--materialization-schema",
         type=Path,
-        default=root / "docs" / "r3-public-materialization.schema.json",
+        default=root / "docs" / "r3-public-materialization-v2.schema.json",
     )
     build.add_argument(
         "--context-schema",

@@ -15,7 +15,18 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 from scripts.discover_r3_benchmark_candidates import PLAN_VERSION, PROTOCOL_VERSION
-from scripts.materialize_r3_public_selection import MATERIALIZATION_SCHEMA_VERSION
+from scripts.materialize_r3_public_selection import MATERIALIZATION_V2_SCHEMA_VERSION
+
+
+def _require_hex_field(value: Any, *, length: int, field: str) -> None:
+    """Require a lowercase hex digest field (Packet C lineage/study binding)."""
+
+    if (
+        not isinstance(value, str)
+        or len(value) != length
+        or any(char not in "0123456789abcdef" for char in value)
+    ):
+        raise ScenarioChannelError(f"materialization has an invalid {field}")
 
 SCENARIO_CHANNEL_SET_SCHEMA_VERSION = "permitdiff.dev/r3-scenario-channel-set/v1"
 MEASUREMENT_CONTRACT_VERSION = "r3-exploratory-measurement-contract-v2"
@@ -95,12 +106,22 @@ def _validate_materialization(
     materialization: Mapping[str, Any], materialization_schema_path: Path
 ) -> list[Mapping[str, Any]]:
     _validate_schema(dict(materialization), materialization_schema_path, label="materialization")
-    if materialization.get("schema_version") != MATERIALIZATION_SCHEMA_VERSION:
+    if materialization.get("schema_version") != MATERIALIZATION_V2_SCHEMA_VERSION:
         raise ScenarioChannelError("unsupported materialization schema version")
     if materialization.get("plan_version") != PLAN_VERSION:
         raise ScenarioChannelError("materialization plan version mismatch")
     if materialization.get("protocol_version") != PROTOCOL_VERSION:
         raise ScenarioChannelError("materialization protocol version mismatch")
+    _require_hex_field(
+        materialization.get("source_cb01_lineage_sha256"),
+        length=64,
+        field="source_cb01_lineage_sha256",
+    )
+    _require_hex_field(
+        materialization.get("study_repository_commit"),
+        length=40,
+        field="study_repository_commit",
+    )
 
     raw_cases = materialization.get("cases")
     if not isinstance(raw_cases, list) or not all(isinstance(case, Mapping) for case in raw_cases):
@@ -368,7 +389,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare.add_argument(
         "--materialization-schema",
         type=Path,
-        default=root / "docs" / "r3-public-materialization.schema.json",
+        default=root / "docs" / "r3-public-materialization-v2.schema.json",
     )
 
     validate = subparsers.add_parser("validate", help="validate frozen scenario channels")
@@ -378,7 +399,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate.add_argument(
         "--materialization-schema",
         type=Path,
-        default=root / "docs" / "r3-public-materialization.schema.json",
+        default=root / "docs" / "r3-public-materialization-v2.schema.json",
     )
     validate.add_argument(
         "--scenario-schema",

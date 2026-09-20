@@ -12,7 +12,7 @@ from scripts.lock_r3_exploratory_corpus import (
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_SCHEMA = ROOT / "docs" / "r3-benchmark-case-manifest-v2.schema.json"
-MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization.schema.json"
+MATERIALIZATION_SCHEMA = ROOT / "docs" / "r3-public-materialization-v2.schema.json"
 PACKET_SCHEMA = ROOT / "docs" / "r3-review-packet-set.schema.json"
 ADJUDICATION_SCHEMA = ROOT / "docs" / "r3-adjudications.schema.json"
 LOCK_SCHEMA = ROOT / "docs" / "r3-pre-execution-lock.schema.json"
@@ -58,10 +58,12 @@ def _fixture(root: Path) -> tuple[Path, Path, Path, Path]:
     }
 
     materialization = {
-        "schema_version": "permitdiff.dev/r3-public-materialization/v1",
+        "schema_version": "permitdiff.dev/r3-public-materialization/v2",
         "plan_version": "r3-exploratory-corpus-plan-v1",
         "protocol_version": "r3-benchmark-protocol-v1",
         "source_selection_sha256": "e" * 64,
+        "source_cb01_lineage_sha256": "f" * 64,
+        "study_repository_commit": "4" * 40,
         "generated_at": "2026-09-01T00:00:00Z",
         "selected_case_count": 1,
         "cases": [
@@ -351,3 +353,65 @@ def test_pre_execution_lock_refuses_overwrite(tmp_path: Path) -> None:
             adjudication_schema_path=ADJUDICATION_SCHEMA,
             lock_schema_path=LOCK_SCHEMA,
         )
+
+
+# ---------------------------------------------------------------------------
+# Packet C — materialization v2 + lineage/study gates (synthetic, no network)
+# ---------------------------------------------------------------------------
+
+
+def _packet_c_mutated_index(root: Path, mutate) -> tuple[Path, Path]:
+    _, materialization, _, _ = _fixture(root)
+    index = json.loads(materialization.read_text(encoding="utf-8"))
+    mutate(index)
+    materialization.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+    return materialization, root / "pre-execution-lock-v1"
+
+
+def _packet_c_lock(materialization: Path, output: Path) -> None:
+    root = materialization.parent
+    manifest = root / "manifest.json"
+    packet = root / "review-packets.json"
+    adjudications = root / "adjudications.json"
+    create_pre_execution_lock(
+        manifest_path=manifest,
+        materialization_path=materialization,
+        review_packet_set_path=packet,
+        adjudications_path=adjudications,
+        output_dir=output,
+        manifest_schema_path=MANIFEST_SCHEMA,
+        materialization_schema_path=MATERIALIZATION_SCHEMA,
+        packet_schema_path=PACKET_SCHEMA,
+        adjudication_schema_path=ADJUDICATION_SCHEMA,
+        lock_schema_path=LOCK_SCHEMA,
+    )
+
+
+def test_packet_c_rejects_v1_materialization(tmp_path: Path) -> None:
+    def _to_v1(index: dict) -> None:
+        index["schema_version"] = "permitdiff.dev/r3-public-materialization/v1"
+        del index["source_cb01_lineage_sha256"]
+        del index["study_repository_commit"]
+
+    root = tmp_path / "corpus"
+    materialization, output = _packet_c_mutated_index(root, _to_v1)
+    with pytest.raises(PreExecutionLockError, match=r"schema validation failed|unsupported"):
+        _packet_c_lock(materialization, output)
+    assert not output.exists()
+
+
+def test_packet_c_rejects_malformed_lineage_or_study(tmp_path: Path) -> None:
+    for field, bad in (
+        ("source_cb01_lineage_sha256", "not-a-digest"),
+        ("study_repository_commit", "Z" * 40),
+    ):
+        def _mutate(index: dict, field: str = field, bad: str = bad) -> None:
+            index[field] = bad
+
+        root = tmp_path / field
+        materialization, output = _packet_c_mutated_index(root, _mutate)
+        with pytest.raises(
+            PreExecutionLockError, match=r"schema validation failed|invalid"
+        ):
+            _packet_c_lock(materialization, output)
+        assert not output.exists()
