@@ -31,13 +31,19 @@ from scripts.discover_r3_benchmark_candidates import (
     DiscoveryError,
     GitHubClient,
     _load_contract_bytes,
-    _read_json,
+    _read_json_bytes,
     _resolve_token,
     _study_repository_commit,
     _write_json,
     build_ledger,
     build_search_specs,
     select_public_historical,
+)
+from scripts.r3_pre_discovery_contract import (
+    MAX_CASES_PER_REPOSITORY as FROZEN_CAP,
+)
+from scripts.r3_pre_discovery_contract import (
+    TARGET_CASES as FROZEN_TARGET,
 )
 
 _CODE_SEARCH_INTERVAL_SECONDS = 12.0
@@ -390,6 +396,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     select.add_argument("--output", type=Path, required=True)
     select.add_argument("--target", type=int, default=18)
     select.add_argument("--max-per-repository", type=int, default=2)
+    select.add_argument(
+        "--contract",
+        type=Path,
+        default=None,
+        help="CB-01 contract file; defaults to the committed contract",
+    )
 
     args = parser.parse_args(argv)
     client: PublicOnlyGitHubClient | None = None
@@ -428,13 +440,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
 
-        if args.target < 1 or args.max_per_repository < 1:
-            raise DiscoveryError("selection target and per-repository cap must be positive")
-        ledger = _read_json(args.ledger)
+        if args.target != FROZEN_TARGET:
+            raise DiscoveryError(
+                f"R3 selection target must remain exactly {FROZEN_TARGET}"
+            )
+        if args.max_per_repository != FROZEN_CAP:
+            raise DiscoveryError(
+                f"R3 per-repository cap must remain exactly {FROZEN_CAP}"
+            )
+        screened, screened_bytes = _read_json_bytes(args.ledger)
+        contract, contract_bytes = _load_contract_bytes(args.contract)
         result = select_public_historical(
-            ledger,
-            target=args.target,
-            max_per_repository=args.max_per_repository,
+            screened,
+            screened_bytes,
+            contract,
+            contract_bytes,
         )
         _write_json(args.output, result)
         return 0

@@ -19,8 +19,7 @@ import shutil
 import ssl
 import subprocess
 import sys
-from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from http.client import IncompleteRead, RemoteDisconnected
@@ -677,125 +676,41 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _validate_exclusion_reasons(transitions: Iterable[Mapping[str, Any]]) -> None:
-    for transition in transitions:
-        reasons = transition.get("exclusion_reasons", [])
-        if not isinstance(reasons, list) or not all(isinstance(reason, str) for reason in reasons):
-            raise DiscoveryError("ledger contains malformed exclusion reasons")
-        unknown = set(reasons) - FIXED_EXCLUSION_REASONS
-        if unknown:
-            raise DiscoveryError(
-                f"ledger uses non-preregistered exclusion reasons: {sorted(unknown)}"
-            )
+def _read_json_bytes(path: Path) -> tuple[dict[str, Any], bytes]:
+    """Read exact file bytes plus the parsed JSON object (no reserialization)."""
+
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise DiscoveryError(f"failed to read JSON {path}: {exc}") from exc
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise DiscoveryError(f"failed to read JSON {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise DiscoveryError(f"expected a JSON object in {path}")
+    return payload, raw
 
 
 def select_public_historical(
-    ledger: Mapping[str, Any], *, target: int = 18, max_per_repository: int = 2
+    screened: Mapping[str, Any],
+    screened_bytes: bytes,
+    contract: Mapping[str, Any],
+    contract_bytes: bytes,
 ) -> dict[str, Any]:
-    """Select eligible transitions strictly by the preregistered SHA-256 ordering."""
+    """Derive public selection v2 via the CB-01 single source of truth.
 
-    if target != TARGET_CASES:
-        raise DiscoveryError(
-            f"R3 selection target must remain exactly {TARGET_CASES}"
-        )
-    if max_per_repository != MAX_CASES_PER_REPOSITORY:
-        raise DiscoveryError(
-            f"R3 per-repository cap must remain exactly {MAX_CASES_PER_REPOSITORY}"
-        )
-    if ledger.get("schema_version") != LEDGER_SCHEMA_VERSION:
-        raise DiscoveryError("unsupported discovery ledger schema version")
-    if ledger.get("plan_version") != PLAN_VERSION:
-        raise DiscoveryError("ledger plan version does not match the preregistered plan")
-    if ledger.get("discovery_complete") is not True:
-        raise DiscoveryError("cannot select from an incomplete discovery ledger")
-    raw_transitions = ledger.get("transitions")
-    if not isinstance(raw_transitions, list):
-        raise DiscoveryError("ledger transitions must be a list")
-    transitions = [item for item in raw_transitions if isinstance(item, Mapping)]
-    if len(transitions) != len(raw_transitions):
-        raise DiscoveryError("ledger contains a non-object transition")
-    _validate_exclusion_reasons(transitions)
-    for item in transitions:
-        status = item.get("screening_status")
-        if status not in {"pending", "eligible", "excluded"}:
-            raise DiscoveryError(
-                f"ledger contains unsupported screening_status for {item.get('transition_id')}"
-            )
-        if status == "pending":
-            raise DiscoveryError(
-                "cannot select from a ledger with unresolved screening decisions"
-            )
+    Packet B4: thin wrapper around ``cb01.derive_selection_v2``. No
+    eligibility filtering, sorting, cap, truncation, key recomputation, or
+    digest logic lives here. Frozen target (18), cap (2), and minimum (12)
+    are enforced inside CB-01; below-minimum raises instead of returning a
+    canonical payload.
+    """
 
-    eligible: list[Mapping[str, Any]] = []
-    for item in transitions:
-        if item.get("screening_status") != "eligible":
-            continue
-        if item.get("contamination_status") != "clean":
-            raise DiscoveryError("eligible transition cannot be contaminated")
-        if any(
-            item.get(field) is None
-            for field in (
-                "baseline_blob",
-                "candidate_blob",
-                "baseline_sha256",
-                "candidate_sha256",
-            )
-        ):
-            raise DiscoveryError(
-                "eligible transition lacks immutable artifact provenance for "
-                f"{item.get('transition_id')}"
-            )
-        expected_key = selection_key(
-            str(item["repository_url"]),
-            str(item["baseline_commit"]),
-            str(item["candidate_commit"]),
-            str(item["path"]),
-        )
-        if item.get("selection_key") != expected_key:
-            raise DiscoveryError(f"selection key mismatch for {item.get('transition_id')}")
-        eligible.append(item)
-
-    eligible.sort(key=lambda item: str(item["selection_key"]))
-    selected: list[dict[str, Any]] = []
-    repo_counts: defaultdict[str, int] = defaultdict(int)
-    for item in eligible:
-        repository = str(item["repository_full_name"])
-        if repo_counts[repository] >= max_per_repository:
-            continue
-        selected.append(
-            {
-                "rank": len(selected) + 1,
-                "transition_id": item["transition_id"],
-                "repository_full_name": repository,
-                "repository_url": item["repository_url"],
-                "path": item["path"],
-                "baseline_commit": item["baseline_commit"],
-                "candidate_commit": item["candidate_commit"],
-                "baseline_blob": item["baseline_blob"],
-                "candidate_blob": item["candidate_blob"],
-                "baseline_sha256": item["baseline_sha256"],
-                "candidate_sha256": item["candidate_sha256"],
-                "selection_key": item["selection_key"],
-            }
-        )
-        repo_counts[repository] += 1
-        if len(selected) == target:
-            break
-
-    return {
-        "schema_version": SELECTION_SCHEMA_VERSION,
-        "plan_version": PLAN_VERSION,
-        "protocol_version": PROTOCOL_VERSION,
-        "source_ledger_sha256": sha256_bytes(
-            json.dumps(ledger, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ),
-        "target_cases": target,
-        "max_cases_per_repository": max_per_repository,
-        "eligible_case_count": len(eligible),
-        "selected_case_count": len(selected),
-        "shortfall": max(0, target - len(selected)),
-        "selected": selected,
-    }
+    try:
+        return _cb01.derive_selection_v2(screened, screened_bytes, contract, contract_bytes)
+    except _cb01.CB01ConstructionError as exc:
+        raise DiscoveryError(str(exc)) from exc
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -839,6 +754,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     select.add_argument("--output", type=Path, required=True)
     select.add_argument("--target", type=int, default=18)
     select.add_argument("--max-per-repository", type=int, default=2)
+    select.add_argument(
+        "--contract",
+        type=Path,
+        default=None,
+        help="CB-01 contract file; defaults to the committed contract",
+    )
 
     args = parser.parse_args(argv)
     try:
@@ -863,13 +784,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 2
             return 0
 
-        if args.target < 1 or args.max_per_repository < 1:
-            raise DiscoveryError("selection target and per-repository cap must be positive")
-        ledger = _read_json(args.ledger)
+        if args.target != TARGET_CASES:
+            raise DiscoveryError(
+                f"R3 selection target must remain exactly {TARGET_CASES}"
+            )
+        if args.max_per_repository != MAX_CASES_PER_REPOSITORY:
+            raise DiscoveryError(
+                f"R3 per-repository cap must remain exactly {MAX_CASES_PER_REPOSITORY}"
+            )
+        screened, screened_bytes = _read_json_bytes(args.ledger)
+        contract, contract_bytes = _load_contract_bytes(args.contract)
         result = select_public_historical(
-            ledger,
-            target=args.target,
-            max_per_repository=args.max_per_repository,
+            screened,
+            screened_bytes,
+            contract,
+            contract_bytes,
         )
         _write_json(args.output, result)
         return 0

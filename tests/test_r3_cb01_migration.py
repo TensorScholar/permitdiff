@@ -751,3 +751,208 @@ def test_b2_no_network_in_discovery_migration() -> None:
     own_text = Path(__file__).read_text(encoding="utf-8")
     assert ("GH_" + "TOKEN") not in own_text.replace('"' + "GH_" + 'TOKEN"', "")
     assert ("monkeypatch." + "setenv") not in own_text
+
+
+# ---------------------------------------------------------------------------
+# B4 — Selection v2 via CB-01 (synthetic, no network/tokens/discovery)
+# ---------------------------------------------------------------------------
+
+
+def _b4_screened(
+    count: int, *, repos: list[str] | None = None
+) -> tuple[dict[str, Any], bytes, dict[str, Any], bytes]:
+    """Build a valid screened v1 ledger via CB01 derivation (synthetic)."""
+    contract, contract_bytes = _load_contract()
+    transitions: list[dict[str, Any]] = []
+    for index in range(count):
+        repo = repos[index % len(repos)] if repos else f"org/b4-sel-{index:03d}"
+        path = _ALLOWED_PATHS[index % 2]
+        url = _frozen_url(repo)
+        baseline = f"{index + 3000:040x}"
+        candidate = f"{index + 8000:040x}"
+        key = _frozen_key(url, baseline, candidate, path)
+        transitions.append(
+            {
+                "transition_id": _frozen_tid(url, baseline, candidate, path),
+                "discovered_by": [{"query_id": "q1", "candidate_path": path}],
+                "repository_full_name": repo,
+                "repository_url": url,
+                "path": path,
+                "baseline_commit": baseline,
+                "candidate_commit": candidate,
+                "baseline_blob": f"{index + 110:040x}",
+                "candidate_blob": f"{index + 210:040x}",
+                "baseline_sha256": f"{index + 310:064x}",
+                "candidate_sha256": f"{index + 410:064x}",
+                "baseline_size_bytes": 100,
+                "candidate_size_bytes": 120,
+                "candidate_commit_timestamp": "2026-09-01T00:00:00Z",
+                "candidate_parent_count": 1,
+                "permissions_changed": True,
+                "screening_status": "pending",
+                "exclusion_reasons": [],
+                "contamination_status": "clean",
+                "selection_key": key,
+                "manual_review_required": True,
+            }
+        )
+    raw = {
+        "schema_version": "permitdiff.dev/r3-public-discovery-ledger/v2",
+        "plan_version": "r3-exploratory-corpus-plan-v1",
+        "protocol_version": "r3-benchmark-protocol-v1",
+        "cb01_contract_version": "r3-cb01-corpus-construction-v1",
+        "cb01_contract_sha256": hashlib.sha256(contract_bytes).hexdigest(),
+        "study_repository_commit": _VALID_STUDY,
+        "producer_id": "permitdiff-r3-canonical-public-discovery-v2",
+        "source": "github-rest-code-search-and-commit-history",
+        "generated_at": "2026-09-01T00:00:00Z",
+        "discovery_complete": True,
+        "limitations": ["b4 synthetic fixture"],
+        "queries": _queries_from_contract(contract),
+        "discovered_location_count": 1,
+        "transition_count": len(transitions),
+        "transitions": copy.deepcopy(transitions),
+    }
+    raw_bytes = _canonical_bytes(raw)
+    decisions_list = [
+        {
+            "transition_id": item["transition_id"],
+            "repository_url": item["repository_url"],
+            "path": item["path"],
+            "baseline_commit": item["baseline_commit"],
+            "candidate_commit": item["candidate_commit"],
+            "permissions_changed": item["permissions_changed"],
+            "contamination_status": item["contamination_status"],
+            "decision": "eligible",
+            "exclusion_reasons": [],
+            "rationale": _RATIONALE,
+            "reviewer": _REVIEWER,
+        }
+        for item in transitions
+    ]
+    decisions = {
+        "schema_version": "permitdiff.dev/r3-screening-decisions/v1",
+        "plan_version": "r3-exploratory-corpus-plan-v1",
+        "protocol_version": "r3-benchmark-protocol-v1",
+        "source_ledger_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+        "generated_at": "2026-09-02T00:00:00Z",
+        "instructions": _INSTRUCTIONS,
+        "decisions": decisions_list,
+    }
+    decisions_bytes = _canonical_bytes(decisions)
+    screened = cb01.derive_screened_ledger(
+        raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+    )
+    return screened, _canonical_bytes(screened), contract, contract_bytes
+
+
+def test_b4_producer_matches_cb01_derivation() -> None:
+    screened, screened_bytes, contract, contract_bytes = _b4_screened(12)
+    expected = cb01.derive_selection_v2(screened, screened_bytes, contract, contract_bytes)
+    produced = _discover.select_public_historical(
+        screened, screened_bytes, contract, contract_bytes
+    )
+    assert produced == expected
+    assert produced["schema_version"] == "permitdiff.dev/r3-public-selection/v2"
+    assert produced["target_case_count"] == 18
+    assert produced["raw_eligible_count"] == 12
+    assert produced["selected_case_count"] == 12
+    assert produced["shortfall"] == 6
+    assert "target_cases" not in produced
+    assert "eligible_case_count" not in produced
+    assert "source_ledger_sha256" not in produced
+
+
+def test_b4_exact_screened_byte_digest(tmp_path: Path) -> None:
+    screened, screened_bytes, _, _ = _b4_screened(12)
+    screened_path = tmp_path / "screened.json"
+    screened_path.write_bytes(screened_bytes)
+    output_path = tmp_path / "selection.json"
+    assert (
+        _discover.main(
+            ["select", "--ledger", str(screened_path), "--output", str(output_path)]
+        )
+        == 0
+    )
+    output = json.loads(output_path.read_bytes())
+    assert output["source_screened_ledger_sha256"] == hashlib.sha256(screened_bytes).hexdigest()
+    # Same semantics, different whitespace => different digest, binding fails.
+    reformatted = (
+        json.dumps(screened, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+    )
+    assert json.loads(reformatted) == screened
+    assert hashlib.sha256(reformatted).hexdigest() != output["source_screened_ledger_sha256"]
+    screened_path.write_bytes(reformatted)
+    output2 = tmp_path / "selection2.json"
+    assert (
+        _discover.main(
+            ["select", "--ledger", str(screened_path), "--output", str(output2)]
+        )
+        == 0
+    )
+    assert (
+        json.loads(output2.read_bytes())["source_screened_ledger_sha256"]
+        == hashlib.sha256(reformatted).hexdigest()
+    )
+
+
+def test_b4_public_cli_valid_selection(tmp_path: Path) -> None:
+    import scripts.discover_r3_public_benchmark_candidates as _public
+
+    _, screened_bytes, _, _ = _b4_screened(12)
+    screened_path = tmp_path / "screened.json"
+    screened_path.write_bytes(screened_bytes)
+    output_path = tmp_path / "selection.json"
+    assert (
+        _public.main(
+            ["select", "--ledger", str(screened_path), "--output", str(output_path)]
+        )
+        == 0
+    )
+    output = json.loads(output_path.read_bytes())
+    assert output["schema_version"] == "permitdiff.dev/r3-public-selection/v2"
+    assert output["selected_case_count"] == 12
+
+
+@pytest.mark.parametrize("flag", ["--target", "--max-per-repository"])
+def test_b4_cli_overrides_rejected_both_mains(tmp_path: Path, flag: str) -> None:
+    import scripts.discover_r3_public_benchmark_candidates as _public
+
+    _, screened_bytes, _, _ = _b4_screened(12)
+    screened_path = tmp_path / "screened.json"
+    screened_path.write_bytes(screened_bytes)
+    value = "17" if flag == "--target" else "3"
+    for entrypoint in (_discover.main, _public.main):
+        output_path = tmp_path / f"out-{entrypoint.__module__}-{value}.json"
+        assert (
+            entrypoint(
+                [
+                    "select",
+                    "--ledger",
+                    str(screened_path),
+                    "--output",
+                    str(output_path),
+                    flag,
+                    value,
+                ]
+            )
+            == 1
+        )
+        assert not output_path.exists()
+
+
+def test_b4_below_minimum_no_output_both_mains(tmp_path: Path) -> None:
+    import scripts.discover_r3_public_benchmark_candidates as _public
+
+    _, screened_bytes, _, _ = _b4_screened(5)
+    screened_path = tmp_path / "screened.json"
+    screened_path.write_bytes(screened_bytes)
+    for entrypoint in (_discover.main, _public.main):
+        output_path = tmp_path / f"below-{entrypoint.__module__}.json"
+        assert (
+            entrypoint(
+                ["select", "--ledger", str(screened_path), "--output", str(output_path)]
+            )
+            == 1
+        )
+        assert not output_path.exists()

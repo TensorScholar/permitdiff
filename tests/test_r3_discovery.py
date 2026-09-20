@@ -11,9 +11,9 @@ from urllib.error import URLError
 
 import pytest
 import scripts.discover_r3_benchmark_candidates as discovery
+import scripts.r3_cb01_corpus_construction as cb01
 from jsonschema import Draft202012Validator
 from scripts.discover_r3_benchmark_candidates import (
-    LEDGER_SCHEMA_VERSION,
     PLAN_VERSION,
     DiscoveryError,
     GitHubClient,
@@ -26,9 +26,8 @@ from scripts.discover_r3_benchmark_candidates import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-LEDGER_SCHEMA = ROOT / "docs" / "r3-discovery-ledger.schema.json"
-SELECTION_SCHEMA = ROOT / "docs" / "r3-public-selection.schema.json"
 RAW_V2_SCHEMA = ROOT / "docs" / "r3-public-discovery-ledger-v2.schema.json"
+SELECTION_V2_SCHEMA = ROOT / "docs" / "r3-public-selection-v2.schema.json"
 CB01_CONTRACT_PATH = (
     ROOT
     / "validation"
@@ -259,83 +258,168 @@ def test_merge_transition_is_excluded_as_ambiguous() -> None:
     assert "ambiguous_parent_transition" in transitions[0]["exclusion_reasons"]
 
 
-def _eligible_transition(
-    repository: str, baseline: str, candidate: str, *, status: str = "eligible"
-) -> dict[str, Any]:
-    repository_url = f"https://github.com/{repository}"
-    path = ".claude/settings.json"
-    key = selection_key(repository_url, baseline, candidate, path)
-    return {
-        "transition_id": f"gh-{key[:20]}",
-        "repository_full_name": repository,
-        "repository_url": repository_url,
-        "path": path,
-        "baseline_commit": baseline,
-        "candidate_commit": candidate,
-        "baseline_blob": "1" * 40,
-        "candidate_blob": "2" * 40,
-        "baseline_sha256": "3" * 64,
-        "candidate_sha256": "4" * 64,
-        "selection_key": key,
-        "screening_status": status,
-        "exclusion_reasons": [] if status == "eligible" else ["insufficient_public_semantics"],
-        "contamination_status": "clean",
-    }
+def _canonical_bytes(payload: dict[str, Any]) -> bytes:
+    return (json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
 
 
-def _ledger(transitions: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
-        "schema_version": LEDGER_SCHEMA_VERSION,
+def _queries_from_contract(contract: dict[str, Any]) -> list[dict[str, Any]]:
+    queries: list[dict[str, Any]] = []
+    for entry in contract["search_frame"]:
+        queries.append(
+            {
+                "query_id": entry["query_id"],
+                "concept": entry["concept"],
+                "candidate_path": entry["candidate_path"],
+                "api_query": entry["api_query"],
+                "reported_total_count": 0,
+                "retrieved_count": 0,
+                "exact_candidate_path_count": 0,
+                "incomplete_results": False,
+                "api_result_cap_reached": False,
+            }
+        )
+    return queries
+
+
+def _screened_fixture(
+    count: int,
+    *,
+    repos: list[str] | None = None,
+    excluded_indices: set[int] | None = None,
+) -> tuple[dict[str, Any], bytes, dict[str, Any], bytes]:
+    """Build a valid screened v1 ledger via CB01 derivation (synthetic)."""
+    contract, contract_bytes = _load_cb01_contract()
+    transitions: list[dict[str, Any]] = []
+    for index in range(count):
+        repo = repos[index % len(repos)] if repos else f"org/sel-{index:03d}"
+        path = ".claude/settings.json" if index % 2 == 0 else ".claude/settings.local.json"
+        url = f"https://github.com/{repo}"
+        baseline = f"{index + 2000:040x}"
+        candidate = f"{index + 6000:040x}"
+        key = selection_key(url, baseline, candidate, path)
+        transitions.append(
+            {
+                "transition_id": f"gh-{key[:20]}",
+                "discovered_by": [{"query_id": "q1", "candidate_path": path}],
+                "repository_full_name": repo,
+                "repository_url": url,
+                "path": path,
+                "baseline_commit": baseline,
+                "candidate_commit": candidate,
+                "baseline_blob": f"{index + 100:040x}",
+                "candidate_blob": f"{index + 200:040x}",
+                "baseline_sha256": f"{index + 300:064x}",
+                "candidate_sha256": f"{index + 400:064x}",
+                "baseline_size_bytes": 100,
+                "candidate_size_bytes": 120,
+                "candidate_commit_timestamp": "2026-09-01T00:00:00Z",
+                "candidate_parent_count": 1,
+                "permissions_changed": True,
+                "screening_status": "pending",
+                "exclusion_reasons": [],
+                "contamination_status": "clean",
+                "selection_key": key,
+                "manual_review_required": True,
+            }
+        )
+    raw = {
+        "schema_version": "permitdiff.dev/r3-public-discovery-ledger/v2",
         "plan_version": PLAN_VERSION,
         "protocol_version": "r3-benchmark-protocol-v1",
+        "cb01_contract_version": "r3-cb01-corpus-construction-v1",
+        "cb01_contract_sha256": hashlib.sha256(contract_bytes).hexdigest(),
+        "study_repository_commit": _SYNTHETIC_STUDY_COMMIT,
+        "producer_id": "permitdiff-r3-canonical-public-discovery-v2",
+        "source": "github-rest-code-search-and-commit-history",
+        "generated_at": "2026-09-01T00:00:00Z",
         "discovery_complete": True,
-        "transitions": transitions,
+        "limitations": ["synthetic selection fixture"],
+        "queries": _queries_from_contract(contract),
+        "discovered_location_count": 1,
+        "transition_count": len(transitions),
+        "transitions": copy.deepcopy(transitions),
     }
+    raw_bytes = _canonical_bytes(raw)
+    decisions_list: list[dict[str, Any]] = []
+    excluded = excluded_indices or set()
+    for index, item in enumerate(transitions):
+        if index in excluded:
+            decisions_list.append(
+                {
+                    "transition_id": item["transition_id"],
+                    "repository_url": item["repository_url"],
+                    "path": item["path"],
+                    "baseline_commit": item["baseline_commit"],
+                    "candidate_commit": item["candidate_commit"],
+                    "permissions_changed": item["permissions_changed"],
+                    "contamination_status": item["contamination_status"],
+                    "decision": "excluded",
+                    "exclusion_reasons": ["insufficient_public_semantics"],
+                    "rationale": "synthetic exclusion",
+                    "reviewer": "synthetic-reviewer",
+                }
+            )
+        else:
+            decisions_list.append(
+                {
+                    "transition_id": item["transition_id"],
+                    "repository_url": item["repository_url"],
+                    "path": item["path"],
+                    "baseline_commit": item["baseline_commit"],
+                    "candidate_commit": item["candidate_commit"],
+                    "permissions_changed": item["permissions_changed"],
+                    "contamination_status": item["contamination_status"],
+                    "decision": "eligible",
+                    "exclusion_reasons": [],
+                    "rationale": "synthetic eligibility",
+                    "reviewer": "synthetic-reviewer",
+                }
+            )
+    decisions = {
+        "schema_version": "permitdiff.dev/r3-screening-decisions/v1",
+        "plan_version": PLAN_VERSION,
+        "protocol_version": "r3-benchmark-protocol-v1",
+        "source_ledger_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+        "generated_at": "2026-09-02T00:00:00Z",
+        "instructions": "synthetic instructions",
+        "decisions": decisions_list,
+    }
+    decisions_bytes = _canonical_bytes(decisions)
+    screened = cb01.derive_screened_ledger(
+        raw, raw_bytes, decisions, decisions_bytes, contract, contract_bytes
+    )
+    return screened, _canonical_bytes(screened), contract, contract_bytes
 
 
 def test_selection_is_key_ordered_and_enforces_repository_cap() -> None:
-    transitions: list[dict[str, Any]] = []
-    for index in range(3):
-        transitions.append(
-            _eligible_transition(
-                "org/a", f"{index + 1:040x}", f"{index + 1001:040x}"
-            )
-        )
-    for index in range(3, 20):
-        transitions.append(
-            _eligible_transition(
-                f"org/repo-{index}", f"{index + 1:040x}", f"{index + 1001:040x}"
-            )
-        )
-    transitions.append(
-        _eligible_transition("org/c", "5" * 40, "e" * 40, status="excluded")
-    )
+    repos = ["org/a"] * 3 + [f"org/repo-{index}" for index in range(3, 20)]
+    screened, screened_bytes, contract, contract_bytes = _screened_fixture(20, repos=repos)
+    # All 20 eligible across 18 repos (org/a capped at 2 => cap 19, select 18).
+    result = select_public_historical(screened, screened_bytes, contract, contract_bytes)
 
-    result = select_public_historical(_ledger(copy.deepcopy(transitions)))
-
-    assert result["target_cases"] == 18
-    assert result["max_cases_per_repository"] == 2
-    assert result["eligible_case_count"] == 20
+    assert result["target_case_count"] == 18
+    assert result["maximum_cases_per_repository"] == 2
+    assert result["minimum_viable_case_count"] == 12
+    assert result["raw_eligible_count"] == 20
+    assert result["cap_admissible_count"] == 19
     assert result["selected_case_count"] == 18
     assert result["shortfall"] == 0
     assert sum(item["repository_full_name"] == "org/a" for item in result["selected"]) <= 2
     selected_keys = [item["selection_key"] for item in result["selected"]]
     assert selected_keys == sorted(selected_keys)
-    assert all(item["repository_full_name"] != "org/c" for item in result["selected"])
 
 
-def test_selection_refuses_incomplete_or_tampered_ledger() -> None:
-    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
-    incomplete = _ledger([copy.deepcopy(transition)])
-    incomplete["discovery_complete"] = False
-
-    with pytest.raises(DiscoveryError, match="incomplete discovery ledger"):
-        select_public_historical(incomplete)
-
-    tampered = _ledger([copy.deepcopy(transition)])
+def test_selection_refuses_tampered_screened_ledger() -> None:
+    screened, _, contract, contract_bytes = _screened_fixture(12)
+    tampered = copy.deepcopy(screened)
     tampered["transitions"][0]["selection_key"] = "0" * 64
-    with pytest.raises(DiscoveryError, match="selection key mismatch"):
-        select_public_historical(tampered)
+    with pytest.raises(DiscoveryError, match=r"selection_key mismatch"):
+        select_public_historical(
+            tampered, _canonical_bytes(tampered), contract, contract_bytes
+        )
+    stale = copy.deepcopy(screened)
+    with pytest.raises(DiscoveryError, match=r"does not match exact screened bytes"):
+        select_public_historical(stale, b'{"tampered": true}', contract, contract_bytes)
 
 
 def test_empty_discovery_ledger_conforms_to_machine_schema() -> None:
@@ -355,15 +439,22 @@ def test_empty_discovery_ledger_conforms_to_machine_schema() -> None:
 
 
 def test_selection_output_conforms_to_machine_schema() -> None:
-    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
-    result = select_public_historical(_ledger([transition]))
-    schema = json.loads(SELECTION_SCHEMA.read_text(encoding="utf-8"))
+    screened, screened_bytes, contract, contract_bytes = _screened_fixture(12)
+    result = select_public_historical(screened, screened_bytes, contract, contract_bytes)
+    schema = json.loads(SELECTION_V2_SCHEMA.read_text(encoding="utf-8"))
 
     Draft202012Validator(schema).validate(result)
-    assert result["target_cases"] == 18
-    assert result["max_cases_per_repository"] == 2
-    assert result["selected_case_count"] == 1
-    assert result["shortfall"] == 17
+    assert result["target_case_count"] == 18
+    assert result["maximum_cases_per_repository"] == 2
+    assert result["minimum_viable_case_count"] == 12
+    assert result["raw_eligible_count"] == 12
+    assert result["cap_admissible_count"] == 12
+    assert result["selected_case_count"] == 12
+    assert result["shortfall"] == 6
+    assert (
+        result["source_screened_ledger_sha256"]
+        == hashlib.sha256(screened_bytes).hexdigest()
+    )
 
 
 def test_get_json_preserves_wrapped_ssl_eof_for_retry(monkeypatch) -> None:
@@ -435,18 +526,50 @@ def test_pre_exposed_control_is_excluded_and_never_selected() -> None:
     assert item["screening_status"] == "excluded"
     assert "pre_exposed_engineering_control" in item["exclusion_reasons"]
 
-    tampered = copy.deepcopy(item)
-    tampered["screening_status"] = "eligible"
-    tampered["exclusion_reasons"] = []
+    screened, _, contract, contract_bytes = _screened_fixture(12)
+    tampered = copy.deepcopy(screened)
+    tampered["transitions"][0]["contamination_status"] = "pre_exposed_engineering_control"
     with pytest.raises(DiscoveryError, match="cannot be contaminated"):
-        select_public_historical(_ledger([tampered]))
+        select_public_historical(
+            tampered, _canonical_bytes(tampered), contract, contract_bytes
+        )
 
-    result = select_public_historical(
-        _ledger([copy.deepcopy(item)]), target=18, max_per_repository=2
-    )
-    assert result["eligible_case_count"] == 0
-    assert result["selected_case_count"] == 0
-    assert result["shortfall"] == 18
+    # A screened ledger with no eligible cases is below minimum: refuse output.
+    contract2, contract_bytes2 = _load_cb01_contract()
+    raw_empty = {
+        "schema_version": "permitdiff.dev/r3-public-discovery-ledger/v2",
+        "plan_version": PLAN_VERSION,
+        "protocol_version": "r3-benchmark-protocol-v1",
+        "cb01_contract_version": "r3-cb01-corpus-construction-v1",
+        "cb01_contract_sha256": hashlib.sha256(contract_bytes2).hexdigest(),
+        "study_repository_commit": _SYNTHETIC_STUDY_COMMIT,
+        "producer_id": "permitdiff-r3-canonical-public-discovery-v2",
+        "source": "github-rest-code-search-and-commit-history",
+        "generated_at": "2026-09-01T00:00:00Z",
+        "discovery_complete": True,
+        "limitations": ["synthetic"],
+        "queries": _queries_from_contract(contract2),
+        "discovered_location_count": 0,
+        "transition_count": 0,
+        "transitions": [],
+    }
+    raw_empty_bytes = _canonical_bytes(raw_empty)
+    empty_screened = {
+        "schema_version": "permitdiff.dev/r3-screened-discovery-ledger/v1",
+        "plan_version": PLAN_VERSION,
+        "protocol_version": "r3-benchmark-protocol-v1",
+        "cb01_contract_version": "r3-cb01-corpus-construction-v1",
+        "cb01_contract_sha256": hashlib.sha256(contract_bytes2).hexdigest(),
+        "study_repository_commit": _SYNTHETIC_STUDY_COMMIT,
+        "source_discovery_ledger_sha256": hashlib.sha256(raw_empty_bytes).hexdigest(),
+        "source_screening_decisions_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "transition_count": 0,
+        "transitions": [],
+    }
+    with pytest.raises(DiscoveryError, match=r"below frozen|minimum"):
+        select_public_historical(
+            empty_screened, _canonical_bytes(empty_screened), contract2, contract_bytes2
+        )
 
 
 def test_truncated_history_marks_incomplete_and_refuses_selection() -> None:
@@ -483,10 +606,10 @@ def test_truncated_history_marks_incomplete_and_refuses_selection() -> None:
 
     assert ledger["discovery_complete"] is False
     assert ledger["schema_version"] == "permitdiff.dev/r3-public-discovery-ledger/v2"
-    # B2 intermediate: v1 selection rejects v2 raw (schema mismatch) fail-closed.
-    # Full v2 selection arrives in B4.
-    with pytest.raises(DiscoveryError, match="unsupported discovery ledger schema version"):
-        select_public_historical(ledger)
+    # B4: selection consumes screened ledgers; a raw ledger is rejected.
+    ledger_bytes = _canonical_bytes(ledger)
+    with pytest.raises(DiscoveryError, match=r"unsupported screened ledger"):
+        select_public_historical(ledger, ledger_bytes, contract, contract_bytes)
 
 
 def test_enumerate_transitions_orders_by_selection_key() -> None:
@@ -533,40 +656,42 @@ def test_enumerate_transitions_orders_by_selection_key() -> None:
 
 
 def test_select_is_deterministic_across_runs() -> None:
-    transitions = [
-        _eligible_transition(
-            "org/a" if index < 2 else f"org/repo-{index}",
-            f"{index + 1:040x}",
-            f"{index + 1001:040x}",
-        )
-        for index in range(5)
-    ]
+    screened, screened_bytes, contract, contract_bytes = _screened_fixture(12)
 
-    first = select_public_historical(_ledger(copy.deepcopy(transitions)))
-    second = select_public_historical(_ledger(copy.deepcopy(transitions)))
+    first = select_public_historical(screened, screened_bytes, contract, contract_bytes)
+    second = select_public_historical(
+        copy.deepcopy(screened), screened_bytes, contract, contract_bytes
+    )
 
     assert first == second
-    assert first["source_ledger_sha256"] == second["source_ledger_sha256"]
-    assert first["selected_case_count"] == 5
-    assert first["shortfall"] == 13
+    assert (
+        first["source_screened_ledger_sha256"]
+        == second["source_screened_ledger_sha256"]
+        == hashlib.sha256(screened_bytes).hexdigest()
+    )
+    assert first["selected_case_count"] == 12
+    assert first["shortfall"] == 6
+    assert [c["rank"] for c in first["selected"]] == list(range(1, 13))
 
 
 def test_selection_refuses_unresolved_screening() -> None:
-    eligible = _eligible_transition("org/a", "1" * 40, "a" * 40)
-    pending = _eligible_transition("org/b", "2" * 40, "b" * 40)
-    pending["screening_status"] = "pending"
-    pending["manual_review_required"] = True
-
-    with pytest.raises(DiscoveryError, match="unresolved screening"):
-        select_public_historical(_ledger([eligible, pending]))
+    screened, _, contract, contract_bytes = _screened_fixture(12)
+    tampered = copy.deepcopy(screened)
+    tampered["transitions"][0]["screening_status"] = "pending"
+    with pytest.raises(DiscoveryError, match=r"must never contain pending"):
+        select_public_historical(
+            tampered, _canonical_bytes(tampered), contract, contract_bytes
+        )
 
 
 def test_selection_rejects_unsupported_screening_status() -> None:
-    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
-    transition["screening_status"] = "unknown-status"
-
-    with pytest.raises(DiscoveryError, match="unsupported screening_status"):
-        select_public_historical(_ledger([transition]))
+    screened, _, contract, contract_bytes = _screened_fixture(12)
+    tampered = copy.deepcopy(screened)
+    tampered["transitions"][0]["screening_status"] = "unknown-status"
+    with pytest.raises(DiscoveryError, match=r"must never contain pending"):
+        select_public_historical(
+            tampered, _canonical_bytes(tampered), contract, contract_bytes
+        )
 
 
 @pytest.mark.parametrize(
@@ -579,36 +704,60 @@ def test_selection_rejects_unsupported_screening_status() -> None:
     ],
 )
 def test_selection_rejects_eligible_without_provenance(field: str) -> None:
-    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
-    transition[field] = None
-
-    with pytest.raises(DiscoveryError, match="immutable artifact provenance"):
-        select_public_historical(_ledger([transition]))
-
-
-def test_selection_rejects_non_frozen_parameters() -> None:
-    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
-
-    with pytest.raises(DiscoveryError, match="target must remain exactly 18"):
+    screened, _, contract, contract_bytes = _screened_fixture(12)
+    tampered = copy.deepcopy(screened)
+    for item in tampered["transitions"]:
+        if item["screening_status"] == "eligible":
+            item[field] = None
+            break
+    with pytest.raises(DiscoveryError, match="lacks provenance"):
         select_public_historical(
-            _ledger([copy.deepcopy(transition)]),
-            target=17,
-            max_per_repository=2,
+            tampered, _canonical_bytes(tampered), contract, contract_bytes
         )
-    with pytest.raises(DiscoveryError, match="per-repository cap must remain exactly 2"):
-        select_public_historical(
-            _ledger([copy.deepcopy(transition)]),
-            target=18,
-            max_per_repository=3,
+
+
+def test_b4_count_semantics_table() -> None:
+    screened12, b12, c12, cb12 = _screened_fixture(12)
+    sel12 = select_public_historical(screened12, b12, c12, cb12)
+    assert (sel12["raw_eligible_count"], sel12["cap_admissible_count"]) == (12, 12)
+    assert (sel12["selected_case_count"], sel12["shortfall"]) == (12, 6)
+
+    screened17, b17, c17, cb17 = _screened_fixture(17)
+    sel17 = select_public_historical(screened17, b17, c17, cb17)
+    assert (sel17["selected_case_count"], sel17["shortfall"]) == (17, 1)
+
+    screened18, b18, c18, cb18 = _screened_fixture(18)
+    sel18 = select_public_historical(screened18, b18, c18, cb18)
+    assert (sel18["selected_case_count"], sel18["shortfall"]) == (18, 0)
+
+    screened25, b25, c25, cb25 = _screened_fixture(25)
+    sel25 = select_public_historical(screened25, b25, c25, cb25)
+    assert (sel25["selected_case_count"], sel25["shortfall"]) == (18, 0)
+    assert [c["rank"] for c in sel25["selected"]] == list(range(1, 19))
+
+    concentrated, bc, cc, cbc = _screened_fixture(30, repos=["org/concentrated"])
+    with pytest.raises(DiscoveryError, match=r"below frozen|minimum"):
+        select_public_historical(concentrated, bc, cc, cbc)
+
+
+def test_b4_below_minimum_cli_creates_no_output(tmp_path) -> None:
+    _, screened_bytes, _, _ = _screened_fixture(5)
+    ledger_path = tmp_path / "screened.json"
+    ledger_path.write_bytes(screened_bytes)
+    output_path = tmp_path / "selection.json"
+    assert (
+        discovery.main(
+            ["select", "--ledger", str(ledger_path), "--output", str(output_path)]
         )
+        == 1
+    )
+    assert not output_path.exists()
 
 
 def test_select_cli_fails_before_writing_non_frozen_artifact(tmp_path) -> None:
-    transition = _eligible_transition("org/a", "1" * 40, "a" * 40)
+    _, screened_bytes, _, _ = _screened_fixture(12)
     ledger_path = tmp_path / "ledger.json"
-    ledger_path.write_text(
-        json.dumps(_ledger([transition]), indent=2) + "\n", encoding="utf-8"
-    )
+    ledger_path.write_bytes(screened_bytes)
     output_path = tmp_path / "selection.json"
 
     assert (
@@ -642,3 +791,15 @@ def test_select_cli_fails_before_writing_non_frozen_artifact(tmp_path) -> None:
         == 1
     )
     assert not output_path.exists()
+
+
+def test_b4_legacy_v1_selection_rejected() -> None:
+    screened, screened_bytes, contract, contract_bytes = _screened_fixture(12)
+    result = select_public_historical(screened, screened_bytes, contract, contract_bytes)
+    assert "target_cases" not in result
+    assert "eligible_case_count" not in result
+    assert "source_ledger_sha256" not in result
+    legacy = copy.deepcopy(result)
+    legacy["schema_version"] = "permitdiff.dev/r3-public-selection/v1"
+    with pytest.raises(cb01.CB01ConstructionError, match=r"unsupported public selection"):
+        cb01.validate_selection_v2(legacy, contract, contract_bytes)
